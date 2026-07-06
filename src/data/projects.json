@@ -1,0 +1,22 @@
+[
+  {
+    "id": "memory-atlas",
+    "name": "MemoryAtlas",
+    "category": "Memory System",
+    "status": "Preparing Live URL",
+    "summary": "一个面向长期记忆、上下文和知识关系的交互式可视化系统。",
+    "liveUrl": "",
+    "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/OpenAIDatabase/apps/memory-atlas",
+    "mode": "nebula"
+  },
+  {
+    "id": "openai-database",
+    "name": "OpenAIDatabase",
+    "category": "Knowledge Database",
+    "status": "Mature / Local-first",
+    "summary": "本地优先的个人长期记忆数据库工程，提供脱敏派生数据与记忆可视化入口。",
+    "liveUrl": "",
+    "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/OpenAIDatabase",
+    "mode": "archive"
+  }
+]

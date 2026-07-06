@@ -1,0 +1,331 @@
+.artifact-stage {
+  position: relative;
+  display: grid;
+  min-height: 640px;
+  isolation: isolate;
+  place-items: center;
+}
+
+.artifact-viewport {
+  position: relative;
+  width: min(72vw, 620px);
+  aspect-ratio: 1;
+  transform: translateY(var(--artifact-lift, 0px));
+  transition: transform 360ms ease;
+}
+
+.model-caption {
+  position: absolute;
+  z-index: 4;
+  top: 34px;
+  right: 20px;
+  width: min(300px, 50%);
+  border: 1px solid oklch(1 0 0 / 0.10);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  color: oklch(0.930 0.018 250 / 0.74);
+  background: oklch(0.090 0.014 265 / 0.42);
+  backdrop-filter: blur(16px);
+  font: 13px/1.65 var(--font-body);
+}
+
+.model-caption strong {
+  display: block;
+  margin-bottom: 5px;
+  color: white;
+  font-size: 14px;
+}
+
+.artifact-switch {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 24px;
+  max-width: 640px;
+  border: 1px solid oklch(1 0 0 / 0.10);
+  background: oklch(0.080 0.014 265 / 0.52);
+  backdrop-filter: blur(16px);
+  transform: translateX(-50%);
+}
+
+.botanical-line {
+  position: absolute;
+  z-index: 3;
+  left: 18px;
+  bottom: 66px;
+  width: 190px;
+  height: 260px;
+  opacity: 0.64;
+  transform: rotate(-8deg);
+  background:
+    radial-gradient(ellipse at 42% 13%, oklch(0.760 0.125 82 / 0.55) 0 4%, transparent 5%),
+    radial-gradient(ellipse at 68% 35%, oklch(0.760 0.115 132 / 0.45) 0 5%, transparent 6%),
+    radial-gradient(ellipse at 36% 55%, oklch(0.780 0.115 18 / 0.38) 0 5%, transparent 6%);
+}
+
+.botanical-line::before {
+  content: "";
+  position: absolute;
+  left: 54%;
+  top: 8%;
+  width: 1px;
+  height: 84%;
+  background: linear-gradient(transparent, var(--mode-accent), transparent);
+  transform: rotate(12deg);
+}
+
+.project-orbit-wrap {
+  position: relative;
+  min-height: 620px;
+  max-width: 1180px;
+  margin: 0 auto;
+  perspective: 1200px;
+}
+
+.orbit-plane {
+  position: absolute;
+  inset: 8% 8% 2%;
+  border: 1px solid oklch(1 0 0 / 0.08);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 24%, oklch(0.780 0.115 238 / 0.035) 25% 26%, transparent 27% 43%, oklch(0.760 0.125 82 / 0.045) 44% 45%, transparent 46%);
+  transform: rotateX(70deg);
+}
+
+.planet-route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.planet-card {
+  position: absolute;
+  display: block;
+  width: min(420px, 44vw);
+  min-height: 330px;
+  overflow: hidden;
+  border: 1px solid oklch(1 0 0 / 0.12);
+  border-radius: 18px;
+  padding: 26px;
+  background: linear-gradient(135deg, oklch(0.100 0.020 260 / 0.80), oklch(0.090 0.014 265 / 0.40));
+  backdrop-filter: blur(20px);
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: border-color 250ms ease, box-shadow 250ms ease;
+}
+
+.planet-card[data-project-mode="nebula"] {
+  left: 4%;
+  top: 18%;
+}
+
+.planet-card[data-project-mode="archive"] {
+  right: 4%;
+  bottom: 12%;
+}
+
+.planet-card:hover {
+  border-color: var(--mode-accent);
+  box-shadow: 0 0 80px oklch(0.760 0.125 82 / 0.14);
+}
+
+.planet-card::before {
+  content: "";
+  position: absolute;
+  right: -42px;
+  top: -52px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, oklch(0.980 0.045 90), var(--mode-accent) 12%, oklch(0.780 0.115 238 / 0.36) 32%, oklch(0.150 0.020 260 / 0.08) 62%, transparent 70%);
+  box-shadow: 0 0 70px oklch(0.760 0.125 82 / 0.24), inset -30px -34px 60px oklch(0 0 0 / 0.30);
+  transform: translateZ(64px) scale(var(--planet-pulse, 1));
+}
+
+.planet-card::after {
+  content: "";
+  position: absolute;
+  right: -74px;
+  top: 58px;
+  width: 300px;
+  height: 82px;
+  border: 1px solid oklch(1 0 0 / 0.22);
+  border-radius: 50%;
+  filter: drop-shadow(0 0 16px oklch(0.760 0.125 82 / 0.20));
+  transform: rotate(-18deg) translateZ(80px);
+}
+
+.planet-card .label {
+  position: relative;
+  z-index: 2;
+  color: var(--mode-accent);
+  font: 750 12px/1 var(--font-body);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.planet-card h3 {
+  position: relative;
+  z-index: 2;
+  margin: 24px 0 12px;
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.planet-card p {
+  position: relative;
+  z-index: 2;
+  max-width: 275px;
+  margin: 0;
+  color: oklch(0.900 0.020 250 / 0.72);
+  font: 14px/1.75 var(--font-body);
+}
+
+.planet-card .enter-copy {
+  position: absolute;
+  z-index: 2;
+  left: 26px;
+  bottom: 24px;
+  color: oklch(1 0 0 / 0.88);
+  font: 750 12px/1 var(--font-body);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.planet-card .enter-copy::after {
+  content: " ->";
+  color: var(--mode-accent);
+}
+
+.planet-connector {
+  position: absolute;
+  left: 23%;
+  right: 23%;
+  top: 48%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.760 0.125 82 / 0.38), oklch(0.780 0.115 238 / 0.35), transparent);
+  filter: drop-shadow(0 0 14px oklch(0.760 0.125 82 / 0.28));
+  transform: rotate(-13deg);
+}
+
+.gravity-lab {
+  position: relative;
+  min-height: 650px;
+  max-width: 1180px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid oklch(1 0 0 / 0.10);
+  border-radius: 22px;
+  background: linear-gradient(135deg, oklch(1 0 0 / 0.070), oklch(1 0 0 / 0.026));
+  backdrop-filter: blur(18px);
+}
+
+.lab-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--mode-smoke), transparent 28%);
+  background-size: 48px 48px, 48px 48px, auto;
+  mask: radial-gradient(circle at 50% 50%, #000 0 55%, transparent 95%);
+}
+
+.lab-copy {
+  position: absolute;
+  z-index: 2;
+  left: 28px;
+  top: 28px;
+  width: min(420px, calc(100% - 56px));
+  border: 1px solid oklch(1 0 0 / 0.10);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  color: oklch(0.900 0.020 250 / 0.74);
+  background: oklch(0.090 0.014 265 / 0.46);
+  font: 14px/1.75 var(--font-body);
+}
+
+.lab-copy h3 {
+  margin: 0 0 8px;
+  color: white;
+  font: 28px/1 var(--font-display);
+  letter-spacing: -0.03em;
+}
+
+.gravity-body {
+  position: absolute;
+  width: var(--s, 44px);
+  height: var(--s, 44px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 24%, white, var(--c, var(--mode-accent)) 15%, oklch(0.780 0.115 238 / 0.22) 50%, oklch(0.090 0.014 265 / 0.12) 72%);
+  box-shadow: 0 0 28px var(--c, var(--mode-accent)), inset -12px -16px 24px oklch(0 0 0 / 0.32);
+  will-change: transform;
+}
+
+.gravity-line-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+@media (max-width: 980px) {
+  .artifact-stage {
+    min-height: 560px;
+  }
+
+  .project-orbit-wrap {
+    min-height: 860px;
+  }
+
+  .planet-card {
+    left: 50% !important;
+    right: auto !important;
+    width: min(520px, 88vw);
+    transform: translateX(-50%);
+  }
+
+  .planet-card[data-project-mode="nebula"] {
+    top: 8%;
+  }
+
+  .planet-card[data-project-mode="archive"] {
+    bottom: 8%;
+  }
+
+  .planet-connector {
+    left: 38%;
+    right: 38%;
+    top: 50%;
+    transform: rotate(90deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .artifact-switch {
+    bottom: -6px;
+  }
+
+  .model-caption {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    margin: 0 auto 20px;
+  }
+
+  .artifact-viewport {
+    width: 92vw;
+  }
+
+  .gravity-lab {
+    min-height: 560px;
+    border-radius: 18px;
+  }
+}

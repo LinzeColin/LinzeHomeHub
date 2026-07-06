@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Linze Home Hub: 3D gravity atlas, project planets, particles, physics, and four distinct visual systems."
+    />
+    <meta name="theme-color" content="#030713" />
+    <meta property="og:title" content="Linze Home Hub" />
+    <meta property="og:description" content="3D gravity portal and project gateway." />
+    <meta property="og:image" content="/og-image.svg" />
+    <link rel="icon" href="/favicon.svg" />
+    <title>Linze Home Hub</title>
+  </head>
+  <body data-mode="archive" data-model="armillary" data-quality="medium">
+    <div id="app-shell">
+      <canvas id="scene-canvas" aria-hidden="true"></canvas>
+      <div class="aurora" aria-hidden="true"></div>
+      <div class="paper-grain" aria-hidden="true"></div>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="scroll-progress" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <a class="mark" href="#home" aria-label="Linze Home Hub 首页">
+          <span class="sigil"></span>
+          <span>Linze Home Hub</span>
+        </a>
+        <div class="right-docks">
+          <nav class="mode-dock" aria-label="切换主页模式">
+            <button type="button" class="active" data-mode="archive">Archive 档案</button>
+            <button type="button" data-mode="nebula">Nebula 星云</button>
+            <button type="button" data-mode="voyage">Voyage 夜航</button>
+            <button type="button" data-mode="garden">Garden 花园</button>
+          </nav>
+          <div class="gravity-telemetry" aria-live="polite">
+            <div class="vector-dial"></div>
+            <div class="telemetry-copy">
+              <strong>Scroll Gravity</strong><br />
+              方向 <code id="gDir">idle</code> · 速率 <code id="gVel">0.00</code><br />
+              gx <code id="gX">0.00</code> · gy <code id="gY">0.00</code>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" id="home">
+          <div class="hero-copy reveal is-visible">
+            <p class="eyebrow">3D Gravity Portal / Cloudflare Ready / Project Gateway</p>
+            <h1>Linze Home Hub</h1>
+            <p class="hero-line">
+              一个以 <strong>3D 星图、物理引擎、粒子星云和项目星球</strong> 组成的个人功能网站。
+              页面滚动不是普通位移：滚动方向和速率会改变重力场，项目入口会像星体一样被点亮、吸引、进入。
+            </p>
+            <div class="hero-actions">
+              <a class="primary" href="#projects">进入我的项目</a>
+              <a href="#gravity">测试重力场</a>
+              <span class="soft-chip">按 V 切模式 · 按 M 切模型 · 按住 Space 召唤引力井</span>
+            </div>
+          </div>
+
+          <div class="artifact-stage reveal is-visible" aria-label="主视觉 3D 模型切换预览">
+            <div class="model-caption" id="modelCaption">
+              <strong>星图仪 Armillary</strong>
+              默认主视觉：暗金星环、深蓝夜航、粒子汇聚，作为首页的核心记忆装置。
+            </div>
+            <div class="artifact-viewport" id="artifactViewport" aria-hidden="true"></div>
+            <div class="botanical-line" aria-hidden="true"></div>
+            <nav class="artifact-switch" aria-label="切换首屏主模型">
+              <button class="active" type="button" data-model="armillary">星图仪</button>
+              <button type="button" data-model="island">漂浮岛</button>
+              <button type="button" data-model="book">档案书</button>
+              <button type="button" data-model="compass">宇宙罗盘</button>
+              <button type="button" data-model="garden">黑金花园</button>
+              <button type="button" data-model="core">能量核心</button>
+            </nav>
+          </div>
+        </section>
+
+        <section id="blueprint">
+          <div class="section-head reveal">
+            <p class="eyebrow">System Blueprint</p>
+            <h2>先搭一个能长期生长的炫技底座</h2>
+            <p>不是一次性动画页面，而是可部署、可维护、可扩展的系统入口。正式工程会把 3D 场景、物理世界、项目数据、模式切换和 Cloudflare 部署全部模块化。</p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card reveal"><span class="num">01</span><h3>3D 场景层</h3><p>Three.js 主场景、相机、Bloom、后处理、程序化模型和后续 GLB 替换入口。</p></article>
+            <article class="feature-card reveal"><span class="num">02</span><h3>物理重力层</h3><p>滚动方向、滚动速率、鼠标位置和 Space 引力井共同驱动物理表现。</p></article>
+            <article class="feature-card reveal"><span class="num">03</span><h3>四套系统层</h3><p>档案、星云、夜航、花园分别拥有不同粒子、模型姿态、hover 和仪式动作。</p></article>
+            <article class="feature-card reveal"><span class="num">04</span><h3>项目网关层</h3><p>项目变成可点击的 3D 星球节点。成熟系统上线后，整张星球卡直接进入前端。</p></article>
+          </div>
+        </section>
+
+        <section id="projects">
+          <div class="section-head reveal">
+            <p class="eyebrow">Project Planets</p>
+            <h2>我的项目：先点亮两个成熟系统</h2>
+            <p>项目卡不再放按钮；整张星球节点就是入口。当前 Live URL 尚未建立时，先跳转到 fallback；正式上线后替换为项目生产前端地址。</p>
+          </div>
+          <div class="project-orbit-wrap reveal" id="projectOrbit">
+            <div class="orbit-plane" aria-hidden="true"></div>
+            <svg class="planet-route" id="planetRoute" aria-hidden="true"></svg>
+            <div class="planet-connector" aria-hidden="true"></div>
+            <div id="projectNodes"></div>
+          </div>
+        </section>
+
+        <section id="gravity">
+          <div class="section-head reveal">
+            <p class="eyebrow">Scroll Driven Gravity</p>
+            <h2>滚动就是重力：方向和速率都会改变物理表现</h2>
+            <p>向下滚动会让粒子和物体下坠，向上滚动会形成反重力，快速滚动会产生冲击波。Rapier 会接管刚体、碰撞和软边界。</p>
+          </div>
+          <div class="gravity-lab reveal" id="gravityLab">
+            <svg class="gravity-line-layer" id="gravityLines" aria-hidden="true"></svg>
+            <div class="lab-grid" aria-hidden="true"></div>
+            <div class="lab-copy">
+              <h3>Physical Sandbox</h3>
+              鼠标进入实验区会吸引光球；滚动速度会改变全局重力方向；按住 Space 会将整页变成一个临时引力井。
+            </div>
+          </div>
+        </section>
+
+        <section id="future">
+          <div class="section-head reveal">
+            <p class="eyebrow">Deploy & Future Systems</p>
+            <h2>上线后它会变成你的系统总台</h2>
+            <p>域名建议先用 <strong>home.linzezhang.com</strong> 或 <strong>linzezhang.com</strong>。主页先上线，随后 MemoryAtlas 独立上线，再把项目星球指向真实生产前端。</p>
+          </div>
+          <div class="future-panel reveal">
+            <article class="codex-board">
+              <h3>Codex 将负责搭建</h3>
+              <p>本工程使用 Vite + TypeScript + Three.js + Rapier + GSAP + Lenis + Cloudflare Workers Static Assets，不提交 secrets，不写死未来项目地址。</p>
+              <div class="route-row"><span>Repo</span><span>LinzeColin/LinzeHomeHub</span></div>
+              <div class="route-row"><span>Deploy</span><span>Cloudflare Workers</span></div>
+              <div class="route-row"><span>Domain</span><span>linzezhang.com</span></div>
+              <div class="route-row"><span>Data</span><span>projects.json</span></div>
+            </article>
+            <article class="future-list">
+              <h3>预留惊喜功能</h3>
+              <ul>
+                <li>Archive Seal、Nebula Black Hole、Voyage Warp Jump、Garden Bloom Pulse。</li>
+                <li>主模型切换：星图仪、漂浮岛、档案书、宇宙罗盘、黑金花园、能量核心。</li>
+                <li>项目星球节点：项目成熟后整卡直接跳转 live frontend。</li>
+                <li>滚动速度驱动重力：页面滚动越快，粒子和刚体反应越明显。</li>
+                <li>后期 GLB 模型陈列柜：可替换程序化模型为真正 3D 建模资产。</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <footer class="footer">
+          <div>
+            <strong>Linze Home Hub v0.4</strong><br />
+            Modular Vite + TypeScript + Three.js + Rapier + Cloudflare Workers build.
+          </div>
+        </footer>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

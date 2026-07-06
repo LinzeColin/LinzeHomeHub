@@ -1,0 +1,49 @@
+:root {
+  --bg: oklch(0.070 0.010 265);
+  --bg-deep: oklch(0.045 0.006 265);
+  --surface: oklch(0.140 0.020 260 / 0.72);
+  --surface-soft: oklch(0.190 0.026 255 / 0.44);
+  --surface-strong: oklch(0.190 0.026 255 / 0.84);
+  --ink: oklch(0.930 0.018 250);
+  --muted: oklch(0.700 0.040 250);
+  --archive: oklch(0.760 0.125 82);
+  --nebula: oklch(0.780 0.115 238);
+  --voyage: oklch(0.760 0.110 226);
+  --garden: oklch(0.760 0.115 132);
+  --rose: oklch(0.780 0.115 18);
+  --mode-accent: var(--archive);
+  --mode-accent-2: var(--nebula);
+  --mode-smoke: oklch(0.620 0.080 82 / 0.16);
+  --line: oklch(0.900 0.080 86 / 0.18);
+  --shadow: 0 24px 80px oklch(0 0 0 / 0.42);
+  --radius-panel: 18px;
+  --radius-card: 16px;
+  --font-display: Georgia, "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
+  --font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  font-family: var(--font-display);
+}
+
+body[data-mode="archive"] {
+  --mode-accent: var(--archive);
+  --mode-accent-2: oklch(0.760 0.070 260);
+  --mode-smoke: oklch(0.680 0.090 82 / 0.16);
+}
+
+body[data-mode="nebula"] {
+  --mode-accent: var(--nebula);
+  --mode-accent-2: oklch(0.760 0.115 306);
+  --mode-smoke: oklch(0.620 0.130 285 / 0.24);
+}
+
+body[data-mode="voyage"] {
+  --mode-accent: var(--voyage);
+  --mode-accent-2: var(--archive);
+  --mode-smoke: oklch(0.620 0.120 230 / 0.18);
+}
+
+body[data-mode="garden"] {
+  --mode-accent: var(--garden);
+  --mode-accent-2: var(--archive);
+  --mode-smoke: oklch(0.650 0.100 132 / 0.20);
+}

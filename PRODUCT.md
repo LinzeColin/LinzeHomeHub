@@ -1,0 +1,33 @@
+# Product
+
+## Register
+
+brand
+
+## Users
+
+Linze and visitors who need a memorable, high-trust entry point into mature personal systems, especially MemoryAtlas and OpenAIDatabase. They arrive from a domain, GitHub, or shared link and should quickly understand that this is a living systems gateway rather than a generic personal landing page.
+
+## Product Purpose
+
+Linze Home Hub is a premium interactive personal home hub: a project portal, WebGL/physics showcase, and long-term front door for deployed personal systems. Success means visitors can open the page, recognize the `Linze Home Hub` identity, switch between distinct visual worlds, feel scroll-driven gravity, and enter project frontends through whole-card planet nodes.
+
+## Brand Personality
+
+Nocturnal, archival, kinetic. The brand should feel like a night navigation instrument, a memory archive, and a small impossible garden sharing the same physical universe.
+
+## Anti-references
+
+Avoid generic AI SaaS hero layouts, neon dashboard HUDs, cheap particle rain, over-glassmorphism, ordinary card grids, visible `Open / Docs / GitHub` project buttons, and any page that looks like a theme-color swap rather than four constructed systems.
+
+## Design Principles
+
+1. Preserve v0.3 Archive parity before adding spectacle.
+2. Make each mode a separate physical system with its own behavior, not a palette variant.
+3. Treat scroll as an input force, not decoration.
+4. Keep the project gateway quiet and direct: whole-card planets, no auxiliary buttons.
+5. Build the visual system as maintainable modules that can later accept real GLB/GLTF assets.
+
+## Accessibility & Inclusion
+
+Respect `prefers-reduced-motion`, keep keyboard access for mode/model switching and project links, preserve readable text contrast on dark surfaces, ensure canvas content never blocks navigation, and make mobile layouts free of horizontal overflow.

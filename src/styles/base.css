@@ -1,0 +1,138 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 18%, oklch(0.520 0.080 235 / 0.26), transparent 32vw),
+    radial-gradient(circle at 84% 10%, oklch(0.720 0.110 82 / 0.18), transparent 30vw),
+    radial-gradient(circle at 50% 85%, oklch(0.480 0.110 300 / 0.18), transparent 40vw),
+    linear-gradient(125deg, var(--bg-deep), var(--bg) 46%, oklch(0.050 0.012 285));
+}
+
+body[data-mode="nebula"] {
+  background:
+    radial-gradient(circle at 50% 16%, oklch(0.650 0.130 280 / 0.25), transparent 34vw),
+    radial-gradient(circle at 75% 42%, oklch(0.720 0.120 230 / 0.22), transparent 36vw),
+    linear-gradient(135deg, oklch(0.045 0.020 268), oklch(0.090 0.035 282));
+}
+
+body[data-mode="voyage"] {
+  background:
+    radial-gradient(circle at 20% 62%, oklch(0.580 0.130 226 / 0.18), transparent 34vw),
+    radial-gradient(circle at 86% 10%, oklch(0.760 0.110 86 / 0.16), transparent 28vw),
+    linear-gradient(140deg, oklch(0.035 0.010 260), oklch(0.095 0.035 245));
+}
+
+body[data-mode="garden"] {
+  background:
+    radial-gradient(circle at 72% 18%, oklch(0.760 0.115 82 / 0.16), transparent 28vw),
+    radial-gradient(circle at 18% 78%, oklch(0.640 0.120 135 / 0.18), transparent 34vw),
+    linear-gradient(130deg, oklch(0.045 0.012 130), oklch(0.095 0.030 95), oklch(0.045 0.010 265));
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--mode-accent);
+  outline-offset: 4px;
+}
+
+::selection {
+  color: white;
+  background: oklch(0.760 0.125 82 / 0.36);
+}
+
+#app-shell {
+  min-height: 100vh;
+}
+
+#scene-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  filter: saturate(1.12) contrast(1.05);
+}
+
+.vignette,
+.paper-grain,
+.aurora {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.vignette {
+  background: radial-gradient(circle at 50% 42%, transparent 0 28%, oklch(0.030 0.006 265 / 0.48) 72%, oklch(0 0 0 / 0.88));
+  mix-blend-mode: multiply;
+}
+
+.paper-grain {
+  opacity: 0.18;
+  background-image:
+    linear-gradient(0deg, oklch(1 0 0 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.026) 1px, transparent 1px),
+    radial-gradient(circle at 25% 30%, oklch(0.840 0.090 82 / 0.08), transparent 20%),
+    radial-gradient(circle at 72% 70%, oklch(0.780 0.080 230 / 0.06), transparent 22%);
+  background-size: 64px 64px, 64px 64px, auto, auto;
+  mix-blend-mode: overlay;
+}
+
+.aurora {
+  opacity: 0.62;
+  background:
+    conic-gradient(from 180deg at 50% 20%, transparent 0deg, var(--mode-smoke) 58deg, transparent 118deg, oklch(0.780 0.110 82 / 0.11) 190deg, transparent 250deg, oklch(0.700 0.120 300 / 0.10) 318deg, transparent 360deg);
+  filter: blur(52px);
+  transform: translateY(var(--scroll-shift, 0px)) scale(var(--mode-scale, 1));
+  transition: background 420ms ease, opacity 420ms ease;
+}
+
+.scroll-progress {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 20;
+  width: var(--scroll-progress, 0%);
+  height: 2px;
+  background: linear-gradient(90deg, var(--mode-accent), var(--mode-accent-2));
+  box-shadow: 0 0 24px var(--mode-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  #scene-canvas {
+    opacity: 0.44;
+  }
+}

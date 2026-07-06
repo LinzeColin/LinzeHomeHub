@@ -1,0 +1,38 @@
+.reveal {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 780ms ease, transform 780ms cubic-bezier(0.2, 0.7, 0.1, 1);
+}
+
+.reveal:not(.is-visible) {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body[data-space="active"] .aurora {
+  opacity: 0.88;
+  --mode-scale: 1.06;
+}
+
+body[data-mode="archive"] .planet-card:hover {
+  --planet-pulse: 1.03;
+}
+
+body[data-mode="nebula"] .planet-card:hover {
+  --planet-pulse: 1.10;
+}
+
+body[data-mode="voyage"] .planet-card:hover {
+  --planet-pulse: 1.05;
+}
+
+body[data-mode="garden"] .planet-card:hover {
+  --planet-pulse: 1.08;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal:not(.is-visible) {
+    opacity: 1;
+    transform: none;
+  }
+}

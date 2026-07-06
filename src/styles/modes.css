@@ -1,0 +1,27 @@
+body[data-mode="archive"] .paper-grain {
+  opacity: 0.24;
+}
+
+body[data-mode="nebula"] .paper-grain {
+  opacity: 0.11;
+}
+
+body[data-mode="nebula"] .aurora {
+  filter: blur(64px) saturate(1.25);
+}
+
+body[data-mode="voyage"] .orbit-plane {
+  background:
+    repeating-conic-gradient(from var(--voyage-sweep, 0deg), oklch(0.760 0.110 226 / 0.18) 0 1deg, transparent 1deg 14deg),
+    radial-gradient(circle at 50% 50%, transparent 0 22%, oklch(0.760 0.110 226 / 0.052) 23% 24%, transparent 25% 42%, oklch(0.760 0.125 82 / 0.045) 43% 44%, transparent 45%);
+}
+
+body[data-mode="garden"] .botanical-line {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 20px oklch(0.760 0.115 132 / 0.25));
+}
+
+body[data-mode="garden"] .paper-grain {
+  opacity: 0.20;
+  mix-blend-mode: soft-light;
+}
