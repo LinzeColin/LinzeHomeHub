@@ -3,9 +3,9 @@
     "id": "memory-atlas",
     "name": "MemoryAtlas",
     "category": "Memory System",
-    "status": "Preparing Live URL",
+    "status": "Live / Access-protected",
     "summary": "一个面向长期记忆、上下文和知识关系的交互式可视化系统。",
-    "liveUrl": "",
+    "liveUrl": "https://memoryatlas.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/OpenAIDatabase/apps/memory-atlas",
     "mode": "nebula"
   },
