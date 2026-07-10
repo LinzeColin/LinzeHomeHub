@@ -16,10 +16,10 @@
     "name": "OpenAIDatabase / MemoryAtlas",
     "category": "Redacted Memory Viewer",
     "compatibilityLevel": "L2",
-    "deploymentStatus": "Deploy-ready",
+    "deploymentStatus": "Protected",
     "futureLevel": "L3 gated",
-    "summary": "脱敏派生快照的只读记忆可视化；现有自定义域受 Access 保护，公开 URL 待验证后再填。",
-    "liveUrl": "",
+    "summary": "脱敏派生快照的只读记忆可视化；custom、production Pages 与 preview Pages 均由 owner allowlist Access 保护并完成授权加载验证。",
+    "liveUrl": "https://memoryatlas.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/OpenAIDatabase/apps/memory-atlas",
     "mode": "archive"
   },

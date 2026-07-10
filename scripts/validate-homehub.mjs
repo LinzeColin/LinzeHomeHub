@@ -48,8 +48,14 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
     if (!['Live', 'Deploy-ready', 'Protected'].includes(project.deploymentStatus)) {
       failures.push(`${project.id} has invalid deploymentStatus`);
     }
-    if (project.liveUrl && project.deploymentStatus !== 'Live') {
-      failures.push(`${project.id} liveUrl requires verified Live status`);
+    if (project.liveUrl && !['Live', 'Protected'].includes(project.deploymentStatus)) {
+      failures.push(`${project.id} liveUrl requires verified Live or Protected status`);
+    }
+    if (project.deploymentStatus === 'Protected') {
+      if (!project.liveUrl) failures.push(`${project.id} Protected status requires a verified liveUrl`);
+      if (!/access|allowlist|protected/i.test(project.summary)) {
+        failures.push(`${project.id} Protected status must explain its access boundary`);
+      }
     }
     if (!project.fallbackUrl) failures.push(`${project.id} missing fallbackUrl`);
     if (project.futureLevel !== 'L3 gated') failures.push(`${project.id} missing future L3 gate`);

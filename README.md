@@ -59,7 +59,7 @@ Suggested domain: `home.linzezhang.com`, with `linzezhang.com` available as a la
 
 - `Live` requires a URL that was actually reached and verified.
 - `Deploy-ready` means build, safety scan, and Wrangler dry-run are ready, but the public deployment is not yet verified.
-- `Protected` is reserved for an intentionally access-controlled surface and is not presented as anonymous public access.
+- `Protected` requires a verified URL plus an explicit access-control boundary; MemoryAtlas uses owner-allowlist Cloudflare Access and is not presented as anonymous public access.
 - Empty `liveUrl` values fall back to the public GitHub source path.
 - Every card remains L2 static-first; future L3 data, auth, write, and automation capabilities stay gated.
 
