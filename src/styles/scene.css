@@ -79,7 +79,16 @@
   min-height: 620px;
   max-width: 1180px;
   margin: 0 auto;
+  padding: clamp(24px, 4vw, 48px);
   perspective: 1200px;
+}
+
+#projectNodes {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 18px;
 }
 
 .orbit-plane {
@@ -102,10 +111,10 @@
 }
 
 .planet-card {
-  position: absolute;
+  position: relative;
   display: block;
-  width: min(420px, 44vw);
-  min-height: 330px;
+  width: auto;
+  min-height: 320px;
   overflow: hidden;
   border: 1px solid oklch(1 0 0 / 0.12);
   border-radius: 18px;
@@ -118,17 +127,22 @@
 }
 
 .planet-card[data-project-mode="nebula"] {
-  left: 4%;
-  top: 18%;
+  --project-accent: oklch(0.780 0.115 238);
 }
 
 .planet-card[data-project-mode="archive"] {
-  right: 4%;
-  bottom: 12%;
+  --project-accent: oklch(0.760 0.125 82);
 }
 
+.planet-card[data-project-mode="voyage"] { --project-accent: oklch(0.720 0.120 255); }
+.planet-card[data-project-mode="garden"] { --project-accent: oklch(0.750 0.125 145); }
+
+.planet-card:nth-child(1) { grid-column: span 7; }
+.planet-card:nth-child(2) { grid-column: span 5; }
+.planet-card:nth-child(n + 3) { grid-column: span 4; }
+
 .planet-card:hover {
-  border-color: var(--mode-accent);
+  border-color: var(--project-accent, var(--mode-accent));
   box-shadow: 0 0 80px oklch(0.760 0.125 82 / 0.14);
 }
 
@@ -140,7 +154,7 @@
   width: 240px;
   height: 240px;
   border-radius: 50%;
-  background: radial-gradient(circle at 36% 30%, oklch(0.980 0.045 90), var(--mode-accent) 12%, oklch(0.780 0.115 238 / 0.36) 32%, oklch(0.150 0.020 260 / 0.08) 62%, transparent 70%);
+  background: radial-gradient(circle at 36% 30%, oklch(0.980 0.045 90), var(--project-accent, var(--mode-accent)) 12%, oklch(0.780 0.115 238 / 0.36) 32%, oklch(0.150 0.020 260 / 0.08) 62%, transparent 70%);
   box-shadow: 0 0 70px oklch(0.760 0.125 82 / 0.24), inset -30px -34px 60px oklch(0 0 0 / 0.30);
   transform: translateZ(64px) scale(var(--planet-pulse, 1));
 }
@@ -161,16 +175,43 @@
 .planet-card .label {
   position: relative;
   z-index: 2;
-  color: var(--mode-accent);
+  color: var(--project-accent, var(--mode-accent));
   font: 750 12px/1 var(--font-body);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
+.project-status {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+}
+
+.project-status > span {
+  border: 1px solid oklch(1 0 0 / 0.13);
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: oklch(0.930 0.018 250 / 0.76);
+  background: oklch(1 0 0 / 0.05);
+  font: 700 10px/1 var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-status .compatibility-level,
+.planet-card[data-deployment-status="Live"] .deployment-status {
+  color: oklch(0.090 0.016 260);
+  border-color: transparent;
+  background: var(--project-accent, var(--mode-accent));
+}
+
 .planet-card h3 {
   position: relative;
   z-index: 2;
-  margin: 24px 0 12px;
+  margin: 22px 0 12px;
   font-size: clamp(32px, 4vw, 52px);
   line-height: 0.95;
   letter-spacing: -0.04em;
@@ -198,7 +239,7 @@
 
 .planet-card .enter-copy::after {
   content: " ->";
-  color: var(--mode-accent);
+  color: var(--project-accent, var(--mode-accent));
 }
 
 .planet-connector {
@@ -281,30 +322,15 @@
   }
 
   .project-orbit-wrap {
-    min-height: 860px;
+    min-height: auto;
   }
 
   .planet-card {
-    left: 50% !important;
-    right: auto !important;
-    width: min(520px, 88vw);
-    transform: translateX(-50%);
+    grid-column: span 6;
   }
 
-  .planet-card[data-project-mode="nebula"] {
-    top: 8%;
-  }
-
-  .planet-card[data-project-mode="archive"] {
-    bottom: 8%;
-  }
-
-  .planet-connector {
-    left: 38%;
-    right: 38%;
-    top: 50%;
-    transform: rotate(90deg);
-  }
+  .planet-card:last-child { grid-column: 4 / span 6; }
+  .planet-connector { display: none; }
 }
 
 @media (max-width: 640px) {
@@ -323,6 +349,11 @@
   .artifact-viewport {
     width: 92vw;
   }
+
+  .project-orbit-wrap { padding-inline: 0; }
+  #projectNodes { grid-template-columns: 1fr; }
+  .planet-card,
+  .planet-card:last-child { grid-column: 1; min-height: 350px; }
 
   .gravity-lab {
     min-height: 560px;

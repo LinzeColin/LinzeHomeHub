@@ -9,6 +9,7 @@ Premium personal project gateway built with Vite, TypeScript, Three.js, Rapier, 
 - Supports six hero models: `星图仪`, `漂浮岛`, `档案书`, `宇宙罗盘`, `黑金花园`, `能量核心`.
 - Uses scroll direction and speed as a shared gravity signal for particles, readouts, and Rapier bodies.
 - Renders project planets from `src/data/projects.json`; whole-card links use `liveUrl` first and `fallbackUrl` second.
+- Presents a five-surface Launch Constellation for EEI, OpenAIDatabase / MemoryAtlas, PFI, Serenity-Alipay, and Archive/nab.
 - Supports `?quality=low|medium|ultra` and `prefers-reduced-motion`.
 
 ## Local Development
@@ -39,7 +40,8 @@ Cloudflare Workers Static Assets is configured in `wrangler.jsonc`:
   "name": "linze-home-hub",
   "compatibility_date": "2026-07-06",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
   }
 }
 ```
@@ -53,6 +55,14 @@ npm run deploy
 
 Suggested domain: `home.linzezhang.com`, with `linzezhang.com` available as a later apex route.
 
+## Launch Constellation fact rules
+
+- `Live` requires a URL that was actually reached and verified.
+- `Deploy-ready` means build, safety scan, and Wrangler dry-run are ready, but the public deployment is not yet verified.
+- `Protected` is reserved for an intentionally access-controlled surface and is not presented as anonymous public access.
+- Empty `liveUrl` values fall back to the public GitHub source path.
+- Every card remains L2 static-first; future L3 data, auth, write, and automation capabilities stay gated.
+
 ## Safety
 
-This repository should not contain secrets, raw exports, browser state, cookies, sessions, or private data. Project links currently point to public fallback URLs until live frontends are available.
+This repository should not contain secrets, raw exports, browser state, cookies, sessions, or private data. Only verified live URLs are stored; all other project cards point to public source fallbacks.

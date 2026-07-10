@@ -6,11 +6,17 @@ export type GravityDirection = 'idle' | 'up' | 'down' | 'side';
 
 export type QualityName = 'low' | 'medium' | 'ultra';
 
+export type CompatibilityLevel = 'L2';
+
+export type DeploymentStatus = 'Live' | 'Deploy-ready' | 'Protected';
+
 export type Project = {
   id: string;
   name: string;
   category: string;
-  status: string;
+  compatibilityLevel: CompatibilityLevel;
+  deploymentStatus: DeploymentStatus;
+  futureLevel: 'L3 gated';
   summary: string;
   liveUrl: string;
   fallbackUrl: string;

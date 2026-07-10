@@ -12,11 +12,29 @@ export function renderProjects(projects: Project[], container: HTMLElement): voi
     anchor.rel = 'noopener noreferrer';
     anchor.dataset.tilt = '';
     anchor.dataset.projectMode = project.mode;
-    anchor.setAttribute('aria-label', `进入 ${project.name} 项目前端`);
+    anchor.dataset.projectId = project.id;
+    anchor.dataset.deploymentStatus = project.deploymentStatus;
+    anchor.setAttribute('aria-label', `打开 ${project.name} ${project.deploymentStatus} 入口`);
 
     const label = document.createElement('span');
     label.className = 'label';
-    label.textContent = `${project.category} / ${project.status}`;
+    label.textContent = project.category;
+
+    const status = document.createElement('span');
+    status.className = 'project-status';
+
+    const compatibilityLevel = document.createElement('span');
+    compatibilityLevel.className = 'compatibility-level';
+    compatibilityLevel.textContent = project.compatibilityLevel;
+
+    const deploymentStatus = document.createElement('span');
+    deploymentStatus.className = 'deployment-status';
+    deploymentStatus.textContent = project.deploymentStatus;
+
+    const futureLevel = document.createElement('span');
+    futureLevel.className = 'future-level';
+    futureLevel.textContent = project.futureLevel;
+    status.append(compatibilityLevel, deploymentStatus, futureLevel);
 
     const title = document.createElement('h3');
     title.textContent = project.name;
@@ -26,9 +44,9 @@ export function renderProjects(projects: Project[], container: HTMLElement): voi
 
     const enter = document.createElement('span');
     enter.className = 'enter-copy';
-    enter.textContent = 'Enter Project Frontend';
+    enter.textContent = project.liveUrl ? 'Visit verified surface' : 'Review source and deploy status';
 
-    anchor.append(label, title, summary, enter);
+    anchor.append(label, status, title, summary, enter);
     container.append(anchor);
   }
 }

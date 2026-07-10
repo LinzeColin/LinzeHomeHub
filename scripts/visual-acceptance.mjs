@@ -60,8 +60,11 @@ expect(Boolean(initial.quality), 'quality profile missing');
 expect(initial.oldSubtitle === false, 'removed subtitle is visible');
 expect(initial.modeButtons.length === 4, 'mode switcher count mismatch');
 expect(initial.modelButtons.length === 6, 'model switcher count mismatch');
-expect(initial.projectLinks.length === 2, 'project planet count mismatch');
+expect(initial.projectLinks.length === 5, 'launch constellation count mismatch');
 expect(initial.projectLinks.every((link) => link.href && !/last updated/i.test(link.text ?? '')), 'project link contract failed');
+expect(initial.projectLinks.every((link) => /L2/.test(link.text ?? '')), 'project L2 badges missing');
+expect(initial.projectLinks.some((link) => /Live/.test(link.text ?? '')), 'verified live surface missing');
+expect(initial.projectLinks.some((link) => /Deploy-ready/.test(link.text ?? '')), 'deploy-ready states missing');
 expect(initial.canvas && initial.canvas.width > 0 && initial.canvas.height > 0, 'canvas has no drawing buffer');
 expect(initial.canvas && initial.canvas.dataUrlLength > 10000, 'canvas appears blank or unreadable');
 expect(initial.overflow <= 1, `desktop horizontal overflow ${initial.overflow}`);
@@ -112,7 +115,7 @@ const mobileState = await mobile.evaluate(() => ({
 }));
 expect(mobileState.quality === 'low', 'quality query param did not force low');
 expect(mobileState.overflow <= 1, `mobile horizontal overflow ${mobileState.overflow}`);
-expect(mobileState.cards === 2, 'mobile project cards missing');
+expect(mobileState.cards === 5, 'mobile launch constellation cards missing');
 await mobile.screenshot({ path: resolve(evidenceDir, 'homehub-mobile.png'), fullPage: true });
 
 await mobile.close();
