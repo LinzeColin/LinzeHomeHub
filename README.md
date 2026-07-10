@@ -63,6 +63,8 @@ Suggested domain: `home.linzezhang.com`, with `linzezhang.com` available as a la
 - Empty `liveUrl` values fall back to the public GitHub source path.
 - Every card remains L2 static-first; future L3 data, auth, write, and automation capabilities stay gated.
 
+Current verified routing: EEI, PFI, Serenity-Alipay, and Archive/nab are `Live`; MemoryAtlas is `Protected`. No card currently relies on a deploy-ready fallback.
+
 ## Safety
 
-This repository should not contain secrets, raw exports, browser state, cookies, sessions, or private data. Only verified live URLs are stored; all other project cards point to public source fallbacks.
+This repository should not contain secrets, raw exports, browser state, cookies, sessions, or private data. Only verified live or access-protected URLs are stored; any future unverified project card must point to a public source fallback.

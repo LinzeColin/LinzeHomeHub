@@ -39,6 +39,13 @@ if (existsSync(join(root, 'index.html'))) {
 if (existsSync(join(root, 'src/data/projects.json'))) {
   const projects = JSON.parse(read('src/data/projects.json'));
   const requiredIds = ['eei', 'memory-atlas', 'pfi', 'serenity-alipay', 'nab'];
+  const verifiedDestinations = {
+    eei: ['Live', 'https://codex-eei.linzezhang35.workers.dev'],
+    'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com'],
+    pfi: ['Live', 'https://codex-pfi.linzezhang35.workers.dev'],
+    'serenity-alipay': ['Live', 'https://serenity-alipay.linzezhang35.workers.dev'],
+    nab: ['Live', 'https://nab.linzezhang.com'],
+  };
   for (const id of requiredIds) {
     if (!projects.some((project) => project.id === id)) failures.push(`projects.json missing ${id}`);
   }
@@ -59,6 +66,13 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
     }
     if (!project.fallbackUrl) failures.push(`${project.id} missing fallbackUrl`);
     if (project.futureLevel !== 'L3 gated') failures.push(`${project.id} missing future L3 gate`);
+    const [expectedStatus, expectedUrl] = verifiedDestinations[project.id] ?? [];
+    if (project.deploymentStatus !== expectedStatus) {
+      failures.push(`${project.id} deploymentStatus must match verified deployment evidence`);
+    }
+    if (project.liveUrl !== expectedUrl) {
+      failures.push(`${project.id} liveUrl must match verified deployment evidence`);
+    }
   }
   if (JSON.stringify(projects).includes('lastUpdated')) failures.push('projects.json exposes lastUpdated');
 }
