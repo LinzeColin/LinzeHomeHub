@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: 安装 PyYAML（渲染 config.yaml / data_contract.yaml 需要，保证渲染确定性）
+        run: python3 -m pip install --quiet pyyaml
       - name: 运行全仓双平面合规校验
         run: |
           set -euo pipefail
