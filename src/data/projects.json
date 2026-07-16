@@ -1,15 +1,15 @@
 [
   {
     "id": "eei",
-    "name": "EEI",
-    "category": "Ecosystem Intelligence",
+    "name": "EEI 商域图谱",
+    "category": "Enterprise Ecosystem Intelligence",
     "compatibilityLevel": "L2",
     "deploymentStatus": "Live",
     "futureLevel": "L3 gated",
-    "summary": "公开的企业生态探索器：只使用示意图谱，不连接生产关系数据库或发布受限事实。",
-    "liveUrl": "https://codex-eei.linzezhang35.workers.dev",
-    "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/EEI/apps/cloudflare-public",
-    "mode": "nebula"
+    "summary": "美国商业权力地图：以公司为中心的关系图谱与递归供应链探索，Owner 签核事实全链路可溯源；云端 7×24 运行。",
+    "liveUrl": "https://eei.linzezhang.com",
+    "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/EEI",
+    "mode": "voyage"
   },
   {
     "id": "memory-atlas",
