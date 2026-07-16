@@ -44,7 +44,7 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
   const projects = JSON.parse(read('src/data/projects.json'));
   const requiredIds = ['eei', 'memory-atlas', 'pfi', 'serenity-alipay', 'nab'];
   const verifiedDestinations = {
-    eei: ['Live', 'https://codex-eei.linzezhang35.workers.dev'],
+    eei: ['Live', 'https://eei.linzezhang.com'],
     'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com'],
     pfi: ['Live', 'https://codex-pfi.linzezhang35.workers.dev'],
     'serenity-alipay': ['Live', 'https://serenity-alipay.linzezhang35.workers.dev'],
