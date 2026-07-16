@@ -1,0 +1,80 @@
+[
+  {
+    "id": "FEAT-HUB-001",
+    "name": "`Vite` + `TypeScript` 前端工程",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-002",
+    "name": "三维主场景、程序化模型、粒子场与可选泛光后处理（`Three.js`）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-003",
+    "name": "物理世界与重力实验区刚体（`Rapier`）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-004",
+    "name": "滚动节奏与显影（`Lenis` + `GSAP`）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-005",
+    "name": "档案、星云、夜航、花园四个独立模式",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-006",
+    "name": "六个主模型切换（星图仪、漂浮岛、档案书、宇宙罗盘、黑金花园、能量核心）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-007",
+    "name": "滚动重力（方向、速度、横向滚轮、指针与空格键共同影响）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-008",
+    "name": "五卡整卡入口星图",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-009",
+    "name": "项目卡上线状态徽章（已上线 / 可部署 / 受保护）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-010",
+    "name": "画质分档（`low` / `medium` / `ultra`）",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-011",
+    "name": "降低动效的无障碍降级",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-012",
+    "name": "`Cloudflare` 边缘静态资源部署",
+    "status": "active",
+    "evidence": "declared"
+  },
+  {
+    "id": "FEAT-HUB-013",
+    "name": "单页回退（未知路径回 `index.html`）",
+    "status": "active",
+    "evidence": "declared"
+  }
+]

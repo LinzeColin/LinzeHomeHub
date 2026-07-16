@@ -1,0 +1,25 @@
+parameters:
+  画质档-低:
+    value: "700 粒子 / 6 物理体 / 关闭泛光"
+    intent: "降低动效、移动端、低性能或显式指定低画质时启用，可用性优先。"
+    where: "`src/app/qualityProfile.ts`"
+  画质档-中:
+    value: "1500 粒子 / 10 物理体 / 轻量泛光"
+    intent: "默认桌面。"
+    where: "`src/app/qualityProfile.ts`"
+  画质档-高:
+    value: "3200 粒子 / 16 物理体 / 泛光加更高像素比"
+    intent: "高性能桌面。"
+    where: "`src/app/qualityProfile.ts`"
+  重力公式:
+    value: "纵横两向重力由滚动速度、横向滚轮、指针与空格键冲量共同 `clamp` 得出"
+    intent: "把滚动当作输入力而非装饰。"
+    where: "`src/motion/scrollGravity.ts`"
+  兼容级别:
+    value: "二级兼容"
+    intent: "五个网关节点均为静态优先的公开适配层，不接私密核心。"
+    where: "`src/data/projects.json`"
+  上线状态:
+    value: "已上线 / 可部署 / 受保护"
+    intent: "已上线必须有当前访问证据；空跑只能标可部署；受访问控制标受保护。"
+    where: "`src/data/projects.json`"

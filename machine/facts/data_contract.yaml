@@ -1,0 +1,5 @@
+data_flow: "只消费静态项目事实：`projects.json` 定义五张上线卡的状态型元数据（不含任何私密数据）；`index.html` 与场景模块渲染；构建前校验脚本扫描文本。公共静态面不连接任何本机运行面或私有原始数据。"
+entities:
+  - entity: "项目卡"
+    keys: ["`id`", "`name`", "`category`", "`compatibilityLevel`", "`deploymentStatus`", "`liveUrl`", "`fallbackUrl`", "`mode`"]
+    pk: "`id`"

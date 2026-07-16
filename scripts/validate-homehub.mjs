@@ -16,9 +16,13 @@ const mustExist = [
   'src/physics/PhysicsWorld.ts',
   'PRODUCT.md',
   'DESIGN.md',
-  '功能清单.md',
-  '开发记录.md',
-  '模型参数文件.md',
+  '文档/00_我在哪.md',
+  '文档/01_产品需求.md',
+  '文档/02_系统架构.md',
+  '文档/03_口径字典.md',
+  '文档/04_操作流程.md',
+  '文档/05_执行与验收.md',
+  '文档/06_运维手册.md',
 ];
 
 const failures = [];

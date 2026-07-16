@@ -1,0 +1,28 @@
+name: Dual-Plane Governance
+
+# 全仓强制：本仓每个项目都必须就位双平面七文件架构并过门。
+# 任一项目缺文件、人类平面渲染漂移、或三道门 FAIL -> 整仓 CI 红。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dual-plane:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 运行全仓双平面合规校验
+        run: |
+          set -euo pipefail
+          SCRIPT="$(find . -path '*/machine/tools/check_dual_plane_ci.py' | sort | head -1)"
+          if [ -z "$SCRIPT" ]; then
+            echo "FAIL: 未找到 check_dual_plane_ci.py（本仓应至少有一个双平面项目）"
+            exit 1
+          fi
+          echo "runner: $SCRIPT"
+          python3 "$SCRIPT" --root . --require-projects

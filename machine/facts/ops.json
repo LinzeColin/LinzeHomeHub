@@ -1,0 +1,24 @@
+{
+  "troubleshooting": [
+    {
+      "symptom": "首屏空白或场景不出现",
+      "cause": "三维初始化失败或画质档过高",
+      "fix": "用低画质参数验证；检查浏览器三维支持与 `src/app/qualityProfile.ts` 上限。"
+    },
+    {
+      "symptom": "`npm run validate` 失败",
+      "cause": "缺必需文件或页面/项目数据契约不符",
+      "fix": "按 `scripts/validate-homehub.mjs` 报错补齐文件与必需字段。"
+    },
+    {
+      "symptom": "项目卡指向错误或回退异常",
+      "cause": "`projects.json` 的 `liveUrl` 与 `deploymentStatus` 不一致",
+      "fix": "确保 `liveUrl` 非空时 `deploymentStatus` 为已上线或受保护；未验证项用 `fallbackUrl`。"
+    },
+    {
+      "symptom": "部署后未知路径 404",
+      "cause": "未配置单页回退",
+      "fix": "确认 `wrangler.jsonc` 的单页回退指向 `index.html`。"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "id": "验收一",
+      "criteria": "`npm run validate` 通过（结构与视觉契约）",
+      "status": "已完成"
+    },
+    {
+      "id": "验收二",
+      "criteria": "`npm run build` 通过并生成 `dist/`",
+      "status": "已完成"
+    },
+    {
+      "id": "验收三",
+      "criteria": "本地预览可打开、首屏不空白",
+      "status": "已完成"
+    },
+    {
+      "id": "验收四",
+      "criteria": "四模式、六模型、滚动重力、引力井、项目跳转可操作",
+      "status": "已完成"
+    },
+    {
+      "id": "验收五",
+      "criteria": "`wrangler.jsonc` 指向 `./dist` 并配置单页回退",
+      "status": "已完成"
+    }
+  ]
+}
