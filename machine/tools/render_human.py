@@ -74,15 +74,25 @@ def load_json(path: Path, default):
 
 
 def load_yaml_or_json(path: Path, default):
-    """config/data_contract 允许 yaml；无 yaml 库时退化为只读文本存在性。"""
+    """config/data_contract 允许 yaml 或 json。
+
+    JSON 内容优先用标准库解析 —— 无第三方依赖，渲染结果跨环境完全确定。
+    这一条很关键：曾经这里直接 import yaml，没装 PyYAML 的 CI 会把配置读成
+    {"_raw": ...} -> 02/06 渲染成空 -> 渲染一致门莫名报红。JSON 是 YAML 的子集，
+    所以把事实写成 JSON 内容即可彻底摆脱该依赖。
+    """
     if not path.is_file():
         return default
     text = path.read_text(encoding="utf-8")
     try:
+        return json.loads(text) or default
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        pass
+    try:
         import yaml  # noqa
         return yaml.safe_load(text) or default
     except Exception:
-        # 没有 yaml 库也不阻塞渲染：返回原始文本，调用方只判存在性
+        # 既非 JSON 又没有 yaml 库：不阻塞渲染，调用方只判存在性
         return {"_raw": text}
 
 
