@@ -47,3 +47,11 @@ body[data-mode="garden"] {
   --mode-accent-2: var(--archive);
   --mode-smoke: oklch(0.650 0.100 132 / 0.20);
 }
+
+
+/* STAGE-15.3 登录按钮 */
+.auth-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:inherit;
+  font:inherit;font-size:.82rem;padding:.35em .9em;border-radius:999px;cursor:pointer;
+  transition:background .2s,border-color .2s}
+.auth-btn:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.45)}
+.auth-btn:focus-visible{outline:2px solid currentColor;outline-offset:2px}
