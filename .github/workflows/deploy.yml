@@ -9,6 +9,7 @@ jobs:
     with:
       service_name: linze-home-hub
       coolify_app_uuid: "u9kyhx2fzhr0vaj2yfd6vt66"
+      home_live_url: "https://home.linzezhang.com"
     secrets:
       COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
       COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
