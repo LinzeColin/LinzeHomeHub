@@ -20,7 +20,7 @@
     "futureLevel": "L3 gated",
     "summary": "脱敏派生快照的只读记忆可视化；custom、production Pages 与 preview Pages 均由 owner allowlist Access 保护并完成授权加载验证。",
     "liveUrl": "https://memoryatlas.linzezhang.com",
-    "fallbackUrl": "https://github.com/LinzeColin/CodexProject/tree/main/OpenAIDatabase/apps/memory-atlas",
+    "fallbackUrl": "https://github.com/LinzeColin/AgentDatabase/tree/main/MemoryAtlas",
     "mode": "archive"
   },
   {
