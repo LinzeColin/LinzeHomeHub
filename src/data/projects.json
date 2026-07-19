@@ -58,5 +58,17 @@
     "liveUrl": "https://nab.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/Archive/tree/main/nab",
     "mode": "archive"
+  },
+  {
+    "id": "account",
+    "name": "Account / 统一登录",
+    "category": "Identity & SSO",
+    "compatibilityLevel": "L2",
+    "deploymentStatus": "Live",
+    "futureLevel": "L3 gated",
+    "summary": "linzezhang.com 统一身份入口:公开注册、邮箱密码登录(Google/GitHub 快捷登录即将上线),全子站单点登录。",
+    "liveUrl": "https://account.linzezhang.com",
+    "fallbackUrl": "https://account.linzezhang.com/realms/linze/account/",
+    "mode": "voyage"
   }
 ]
