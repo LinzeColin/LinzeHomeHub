@@ -19,6 +19,7 @@ export type Project = {
   futureLevel: 'L3 gated';
   summary: string;
   liveUrl: string;
+  repo?: string;   // 所属顶级 GitHub 仓;未标注=公开入口
   fallbackUrl: string;
   mode: ModeId;
 };

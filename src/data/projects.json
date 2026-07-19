@@ -9,7 +9,8 @@
     "summary": "美国商业权力地图：以公司为中心的关系图谱与递归供应链探索，Owner 签核事实全链路可溯源；云端 7×24 运行。",
     "liveUrl": "https://eei.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/EEI",
-    "mode": "voyage"
+    "mode": "voyage",
+    "repo": "MetaDatabase"
   },
   {
     "id": "memory-atlas",
@@ -21,7 +22,8 @@
     "summary": "脱敏派生快照的只读记忆可视化；custom、production Pages 与 preview Pages 均由 owner allowlist Access 保护并完成授权加载验证。",
     "liveUrl": "https://memoryatlas.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/AgentDatabase/tree/main/MemoryAtlas",
-    "mode": "archive"
+    "mode": "archive",
+    "repo": "AgentDatabase"
   },
   {
     "id": "pfi",
@@ -33,7 +35,8 @@
     "summary": "PFI 公开边界说明页；财务台账/行业研究/政策情报多系统引擎在受控环境运行，公开面仅示意。",
     "liveUrl": "https://pfi.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/PFI",
-    "mode": "voyage"
+    "mode": "voyage",
+    "repo": "MetaDatabase"
   },
   {
     "id": "serenity-alipay",
@@ -45,7 +48,8 @@
     "summary": "支付宝基金研究的 L2 公开 cockpit：仅脱敏示例、dry-run、不下单、无外部动作；分析引擎为 macOS 本地运行。",
     "liveUrl": "https://serenity.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/Serenity-Alipay",
-    "mode": "voyage"
+    "mode": "voyage",
+    "repo": "MetaDatabase"
   },
   {
     "id": "nab",
@@ -57,7 +61,8 @@
     "summary": "NAB 投资者关系路演静态站；已从 Cloudflare Worker 迁至 Coolify 稳定托管，边缘缓存加速。",
     "liveUrl": "https://nab.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/Archive/tree/main/nab",
-    "mode": "archive"
+    "mode": "archive",
+    "repo": "Archive"
   },
   {
     "id": "account",
