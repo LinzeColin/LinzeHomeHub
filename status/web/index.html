@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>云平台总览 · status.linzezhang.com</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232a78d6'/><path d='M5 17h4l3-8 4 14 3-9h8' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+:root{
+  --bg:#f6f6f4; --card:#fff; --soft:#f1f1ee; --line:#e4e3dc;
+  --t1:#1b1b19; --t2:#57564f; --t3:#8b8a83;
+  --accent:#2a78d6; --accent-bg:#e6f1fb; --accent-t:#0c447c;
+  --pro:#4a3aa7; --pro-bg:#eeedfe; --pro-t:#26215c;
+  --ok:#0f8a4d; --ok-bg:#e4f3ea; --warn:#c98500; --danger:#cf3a3a;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#151513; --card:#1e1e1c; --soft:#242422; --line:#33332f;
+    --t1:#f3f2ec; --t2:#c3c2b7; --t3:#8b8a83;
+    --accent:#5a9bea; --accent-bg:#12314f; --accent-t:#b5d4f4;
+    --pro:#9085e9; --pro-bg:#2a2560; --pro-t:#cecbf6;
+    --ok:#3cc07f; --ok-bg:#123320; --warn:#e0a53a; --danger:#e26b6a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t1);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+h1{font-size:20px;font-weight:600;margin:0}
+h2{font-size:15px;font-weight:600;margin:26px 0 10px}
+.muted{color:var(--t3);font-size:13px}
+.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px}
+.pill{font-size:12px;padding:4px 12px;border-radius:20px}
+.pill.ok{color:var(--ok);background:var(--ok-bg)}
+.grid{display:grid;gap:12px}
+.k4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.k3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.k2{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{background:var(--card);border:0.5px solid var(--line);border-radius:12px;padding:16px}
+.tile{background:var(--soft);border-radius:10px;padding:14px}
+.tile .lab{font-size:13px;color:var(--t2)}
+.tile .val{font-size:24px;font-weight:600;margin-top:4px}
+.tile .sub{font-size:13px;color:var(--t3);font-weight:400}
+.opt .lab{font-size:12px;color:var(--t2)}
+.opt .val{font-size:14px;margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th{text-align:left;font-weight:500;color:var(--t2);padding:9px 10px;border-bottom:0.5px solid var(--line)}
+td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
+.scroll{overflow-x:auto}
+.tag{font-size:11px;padding:2px 8px;border-radius:6px;margin-right:4px;display:inline-block}
+.tag.fe{background:var(--accent-bg);color:var(--accent-t)}
+.tag.be{background:var(--pro-bg);color:var(--pro-t)}
+.badge{font-size:12px;padding:2px 9px;border-radius:6px}
+.badge.run{color:var(--ok);background:var(--ok-bg)}
+.badge.access{color:var(--accent-t);background:var(--accent-bg)}
+.badge.down{color:var(--danger);background:#fbeaea}
+.chartbox{position:relative;width:100%;height:200px}
+.chartbox.sm{height:160px}
+.row{display:flex;justify-content:space-between;padding:9px 0;font-size:13px;border-bottom:0.5px solid var(--line)}
+.row:last-child{border-bottom:none}
+.btn{font-size:12px;padding:6px 12px;border:0.5px solid var(--line);background:var(--card);
+  color:var(--t1)!important;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--soft);text-decoration:none}
+.ext{display:flex;align-items:center;gap:10px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--danger)} .dot.unk{background:var(--t3)}
+.foot{margin-top:34px;padding-top:16px;border-top:0.5px solid var(--line);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--t3)}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;
+  align-items:center;justify-content:center;padding:20px}
+#modal .box{background:var(--card);border-radius:14px;padding:22px;max-width:460px;width:100%}
+.err{background:#fbeaea;color:#8a2020;padding:12px 14px;border-radius:10px;font-size:13px}
+.warn{background:#fbf0d8;color:#7a5200;padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+@media (prefers-color-scheme:dark){.warn{background:#3a2f12;color:#e0b055}.err{background:#3a1a1a;color:#e88}}
+.nav{display:flex;gap:4px;margin-bottom:22px;border-bottom:0.5px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.nav a{padding:11px 18px;font-size:15px;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav a:hover{color:var(--t1);text-decoration:none}
+.nav a.active{color:var(--t1);border-bottom-color:var(--accent);font-weight:500}
+.nav a .ti{margin-right:6px;font-size:16px;vertical-align:-2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="nav">
+    <a href="/" class="active">云平台总览</a>
+    <a href="https://uptime.linzezhang.com">运维健康</a>
+    <a href="/admin">价格设置</a>
+  </nav>
+  <div class="head">
+    <div>
+      <h1>云平台总览 · status.linzezhang.com</h1>
+      <div class="muted" id="updated">加载中…</div>
+    </div>
+    <span class="pill ok" id="health">● 加载中</span>
+  </div>
+
+  <div id="err"></div>
+  <div id="stale"></div>
+
+  <div class="grid k4" id="kpi"></div>
+  <div class="grid k4" id="ops" style="margin-top:12px"></div>
+
+  <h2>架构三层</h2>
+  <div class="muted" style="margin-bottom:10px">程序和数据库全在 OVH 那一台机器;Cloudflare 只做门口加速防护,不跑程序;邮件走外部 NitroSend。</div>
+  <div class="grid k3">
+    <div class="card"><div style="font-weight:500">☁️ Cloudflare · 门口</div><div class="muted" style="margin-top:4px">域名解析 · 加速缓存 · 挡攻击 · 登录门禁</div></div>
+    <div class="card"><div style="font-weight:500">🖥️ OVH VPS-1 · 主机</div><div class="muted" style="margin-top:4px">全部前后台 + 数据库都在这台跑</div></div>
+    <div class="card"><div style="font-weight:500">✉️ NitroSend · 邮件</div><div class="muted" style="margin-top:4px">外部服务 · 免费额度</div></div>
+  </div>
+
+  <h2>各项目 · 地址 / 组成 / 数据库平台 / 通知</h2>
+  <div class="card scroll" style="padding:6px 10px">
+    <table><thead><tr>
+      <th>项目</th><th>地址</th><th>组成</th><th>数据库平台</th><th>通知</th><th>状态</th>
+    </tr></thead><tbody id="rows"></tbody></table>
+  </div>
+
+  <div class="grid k2" style="margin-top:20px">
+    <div><h2 style="margin-top:0">近 7 天部署次数</h2><div class="chartbox"><canvas id="deployChart"></canvas></div></div>
+    <div><h2 style="margin-top:0">部署成功率 · 30天</h2><div class="chartbox"><canvas id="successChart"></canvas></div></div>
+  </div>
+
+  <div class="grid k2" style="margin-top:20px">
+    <div><h2 style="margin-top:0">内存趋势 <span class="muted" id="memNow"></span></h2><div class="chartbox sm"><canvas id="memChart"></canvas></div></div>
+    <div><h2 style="margin-top:0">磁盘趋势 <span class="muted" id="diskNow"></span></h2><div class="chartbox sm"><canvas id="diskChart"></canvas></div></div>
+  </div>
+
+  <h2>最近部署记录</h2>
+  <div class="card" id="deploylog" style="padding:6px 16px"></div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 10px">
+    <h2 style="margin:0">月度开支明细</h2>
+    <div style="display:flex;gap:8px">
+      <a class="btn" href="/admin">编辑价格 ✎</a>
+      <a class="btn" href="/admin">新增开支项 +</a>
+    </div>
+  </div>
+  <div class="grid k2">
+    <div class="card" id="costlist" style="padding:6px 16px"></div>
+    <div class="card"><div class="chartbox sm"><canvas id="costChart"></canvas></div></div>
+  </div>
+  <div class="muted" id="fxline" style="margin-top:8px"></div>
+
+  <h2>外部服务状态</h2>
+  <div class="grid k4" id="externals"></div>
+
+  <div class="foot">
+    <span>只读快照 · 每 1 分钟自动刷新</span>
+    <span><a href="https://uptime.linzezhang.com">运维健康(存活探测) →</a></span>
+  </div>
+</div>
+
+<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <strong>价格设置</strong><button class="btn" onclick="closeModal()">关闭</button>
+    </div>
+    <div id="modalbody"></div>
+  </div>
+</div>
+
+<script src="vendor/chart.umd.min.js"></script>
+<script>
+const D=document, C=Chart;
+C.defaults.animation=false;
+C.defaults.font.family='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
+const dark=matchMedia('(prefers-color-scheme:dark)').matches;
+const ink=dark?'#8b8a83':'#8b8a83', grid=dark?'rgba(139,138,131,.18)':'rgba(139,138,131,.15)';
+let SNAP=null;
+function el(h){const t=D.createElement('template');t.innerHTML=h.trim();return t.content.firstChild}
+function cur(a,c){return 'A$'+(a==null?'—':a.toFixed(2))+' · ¥'+(c==null?'—':c.toFixed(2))}
+function daysHtml(d){if(d==null)return '';const col=d<=7?'var(--danger)':'var(--ok)';return ' <span style="color:'+col+'">· '+d+'天</span>'}
+
+async function load(){
+  try{
+    const r=await fetch('data/snapshot.json?t='+Date.now());
+    if(!r.ok)throw new Error('快照文件不可用('+r.status+')');
+    SNAP=await r.json();
+    render(SNAP);
+  }catch(e){
+    D.getElementById('err').innerHTML='<div class="err">数据加载失败:'+e.message+'。采集器可能尚未产出首份快照,稍后自动重试。</div>';
+  }
+}
+
+function render(s){
+  D.getElementById('updated').textContent='快照更新 '+s.updated_at+'('+s.tz+') · 每 1 分钟自动刷新';
+  const staleEl=D.getElementById('stale');
+  if(s.updated_epoch){
+    const mins=Math.floor((Date.now()/1000 - s.updated_epoch)/60);
+    staleEl.innerHTML = mins>=3
+      ? '<div class="warn"><b>数据可能过期</b> · 快照已 '+mins+' 分钟未更新,采集器可能停了。请检查主机 cron(<code>/etc/cron.d/linze-status</code>)。</div>'
+      : '';
+  }
+  const anyDown=(s.projects||[]).some(p=>p.status==='down');
+  const h=D.getElementById('health');
+  h.textContent=anyDown?'● 有异常':'● 全部健康';
+  h.className='pill '+(anyDown?'':'ok'); if(anyDown){h.style.color='var(--danger)';h.style.background='#fbeaea'}
+
+  // KPI
+  const su=s.summary;
+  D.getElementById('kpi').innerHTML=[
+    tile('服务在线',su.services_online),
+    tile('部署成功率 · 30天',su.deploy_rate+'%','成功 '+su.deploy_success+'/'+su.deploy_total),
+    tile('当月成本','A$'+ (s.cost.month_cash_aud??'—'),'¥'+(s.cost.month_cash_cny??'—')),
+    tile('主机在线',(su.uptime_days??'—')+' 天')
+  ].join('');
+
+  // 运维
+  const o=s.ops;
+  D.getElementById('ops').innerHTML=[
+    opt('上次备份',(o.backup.at||'—')+(o.backup.ok?' <span style="color:var(--ok)">✓</span>':' <span style="color:var(--danger)">!</span>')),
+    opt('证书最早到期',(o.cert.date||'—')+(o.cert.days!=null?' <span class="muted">· '+o.cert.days+'天·自动续</span>':'')),
+    opt('OVH 续费',(o.ovh_renew.date||'—')+daysHtml(o.ovh_renew.days)),
+    opt('容器重启',o.restarts+' <span class="muted">· '+(o.restarts===0?'全部稳定':'注意')+'</span>')
+  ].join('');
+
+  // 项目表
+  D.getElementById('rows').innerHTML=(s.projects||[]).map(p=>{
+    const name=p.url?'<a href="'+p.url+'" target="_blank">'+p.name+'</a>':p.name;
+    const addr=p.url?'<a href="'+p.url+'" target="_blank">'+p.url.replace('https://','')+'</a>':'<span class="muted">仅服务器内部</span>';
+    const parts=p.parts.map(t=>'<span class="tag '+(t==='前台'?'fe':'be')+'">'+t+'</span>').join('');
+    const db=p.db?'<span class="muted">'+p.db+'</span>':'<span class="muted">—</span>';
+    const bmap={run:['run','运行中'],access:['access','Access 保护'],down:['down','离线']};
+    const b=bmap[p.status]||bmap.run;
+    return '<tr><td>'+name+'</td><td>'+addr+'</td><td>'+parts+'</td><td>'+db+'</td><td style="color:var(--t2)">'+p.notify+'</td><td><span class="badge '+b[0]+'">'+b[1]+'</span></td></tr>';
+  }).join('');
+
+  // 部署记录
+  D.getElementById('deploylog').innerHTML=(s.deploy.log||[]).map(l=>
+    '<div class="row"><span style="color:var(--t2)">'+l.at+' · '+l.app+'</span>'+
+    (l.ok?'<span style="color:var(--ok)">✓ 成功</span>':'<span style="color:var(--danger)">✗ 失败</span>')+'</div>').join('')
+    || '<div class="muted" style="padding:10px 0">暂无记录</div>';
+
+  // 开支明细(最初购买 / 本月续费 / 当月成本)
+  const crows=(s.cost.items||[]).map(it=>{
+    const cad=it.cadence==='yearly'?'年付':'月付';
+    const renew=it.this_month_renew?it.this_month_renew.slice(5):'<span class="muted">本月无</span>';
+    const cash=it.month_cost_aud>0?cur(it.month_cost_aud,it.month_cost_cny):'<span class="muted">A$0</span>';
+    return '<tr><td>'+it.name+' <span class="muted" style="font-size:11px">· '+cad+'</span></td>'+
+      '<td class="muted">'+(it.purchase||'—')+'</td><td>'+renew+'</td>'+
+      '<td style="text-align:right">'+cash+'</td></tr>';
+  }).join('');
+  D.getElementById('costlist').innerHTML=
+    '<table style="font-size:13px"><thead><tr><th>项目</th><th>最初购买</th><th>本月续费</th>'+
+    '<th style="text-align:right">当月成本</th></tr></thead><tbody>'+crows+
+    '<tr style="font-weight:600"><td>本月实付合计</td><td></td><td></td>'+
+    '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>';
+  D.getElementById('fxline').innerHTML= s.fx.aud_cny
+    ? '月摊(规划口径)'+cur(s.cost.monthly_aud,s.cost.monthly_cny)+'/月 · 年化 '+cur(s.cost.yearly_aud,s.cost.yearly_cny)+
+      ' ｜ 汇率 1 AUD='+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)'
+    : '汇率暂不可用,金额仅显示 AUD';
+
+  // 外部
+  D.getElementById('externals').innerHTML=(s.externals||[]).map(e=>{
+    const cls=e.ok===true?'ok':(e.ok===false?'bad':'unk');
+    return '<div class="tile ext"><span class="dot '+cls+'"></span><div><div style="font-size:13px">'+e.name+'</div><div class="muted" style="font-size:12px">'+e.note+'</div></div></div>';
+  }).join('');
+
+  D.getElementById('memNow').textContent='当前 '+(s.host.mem_pct??'—')+'%';
+  D.getElementById('diskNow').textContent='当前 '+(s.host.disk_pct??'—')+'%';
+  charts(s);
+}
+function tile(l,v,sub){return '<div class="tile"><div class="lab">'+l+'</div><div class="val">'+v+(sub?' <span class="sub">· '+sub+'</span>':'')+'</div></div>'}
+function opt(l,v){return '<div class="tile opt"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>'}
+
+let _ch={};
+function mk(id,cfg){if(_ch[id])_ch[id].destroy();_ch[id]=new C(D.getElementById(id),cfg)}
+function charts(s){
+  const ax={ticks:{color:ink},grid:{color:grid}};
+  mk('deployChart',{
+    type:'line',
+    data:{labels:s.deploy.d7_labels,datasets:[{data:s.deploy.d7_data,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,.10)',fill:true,tension:.3,borderWidth:2,pointRadius:4,pointBackgroundColor:'#2a78d6'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,...ax},x:{ticks:{color:ink},grid:{display:false}}}}
+  });
+  mk('successChart',{
+    type:'doughnut',
+    data:{labels:['成功','失败'],datasets:[{data:[s.deploy.success,Math.max(0,s.deploy.total-s.deploy.success)],backgroundColor:['#1baf7a','#e34948'],borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10}}}}
+  });
+  const PAL=['#2a78d6','#008300','#eda100','#4a3aa7','#e87ba4','#e34948','#1baf7a','#eb6834'];
+  const ci=s.cost.items.filter(i=>i.month_cost_aud>0);
+  mk('costChart',{
+    type:'doughnut',
+    data:{labels:ci.map(i=>i.name+' A$'+i.month_cost_aud.toFixed(2)),datasets:[{data:ci.map(i=>i.month_cost_aud),backgroundColor:ci.map((_,k)=>PAL[k%PAL.length]),borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10,font:{size:11}}}}}
+  });
+  const H=s.history||{at:[],mem:[],disk:[]};
+  const trend=(id,arr,col)=>mk(id,{
+    type:'line',
+    data:{labels:H.at,datasets:[{data:arr,borderColor:col,backgroundColor:'rgba(139,138,131,.08)',fill:true,tension:.35,borderWidth:2,pointRadius:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}},x:{ticks:{color:ink,maxTicksLimit:6},grid:{display:false}}}}
+  });
+  trend('memChart',H.mem,'#eda100'); trend('diskChart',H.disk,'#1baf7a');
+}
+
+function openPrices(){
+  const s=SNAP; if(!s)return;
+  const rows=(s.cost.items||[]).map(i=>'<div class="row"><span>'+i.name+'</span><span class="muted">'+cur(i.aud,i.cny)+'</span></div>').join('');
+  D.getElementById('modalbody').innerHTML=rows+
+    '<p class="muted" style="margin-top:14px">价格保存在服务器持久化价格库 <code>prices.json</code>。带写入的编辑器(仅本人登录可改)正在接入 Cloudflare Access,开放后此处可直接改并入库。</p>';
+  D.getElementById('modal').style.display='flex';
+}
+function closeModal(){D.getElementById('modal').style.display='none'}
+
+load();
+setInterval(load, 60*1000);
+</script>
+</body>
+</html>
