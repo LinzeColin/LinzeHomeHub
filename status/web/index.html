@@ -83,6 +83,10 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .tg input:checked + .sl{background:var(--ok)}
 .tg input:checked + .sl:before{transform:translateX(18px)}
 .tg.ro .sl{cursor:not-allowed;opacity:.5}
+.rangebtns{display:flex;gap:4px;flex-wrap:wrap}
+.rangebtns button{font-size:12px;padding:4px 10px;border:0.5px solid var(--line);background:var(--card);color:var(--t2);border-radius:7px;cursor:pointer}
+.rangebtns button:hover{color:var(--t1)}
+.rangebtns button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .foot{margin-top:34px;padding-top:16px;border-top:0.5px solid var(--line);
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--t3)}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;
@@ -139,10 +143,21 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
     <div><h2 style="margin-top:0">部署成功率 · 30天</h2><div class="chartbox"><canvas id="successChart"></canvas></div></div>
   </div>
 
-  <div class="grid k2" style="margin-top:20px">
-    <div><h2 style="margin-top:0">内存趋势 <span class="muted" id="memNow"></span></h2><div class="chartbox sm"><canvas id="memChart"></canvas></div></div>
-    <div><h2 style="margin-top:0">磁盘趋势 <span class="muted" id="diskNow"></span></h2><div class="chartbox sm"><canvas id="diskChart"></canvas></div></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 8px">
+    <h2 style="margin:0">内存 / 磁盘趋势</h2>
+    <div class="rangebtns" id="rangeBtns"></div>
   </div>
+  <div id="customRange" style="display:none;margin:0 0 10px;font-size:13px;color:var(--t2)">
+    <input type="datetime-local" id="cr0" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
+    <span style="margin:0 4px">到</span>
+    <input type="datetime-local" id="cr1" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
+    <button class="btn" style="margin-left:6px" onclick="applyCustom()">应用</button>
+  </div>
+  <div class="grid k2">
+    <div><div class="muted" style="margin-bottom:6px">内存 <span id="memNow"></span></div><div class="chartbox sm"><canvas id="memChart"></canvas></div></div>
+    <div><div class="muted" style="margin-bottom:6px">磁盘 <span id="diskNow"></span></div><div class="chartbox sm"><canvas id="diskChart"></canvas></div></div>
+  </div>
+  <div class="muted" id="trendNote" style="font-size:11px;margin-top:6px"></div>
 
   <h2>最近部署记录</h2>
   <div class="card" id="deploylog" style="padding:6px 16px"></div>
@@ -154,10 +169,8 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
       <a class="btn" href="/admin">新增开支项 +</a>
     </div>
   </div>
-  <div class="grid k2">
-    <div class="card" id="costlist" style="padding:6px 16px"></div>
-    <div class="card"><div class="chartbox sm"><canvas id="costChart"></canvas></div></div>
-  </div>
+  <div class="card scroll" id="costlist" style="padding:6px 16px"></div>
+  <div class="card" style="margin-top:12px;max-width:460px"><div class="chartbox sm"><canvas id="costChart"></canvas></div></div>
   <div class="muted" id="fxline" style="margin-top:8px"></div>
 
   <h2>用量与免费额度 <span class="muted" style="font-weight:400">· 现在免费,超了才开始收费</span></h2>
@@ -321,6 +334,8 @@ function render(s){
   D.getElementById('memNow').textContent='当前 '+(s.host.mem_pct??'—')+'%';
   D.getElementById('diskNow').textContent='当前 '+(s.host.disk_pct??'—')+'%';
   charts(s);
+  renderRangeBtns();
+  renderTrends();
 }
 function tile(l,v,sub){return '<div class="tile"><div class="lab">'+l+'</div><div class="val">'+v+(sub?' <span class="sub">· '+sub+'</span>':'')+'</div></div>'}
 function opt(l,v){return '<div class="tile opt"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>'}
@@ -346,13 +361,46 @@ function charts(s){
     data:{labels:ci.map(i=>i.name+' A$'+i.month_cost_aud.toFixed(2)),datasets:[{data:ci.map(i=>i.month_cost_aud),backgroundColor:ci.map((_,k)=>PAL[k%PAL.length]),borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10,font:{size:11}}}}}
   });
-  const H=s.history||{at:[],mem:[],disk:[]};
-  const trend=(id,arr,col)=>mk(id,{
-    type:'line',
-    data:{labels:H.at,datasets:[{data:arr,borderColor:col,backgroundColor:'rgba(139,138,131,.08)',fill:true,tension:.35,borderWidth:2,pointRadius:0}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}},x:{ticks:{color:ink,maxTicksLimit:6},grid:{display:false}}}}
-  });
-  trend('memChart',H.mem,'#eda100'); trend('diskChart',H.disk,'#1baf7a');
+}
+
+const RANGES=[['实时',900],['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['自定义',null]];
+let TREND_RANGE='1D', CUSTOM=null;
+function renderRangeBtns(){
+  const el=D.getElementById('rangeBtns'); if(!el)return;
+  el.innerHTML=RANGES.map(r=>'<button class="'+(r[0]===TREND_RANGE?'on':'')+'" onclick="setRange(\''+r[0]+'\')">'+r[0]+'</button>').join('');
+}
+function setRange(lab){
+  TREND_RANGE=lab;
+  const cr=D.getElementById('customRange'); if(cr)cr.style.display=(lab==='自定义')?'block':'none';
+  renderRangeBtns();
+  if(lab!=='自定义')renderTrends();
+}
+function applyCustom(){
+  const a=D.getElementById('cr0').value, b=D.getElementById('cr1').value;
+  if(!a||!b){alert('请选择开始和结束时间');return;}
+  CUSTOM=[new Date(a).getTime()/1000, new Date(b).getTime()/1000];
+  if(CUSTOM[0]>=CUSTOM[1]){alert('开始时间要早于结束时间');return;}
+  renderTrends();
+}
+function fmtT(ep,win){const d=new Date(ep*1000),p=n=>('0'+n).slice(-2);
+  return win<=86400?p(d.getHours())+':'+p(d.getMinutes()):(p(d.getMonth()+1)+'-'+p(d.getDate()));}
+function renderTrends(){
+  if(!SNAP||!SNAP.history||!SNAP.history.min)return;
+  let t0,t1,win;
+  if(TREND_RANGE==='自定义'){ if(!CUSTOM)return; t0=CUSTOM[0]; t1=CUSTOM[1]; win=t1-t0; }
+  else { win=RANGES.find(r=>r[0]===TREND_RANGE)[1]; t1=Date.now()/1000; t0=t1-win; }
+  const ser = win<=86400 ? SNAP.history.min : SNAP.history.hour;
+  const idx=[]; for(let i=0;i<ser.t.length;i++){ if(ser.t[i]>=t0 && ser.t[i]<=t1) idx.push(i); }
+  const labels=idx.map(i=>fmtT(ser.t[i],win));
+  const opt={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}},x:{ticks:{color:ink,maxTicksLimit:8},grid:{display:false}}}};
+  const mkT=(id,data,col)=>mk(id,{type:'line',data:{labels:labels,datasets:[{data:data,borderColor:col,
+    backgroundColor:'rgba(139,138,131,.08)',fill:true,tension:.3,borderWidth:2,pointRadius:idx.length<=48?2:0}]},options:opt});
+  mkT('memChart',idx.map(i=>ser.mem[i]),'#eda100');
+  mkT('diskChart',idx.map(i=>ser.disk[i]),'#1baf7a');
+  const note=D.getElementById('trendNote');
+  if(note)note.textContent = idx.length<2 ? '该时段数据还在累积(采集器每分钟采样,长时段需要时间攒够)' :
+    ('区间 '+TREND_RANGE+':共 '+idx.length+' 个采样点,'+(win<=86400?'1分钟':'1小时')+'粒度');
 }
 
 function openPrices(){
