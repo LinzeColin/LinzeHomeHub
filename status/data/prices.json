@@ -1,0 +1,37 @@
+{
+  "note": "月度开支价格库。金额为原币种原周期,采集器按实时汇率折算 AUD/CNY。可在 status 的『编辑价格/新增开支』里改,或直接改此文件。",
+  "items": [
+    {
+      "name": "OVH VPS-1",
+      "amount": 7,
+      "currency": "AUD",
+      "cadence": "monthly",
+      "purchase": "2026-07-17",
+      "track_renew": true,
+      "note": "新加坡 · 2C/3.7G/40G"
+    },
+    {
+      "name": "域名 linzezhang.com",
+      "amount": 15,
+      "currency": "USD",
+      "cadence": "yearly",
+      "purchase": "2026-06-08",
+      "track_renew": true,
+      "note": "Cloudflare 注册"
+    },
+    {
+      "name": "NitroSend",
+      "amount": 0,
+      "currency": "AUD",
+      "cadence": "monthly",
+      "note": "邮件 · 免费额度"
+    },
+    {
+      "name": "Cloudflare / GitHub",
+      "amount": 0,
+      "currency": "AUD",
+      "cadence": "monthly",
+      "note": "免费额度"
+    }
+  ]
+}

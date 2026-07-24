@@ -1,0 +1,5 @@
+web/data/
+data/snapshot.json
+data/history.json
+data/snapshot.json.tmp
+*.log

@@ -1,0 +1,52 @@
+services:
+  status:
+    image: nginx:1.27-alpine
+    container_name: linze-status
+    restart: unless-stopped
+    volumes:
+      - /srv/linze/apps/status/web:/usr/share/nginx/html:ro
+      - /srv/linze/apps/status/data:/srv/data:ro
+      - /srv/linze/apps/status/deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.linzestatus.rule=Host(`status.linzezhang.com`)
+      - traefik.http.routers.linzestatus.entrypoints=https
+      - traefik.http.routers.linzestatus.tls=true
+      - traefik.http.routers.linzestatus.tls.certresolver=letsencrypt
+      - traefik.http.services.linzestatus.loadbalancer.server.port=80
+      - traefik.http.routers.linzestatus-http.rule=Host(`status.linzezhang.com`)
+      - traefik.http.routers.linzestatus-http.entrypoints=http
+      - traefik.http.routers.linzestatus-http.middlewares=linzestatus-redir
+      - traefik.http.middlewares.linzestatus-redir.redirectscheme.scheme=https
+
+  admin:
+    build: ../admin
+    image: linze-status-admin:latest
+    container_name: linze-status-admin
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      CF_TEAM_DOMAIN: tiny-scene-b867.cloudflareaccess.com
+      CF_ACCESS_AUD: "3154ca98269ded50f05fb4c3cd35398e0e6dc078f76ab2fa244c4ac526a59d74"
+      OWNER_EMAIL: linzezhang35@gmail.com
+      PRICES_PATH: /srv/data/prices.json
+    volumes:
+      - /srv/linze/apps/status/data:/srv/data:rw
+    networks:
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - "traefik.http.routers.linzestatusadmin.rule=Host(`status.linzezhang.com`) && PathPrefix(`/admin`)"
+      - traefik.http.routers.linzestatusadmin.entrypoints=https
+      - traefik.http.routers.linzestatusadmin.tls=true
+      - traefik.http.routers.linzestatusadmin.tls.certresolver=letsencrypt
+      - traefik.http.routers.linzestatusadmin.priority=100
+      - traefik.http.services.linzestatusadmin.loadbalancer.server.port=8080
+
+networks:
+  coolify:
+    external: true

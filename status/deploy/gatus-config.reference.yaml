@@ -1,0 +1,52 @@
+web:
+  port: 8080
+storage:
+  type: sqlite
+  path: /data/gatus.db
+ui:
+  title: 运维健康 · Linze
+  header: 运维健康
+  buttons:
+    - name: 云平台总览
+      link: https://status.linzezhang.com
+endpoints:
+  - name: 身份 account.linzezhang.com
+    group: linze-core
+    url: "https://account.linzezhang.com/realms/linze/.well-known/openid-configuration"
+    interval: 60s
+    conditions: ["[STATUS] == 200", "[BODY].issuer == https://account.linzezhang.com/realms/linze"]
+  - name: 控制面 server.linzezhang.com
+    group: linze-core
+    url: "https://server.linzezhang.com/api/health"
+    interval: 60s
+    conditions: ["[STATUS] == 200"]
+  - name: 云平台总览 status.linzezhang.com
+    group: linze-core
+    url: "https://status.linzezhang.com/healthz"
+    interval: 60s
+    conditions: ["[STATUS] == 200"]
+  - name: home
+    group: 现有站
+    url: "https://home.linzezhang.com"
+    interval: 60s
+    conditions: ["[STATUS] < 500"]
+  - name: nab
+    group: 现有站
+    url: "https://nab.linzezhang.com"
+    interval: 60s
+    conditions: ["[STATUS] < 500"]
+  - name: memoryatlas
+    group: 现有站
+    url: "https://memoryatlas.linzezhang.com"
+    interval: 60s
+    conditions: ["[STATUS] < 500"]
+  - name: adp
+    group: 现有站
+    url: "https://adp.linzezhang.com"
+    interval: 60s
+    conditions: ["[STATUS] < 500"]
+  - name: eei
+    group: 现有站
+    url: "https://eei.linzezhang.com"
+    interval: 60s
+    conditions: ["[STATUS] < 500"]
