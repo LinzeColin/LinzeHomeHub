@@ -192,7 +192,7 @@ def fx_rates(prev):
 
 # ---------- 续费倒计时 ----------
 def renew_days(purchase, cadence):
-    """purchase 'YYYY-MM-DD';cadence 'monthly'|'yearly' → (下次日期, 剩余天)。"""
+    """purchase 'YYYY-MM-DD';cadence 'monthly'|'yearly'  (下次日期, 剩余天)。"""
     p = datetime.strptime(purchase, "%Y-%m-%d").replace(tzinfo=CN)
     today = now_cn()
     nxt = p
@@ -247,7 +247,7 @@ def cost(prices, fx):
                 cash_aud = base_aud                    # 月付:本月照扣
             elif cadence == "yearly" and pday and pday.month == today.month:
                 this_renew = today.replace(day=min(pday.day, 28)).strftime("%Y-%m-%d")
-                cash_aud = base_aud                    # 年付:本月正好是周年月 → 本月扣年费
+                cash_aud = base_aud                    # 年付:本月正好是周年月  本月扣年费
         month_cash_aud += cash_aud
 
         row = {
@@ -351,7 +351,7 @@ def _read_secret(name):
 
 
 def oci_usage():
-    """OCI PAR 只写不可删 → 累计上传量 ≈ 远端占用。顺带从日志日期还原历史,用于测增速。"""
+    """OCI PAR 只写不可删  累计上传量  远端占用。顺带从日志日期还原历史,用于测增速。"""
     total, series = 0, []
     try:
         with open(OFFSITE_LOG) as f:
@@ -386,6 +386,45 @@ def github_backup_usage():
         return None
 
 
+def r2_usage(token):
+    """R2 存储字节 via GraphQL analytics(需 R2 读令牌)。"""
+    try:
+        now_u = datetime.now(timezone.utc)
+        start = (now_u - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        end = now_u.strftime("%Y-%m-%dT%H:%M:%SZ")
+        q = ('query{viewer{accounts(filter:{accountTag:"%s"}){'
+             'r2StorageAdaptiveGroups(limit:50,filter:{datetime_geq:"%s",datetime_leq:"%s"})'
+             '{max{payloadSize metadataSize}dimensions{bucketName}}}}}') % (CF_ACCOUNT, start, end)
+        req = urllib.request.Request("https://api.cloudflare.com/client/v4/graphql",
+            data=json.dumps({"query": q}).encode(),
+            headers={"Authorization": "Bearer " + token, "User-Agent": "linze-status",
+                     "Content-Type": "application/json"})
+        d = json.loads(urllib.request.urlopen(req, timeout=15).read())
+        groups = d["data"]["viewer"]["accounts"][0]["r2StorageAdaptiveGroups"]
+        total = sum(g["max"].get("payloadSize", 0) + g["max"].get("metadataSize", 0) for g in groups)
+        names = ", ".join(g["dimensions"]["bucketName"] for g in groups) or "无桶"
+        return {"key": "r2", "label": "Cloudflare R2 存储", "used": total, "limit": 10 * GB,
+                "unit": "bytes", "source": "auto", "note": names + " 桶"}
+    except Exception:
+        return None
+
+
+def d1_usage(token):
+    """D1 各库 file_size 求和(需 D1 读令牌)。"""
+    try:
+        req = urllib.request.Request(
+            "https://api.cloudflare.com/client/v4/accounts/%s/d1/database?per_page=100" % CF_ACCOUNT,
+            headers={"Authorization": "Bearer " + token, "User-Agent": "linze-status"})
+        d = json.loads(urllib.request.urlopen(req, timeout=15).read())
+        dbs = d.get("result", []) or []
+        total = sum(x.get("file_size", 0) for x in dbs)
+        names = ", ".join(x["name"] for x in dbs) or "无库"
+        return {"key": "d1", "label": "Cloudflare D1 存储", "used": total, "limit": 5 * GB,
+                "unit": "bytes", "source": "auto", "note": names}
+    except Exception:
+        return None
+
+
 def access_seats():
     tok = _read_secret("cf_access_token")
     if not tok:
@@ -399,7 +438,7 @@ def access_seats():
         if n is None:
             return None
         return {"key": "cf_access", "label": "Cloudflare Access 席位", "used": n, "limit": 50,
-                "unit": "count", "source": "auto", "note": "≥45 席位自动熔断保护"}
+                "unit": "count", "source": "auto", "note": "满 45 席自动熔断"}
     except Exception:
         return None
 
@@ -427,14 +466,14 @@ def record_usage_history(items):
 
 
 def eta_for(item, hist):
-    """按历史增速推算触顶日期 → (日期, 说明)。"""
+    """按历史增速推算触顶日期  (日期, 说明)。"""
     if item.get("bounded"):
         return None, "自动轮转,不会触顶"
     if item.get("source") == "manual":
         return None, "手动核对值 · 变动缓慢"
     arr = hist.get(item["key"], [])
     if len(arr) < 2:
-        return None, "增速累积中(需≥2天采样)"
+        return None, "增速累积中(需2天采样)"
     try:
         d0 = datetime.strptime(arr[0]["d"], "%Y-%m-%d")
         d1 = datetime.strptime(arr[-1]["d"], "%Y-%m-%d")
@@ -442,7 +481,7 @@ def eta_for(item, hist):
         return None, "增速累积中"
     days = (d1 - d0).days
     if days <= 0:
-        return None, "增速累积中(需≥2天采样)"
+        return None, "增速累积中(需2天采样)"
     growth = (arr[-1]["u"] - arr[0]["u"]) / days
     if growth <= 0:
         return None, "近%d天无增长" % days
@@ -465,13 +504,23 @@ def usage_block(prev, host):
     if o:
         out.append(o)
 
+    tok = _read_secret("cf_r2d1_token")
     seats = pu.get("cf_access")
     gh = pu.get("github_backup")
-    # 过期要刷;某项从没取到过也必须刷(否则节流会一直挡住首次取数)
-    if stale or seats is None or gh is None:
+    r2 = pu.get("r2")
+    d1 = pu.get("d1")
+    need_r2d1 = tok and (r2 is None or r2.get("source") != "auto" or d1 is None or d1.get("source") != "auto")
+    # 过期要刷;某项从没自动取到过也必须刷(否则节流会一直挡住首次取数)
+    if stale or seats is None or gh is None or need_r2d1:
         fresh_seats, fresh_gh = access_seats(), github_backup_usage()
-        if fresh_seats or fresh_gh:
-            seats, gh, net_at = (fresh_seats or seats), (fresh_gh or gh), fmt(now_cn())
+        fresh_r2 = r2_usage(tok) if tok else None
+        fresh_d1 = d1_usage(tok) if tok else None
+        if any([fresh_seats, fresh_gh, fresh_r2, fresh_d1]):
+            seats = fresh_seats or seats
+            gh = fresh_gh or gh
+            r2 = fresh_r2 or r2
+            d1 = fresh_d1 or d1
+            net_at = fmt(now_cn())
     if gh:
         out.append(gh)
     if seats:
@@ -482,7 +531,9 @@ def usage_block(prev, host):
                     "limit": host["disk_total_b"], "unit": "bytes", "source": "auto",
                     "note": "OVH VPS-1 系统盘"})
 
-    out.extend(MANUAL_USAGE)
+    # R2/D1:优先自动值,拿不到才用人工兜底
+    out.append(r2 or MANUAL_USAGE[0])
+    out.append(d1 or MANUAL_USAGE[1])
 
     hist = record_usage_history(out)
     for it in out:
