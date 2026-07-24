@@ -198,7 +198,7 @@ button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
  <a href="/admin" class=active>价格设置</a>
 </nav>
 <h1>价格设置</h1>
-<div class=muted>金额填<b>原币种、原周期</b>(月付填月费、年付填年费),页面自动按实时汇率折算,并算出「本月续费日」与「当月成本」。改完点保存 → <a href="/">总览</a> 1 分钟内更新。</div>
+<div class=muted>金额填<b>原币种、原周期</b>(月付填月费、年付填年费),页面自动按实时汇率折算,并算出「本月续费日」与「当月成本」。改完点保存  <a href="/">总览</a> 1 分钟内更新。</div>
 <div id=list></div>
 <div class=bar>
  <button class=act onclick=addRow()>+ 新增开支项</button>
@@ -232,7 +232,7 @@ function save(){
  const m=document.getElementById("msg");m.textContent="保存中…";m.style.color="var(--t2)";
  fetch("/admin/api/prices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})})
  .then(r=>r.json().then(j=>({ok:r.ok,j})))
- .then(({ok,j})=>{if(ok){m.innerHTML='已保存 ✓ · <a href="/">去总览看 →</a>';m.style.color="#0f8a4d";items=j.items.map(x=>({track_renew:true,note:"",purchase:"",...x}));draw()}else{m.textContent="失败:"+(j.error||"");m.style.color="#cf3a3a"}})
+ .then(({ok,j})=>{if(ok){m.innerHTML='已保存 · <a href="/">去总览看</a>';m.style.color="#0f8a4d";items=j.items.map(x=>({track_renew:true,note:"",purchase:"",...x}));draw()}else{m.textContent="失败:"+(j.error||"");m.style.color="#cf3a3a"}})
  .catch(e=>{m.textContent="网络错误";m.style.color="#cf3a3a"})
 }
 fetch("/admin/api/prices").then(r=>r.json()).then(j=>{items=(j.items||[]).map(x=>({track_renew:true,note:"",purchase:"",auto_renew:false,...x}));draw()}).catch(e=>{document.getElementById("msg").textContent="加载失败"})

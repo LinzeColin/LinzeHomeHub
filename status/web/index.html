@@ -110,7 +110,7 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
       <h1>云平台总览 · status.linzezhang.com</h1>
       <div class="muted" id="updated">加载中…</div>
     </div>
-    <span class="pill ok" id="health">● 加载中</span>
+    <span class="pill ok" id="health">加载中</span>
   </div>
 
   <div id="err"></div>
@@ -122,9 +122,9 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
   <h2>架构三层</h2>
   <div class="muted" style="margin-bottom:10px">程序和数据库全在 OVH 那一台机器;Cloudflare 只做门口加速防护,不跑程序;邮件走外部 NitroSend。</div>
   <div class="grid k3">
-    <div class="card"><div style="font-weight:500">☁️ Cloudflare · 门口</div><div class="muted" style="margin-top:4px">域名解析 · 加速缓存 · 挡攻击 · 登录门禁</div></div>
-    <div class="card"><div style="font-weight:500">🖥️ OVH VPS-1 · 主机</div><div class="muted" style="margin-top:4px">全部前后台 + 数据库都在这台跑</div></div>
-    <div class="card"><div style="font-weight:500">✉️ NitroSend · 邮件</div><div class="muted" style="margin-top:4px">外部服务 · 免费额度</div></div>
+    <div class="card"><div style="font-weight:500">Cloudflare · 门口</div><div class="muted" style="margin-top:4px">域名解析 · 加速缓存 · 挡攻击 · 登录门禁</div></div>
+    <div class="card"><div style="font-weight:500">OVH VPS-1 · 主机</div><div class="muted" style="margin-top:4px">全部前后台 + 数据库都在这台跑</div></div>
+    <div class="card"><div style="font-weight:500">NitroSend · 邮件</div><div class="muted" style="margin-top:4px">外部服务 · 免费额度</div></div>
   </div>
 
   <h2>各项目 · 地址 / 组成 / 数据库平台 / 通知</h2>
@@ -150,7 +150,7 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 10px">
     <h2 style="margin:0">月度开支明细</h2>
     <div style="display:flex;gap:8px">
-      <a class="btn" href="/admin">编辑价格 ✎</a>
+      <a class="btn" href="/admin">编辑价格</a>
       <a class="btn" href="/admin">新增开支项 +</a>
     </div>
   </div>
@@ -168,7 +168,7 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 
   <div class="foot">
     <span>只读快照 · 每 1 分钟自动刷新</span>
-    <span><a href="https://uptime.linzezhang.com">运维健康(存活探测) →</a></span>
+    <span><a href="https://uptime.linzezhang.com">运维健康(存活探测)</a></span>
   </div>
 </div>
 
@@ -231,7 +231,7 @@ function render(s){
   }
   const anyDown=(s.projects||[]).some(p=>p.status==='down');
   const h=D.getElementById('health');
-  h.textContent=anyDown?'● 有异常':'● 全部健康';
+  h.textContent=anyDown?'有异常':'全部健康';
   h.className='pill '+(anyDown?'':'ok'); if(anyDown){h.style.color='var(--danger)';h.style.background='#fbeaea'}
 
   // KPI
@@ -246,7 +246,7 @@ function render(s){
   // 运维
   const o=s.ops;
   D.getElementById('ops').innerHTML=[
-    opt('上次备份',(o.backup.at||'—')+(o.backup.ok?' <span style="color:var(--ok)">✓</span>':' <span style="color:var(--danger)">!</span>')),
+    opt('上次备份',(o.backup.at||'—')+(o.backup.ok?' <span style="color:var(--ok)">正常</span>':' <span style="color:var(--danger)">!</span>')),
     opt('证书最早到期',(o.cert.date||'—')+(o.cert.days!=null?' <span class="muted">· '+o.cert.days+'天·自动续</span>':'')),
     opt('OVH 续费',(o.ovh_renew.date||'—')+daysHtml(o.ovh_renew.days)),
     opt('容器重启',o.restarts+' <span class="muted">· '+(o.restarts===0?'全部稳定':'注意')+'</span>')
@@ -266,7 +266,7 @@ function render(s){
   // 部署记录
   D.getElementById('deploylog').innerHTML=(s.deploy.log||[]).map(l=>
     '<div class="row"><span style="color:var(--t2)">'+l.at+' · '+l.app+'</span>'+
-    (l.ok?'<span style="color:var(--ok)">✓ 成功</span>':'<span style="color:var(--danger)">✗ 失败</span>')+'</div>').join('')
+    (l.ok?'<span style="color:var(--ok)">成功</span>':'<span style="color:var(--danger)">失败</span>')+'</div>').join('')
     || '<div class="muted" style="padding:10px 0">暂无记录</div>';
 
   // 开支明细(最初购买 / 本月续费 / 自动续费开关 / 当月成本)
@@ -288,8 +288,8 @@ function render(s){
     '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>'+
     (CAN_EDIT?'':'<div class="muted" style="font-size:11px;padding:6px 2px">开关只读 · 到「价格设置」用你的邮箱登录后即可在此直接切换</div>');
   D.getElementById('fxline').innerHTML= s.fx.aud_cny
-    ? '<div>月摊(把年费摊到每月):A$'+s.cost.monthly_aud.toFixed(2)+'/月 ≈ ¥'+Math.round(s.cost.monthly_cny)+
-        ' · 年化 A$'+s.cost.yearly_aud.toFixed(2)+' ≈ ¥'+Math.round(s.cost.yearly_cny)+'</div>'+
+    ? '<div>月摊(把年费摊到每月):A$'+s.cost.monthly_aud.toFixed(2)+'/月 约 ¥'+Math.round(s.cost.monthly_cny)+
+        ' · 年化 A$'+s.cost.yearly_aud.toFixed(2)+' 约 ¥'+Math.round(s.cost.yearly_cny)+'</div>'+
       '<div style="margin-top:3px">汇率 1 AUD = '+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)</div>'
     : '汇率暂不可用,金额仅显示 AUD';
 
@@ -298,8 +298,8 @@ function render(s){
     const pct=u.limit?Math.min(100,u.used/u.limit*100):0;
     const col=pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)');
     const src=u.source==='auto'
-      ?'<span class="src auto">● 自动刷新</span>'
-      :'<span class="src manual">✎ 人工 '+(u.checked||'')+'</span>';
+      ?'<span class="src auto">自动刷新</span>'
+      :'<span class="src manual">人工 '+(u.checked||'')+'</span>';
     const val=u.unit==='bytes'?(fmtBytes(u.used)+' / '+fmtBytes(u.limit)):(u.used+' / '+u.limit);
     const eta=u.eta_date
       ? '<b style="color:'+(pct>=50?'var(--warn)':'var(--t1)')+'">预计触顶 '+u.eta_date+'</b>'
