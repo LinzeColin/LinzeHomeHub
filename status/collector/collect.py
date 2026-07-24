@@ -68,9 +68,14 @@ def host_metrics():
     disk = run("df / | awk 'NR==2{gsub(\"%\",\"\",$5); print $5}'")
     up_days = run("awk '{printf \"%d\", $1/86400}' /proc/uptime")
     load = run("awk '{print $1}' /proc/loadavg")
+    dbytes = run("df -B1 / | awk 'NR==2{print $3\" \"$2}'").split()
+    used_b = int(dbytes[0]) if len(dbytes) == 2 and dbytes[0].isdigit() else None
+    total_b = int(dbytes[1]) if len(dbytes) == 2 and dbytes[1].isdigit() else None
     return {
         "mem_pct": int(mem) if mem.isdigit() else None,
         "disk_pct": int(disk) if disk.isdigit() else None,
+        "disk_used_b": used_b,
+        "disk_total_b": total_b,
         "uptime_days": int(up_days) if up_days.isdigit() else None,
         "load1": load,
     }
@@ -320,6 +325,93 @@ def load_json(path, default):
         return default
 
 
+# ---------- 用量 vs 免费额度(潜在收费监控)----------
+CF_ACCOUNT = "a8e86fa4be62ee3f9b5873b2aa934256"
+OFFSITE_LOG = "/srv/linze/logs/offsite-backup.log"
+SECRETS_DIR = os.path.join(APP_DIR, ".secrets")
+GB = 1024 ** 3
+
+# R2/D1 需一次性授权(读令牌)才能自动;在此之前展示人工核对值并标注日期,不冒充实时
+MANUAL_USAGE = [
+    {"key": "r2", "label": "Cloudflare R2 存储", "used": 5054136, "limit": 10 * GB,
+     "unit": "bytes", "source": "manual", "checked": "2026-07-24",
+     "note": "adp-raw-artifacts · 需 R2 读令牌才能自动刷新"},
+    {"key": "d1", "label": "Cloudflare D1 存储", "used": 53784576, "limit": 5 * GB,
+     "unit": "bytes", "source": "manual", "checked": "2026-07-24",
+     "note": "eei-publication + adp-mirror · 需 D1 读令牌才能自动刷新"},
+]
+
+
+def _read_secret(name):
+    try:
+        with open(os.path.join(SECRETS_DIR, name)) as f:
+            return f.read().strip()
+    except Exception:
+        return None
+
+
+def oci_usage():
+    """离机备份 PAR 只写不可删 → 累计上传量 ≈ 远端占用(按日志,属下限估算)。"""
+    total = last = 0
+    try:
+        with open(OFFSITE_LOG) as f:
+            for line in f:
+                m = re.search(r"offsite=200 size=(\d+)B", line)
+                if m:
+                    last = int(m.group(1))
+                    total += last
+    except Exception:
+        return None
+    limit = 20 * GB
+    return {"key": "oci_backup", "label": "OCI 离机备份", "used": total, "limit": limit,
+            "unit": "bytes", "source": "auto",
+            "eta_days": int((limit - total) / last) if last > 0 else None,
+            "note": "每日上传且远端不可删,只增不减"}
+
+
+def access_seats():
+    tok = _read_secret("cf_access_token")
+    if not tok:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT}/access/users?per_page=1",
+            headers={"Authorization": "Bearer " + tok, "User-Agent": "Mozilla/5.0"})
+        d = json.loads(urllib.request.urlopen(req, timeout=12).read())
+        n = (d.get("result_info") or {}).get("total_count")
+        if n is None:
+            return None
+        return {"key": "cf_access", "label": "Cloudflare Access 席位", "used": n, "limit": 50,
+                "unit": "count", "source": "auto", "note": "≥45 席位自动熔断保护"}
+    except Exception:
+        return None
+
+
+def usage_block(prev, host):
+    """本地项每次算;Access 走网络 → 30 分钟节流。返回 (列表, 席位取数时间)。"""
+    out = []
+    o = oci_usage()
+    if o:
+        out.append(o)
+
+    pu = {u.get("key"): u for u in (prev.get("usage") or [])}
+    seats, seats_at = pu.get("cf_access"), prev.get("usage_seats_at")
+    if not (seats and seats_at and age_min(seats_at) < 30):
+        fresh = access_seats()
+        if fresh:
+            seats, seats_at = fresh, fmt(now_cn())
+    if seats:
+        out.append(seats)
+
+    if host.get("disk_used_b") and host.get("disk_total_b"):
+        out.append({"key": "disk", "label": "主机磁盘", "used": host["disk_used_b"],
+                    "limit": host["disk_total_b"], "unit": "bytes", "source": "auto",
+                    "note": "OVH VPS-1 系统盘"})
+
+    out.extend(MANUAL_USAGE)
+    return out, seats_at
+
+
 # ---------- 慢变量节流(1分钟采集下不浪费外部接口)----------
 def age_min(ts):
     try:
@@ -383,6 +475,7 @@ def main():
 
     projects, online = projects_live()
     dep = deploy_stats()
+    usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
 
     snap = {
@@ -410,6 +503,8 @@ def main():
         "history": hist,
         "externals": ext,
         "externals_at": ext_at,
+        "usage": usage,
+        "usage_seats_at": usage_seats_at,
     }
 
     tmp = os.path.join(DATA_DIR, "snapshot.json.tmp")

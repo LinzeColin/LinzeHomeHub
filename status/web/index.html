@@ -67,6 +67,15 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .ext{display:flex;align-items:center;gap:10px}
 .dot{width:9px;height:9px;border-radius:50%;flex:none}
 .dot.ok{background:var(--ok)} .dot.bad{background:var(--danger)} .dot.unk{background:var(--t3)}
+.ub{background:var(--card);border:0.5px solid var(--line);border-radius:12px;padding:12px 14px}
+.ub .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ub .nm{font-size:13px}
+.ub .uval{font-size:12px;color:var(--t2);white-space:nowrap}
+.track{height:7px;background:var(--soft);border-radius:99px;margin-top:8px;overflow:hidden}
+.fill{height:100%;border-radius:99px}
+.src{font-size:11px;padding:1px 6px;border-radius:5px;margin-left:6px}
+.src.auto{background:var(--ok-bg);color:var(--ok)}
+.src.manual{background:var(--soft);color:var(--t3)}
 .foot{margin-top:34px;padding-top:16px;border-top:0.5px solid var(--line);
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--t3)}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;
@@ -144,6 +153,9 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
   </div>
   <div class="muted" id="fxline" style="margin-top:8px"></div>
 
+  <h2>用量与免费额度 <span class="muted" style="font-weight:400">· 现在免费,超了才开始收费</span></h2>
+  <div class="grid k2" id="usage"></div>
+
   <h2>外部服务状态</h2>
   <div class="grid k4" id="externals"></div>
 
@@ -172,6 +184,8 @@ const ink=dark?'#8b8a83':'#8b8a83', grid=dark?'rgba(139,138,131,.18)':'rgba(139,
 let SNAP=null;
 function el(h){const t=D.createElement('template');t.innerHTML=h.trim();return t.content.firstChild}
 function cur(a,c){return 'A$'+(a==null?'—':a.toFixed(2))+' · ¥'+(c==null?'—':c.toFixed(2))}
+function fmtBytes(b){if(b==null)return '—';const u=['B','KB','MB','GB','TB'];let i=0,v=b;
+  while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(i>0&&v<100?1:0)+' '+u[i]}
 function daysHtml(d){if(d==null)return '';const col=d<=7?'var(--danger)':'var(--ok)';return ' <span style="color:'+col+'">· '+d+'天</span>'}
 
 async function load(){
@@ -252,6 +266,21 @@ function render(s){
     ? '月摊(规划口径)'+cur(s.cost.monthly_aud,s.cost.monthly_cny)+'/月 · 年化 '+cur(s.cost.yearly_aud,s.cost.yearly_cny)+
       ' ｜ 汇率 1 AUD='+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)'
     : '汇率暂不可用,金额仅显示 AUD';
+
+  // 用量与免费额度(潜在收费预警)
+  D.getElementById('usage').innerHTML=(s.usage||[]).map(u=>{
+    const pct=u.limit?Math.min(100,u.used/u.limit*100):0;
+    const col=pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)');
+    const src=u.source==='auto'
+      ?'<span class="src auto">自动</span>'
+      :'<span class="src manual">人工 '+(u.checked||'')+'</span>';
+    const val=u.unit==='bytes'?(fmtBytes(u.used)+' / '+fmtBytes(u.limit)):(u.used+' / '+u.limit);
+    const eta=(u.eta_days!=null)?' · 约 '+u.eta_days+' 天后触顶':'';
+    return '<div class="ub"><div class="top"><span class="nm">'+u.label+src+'</span>'+
+      '<span class="uval">'+val+' · '+pct.toFixed(pct<1?2:1)+'%</span></div>'+
+      '<div class="track"><div class="fill" style="width:'+Math.max(pct,1.5)+'%;background:'+col+'"></div></div>'+
+      '<div class="muted" style="font-size:11px;margin-top:6px">'+(u.note||'')+eta+'</div></div>';
+  }).join('')||'<div class="muted">暂无用量数据</div>';
 
   // 外部
   D.getElementById('externals').innerHTML=(s.externals||[]).map(e=>{
