@@ -253,7 +253,7 @@ def cost(prices, fx):
         row = {
             "name": it.get("name", ""), "note": it.get("note", ""),
             "cadence": cadence, "currency": cur, "amount": round(amt, 2),
-            "purchase": purchase,
+            "purchase": purchase, "auto_renew": bool(it.get("auto_renew", False)),
             "aud": round(m_aud, 2),                    # 月摊 AUD
             "cny": round(m_aud * cny_rate, 2) if cny_rate else None,
             "this_month_renew": this_renew,            # 本月续费日(无则 None)

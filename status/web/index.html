@@ -76,6 +76,13 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .src{font-size:11px;padding:1px 6px;border-radius:5px;margin-left:6px}
 .src.auto{background:var(--ok-bg);color:var(--ok)}
 .src.manual{background:var(--soft);color:var(--t3)}
+.tg{position:relative;display:inline-block;width:38px;height:20px;vertical-align:middle}
+.tg input{opacity:0;width:0;height:0;position:absolute}
+.tg .sl{position:absolute;inset:0;background:var(--line);border-radius:99px;transition:.2s;cursor:pointer}
+.tg .sl:before{content:"";position:absolute;height:16px;width:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.tg input:checked + .sl{background:var(--ok)}
+.tg input:checked + .sl:before{transform:translateX(18px)}
+.tg.ro .sl{cursor:not-allowed;opacity:.5}
 .foot{margin-top:34px;padding-top:16px;border-top:0.5px solid var(--line);
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--t3)}
 #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;
@@ -181,7 +188,20 @@ C.defaults.animation=false;
 C.defaults.font.family='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
 const dark=matchMedia('(prefers-color-scheme:dark)').matches;
 const ink=dark?'#8b8a83':'#8b8a83', grid=dark?'rgba(139,138,131,.18)':'rgba(139,138,131,.15)';
-let SNAP=null;
+let SNAP=null, CAN_EDIT=false, PROBED=false;
+function probeEdit(){
+  if(PROBED)return; PROBED=true;
+  fetch('/admin/api/prices',{method:'GET'}).then(r=>{ if(r.ok){CAN_EDIT=true; if(SNAP)render(SNAP);} }).catch(()=>{});
+}
+function toggleRenew(el,i){
+  if(!SNAP||!SNAP.cost||!SNAP.cost.items[i])return;
+  const name=SNAP.cost.items[i].name, val=el.checked;
+  el.disabled=true;
+  fetch('/admin/api/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,auto_renew:val})})
+    .then(r=>{ if(!r.ok)throw new Error(r.status); return r.json(); })
+    .then(j=>{ SNAP.cost.items[i].auto_renew=val; el.disabled=false; })
+    .catch(e=>{ el.checked=!val; el.disabled=false; alert('保存失败:请先到「价格设置」用你的邮箱登录一次,再回来切换开关。'); });
+}
 function el(h){const t=D.createElement('template');t.innerHTML=h.trim();return t.content.firstChild}
 function cur(a,c){return 'A$'+(a==null?'—':a.toFixed(2))+' · ¥'+(c==null?'—':c.toFixed(2))}
 function fmtBytes(b){if(b==null)return '—';const u=['B','KB','MB','GB','TB'];let i=0,v=b;
@@ -194,6 +214,7 @@ async function load(){
     if(!r.ok)throw new Error('快照文件不可用('+r.status+')');
     SNAP=await r.json();
     render(SNAP);
+    probeEdit();
   }catch(e){
     D.getElementById('err').innerHTML='<div class="err">数据加载失败:'+e.message+'。采集器可能尚未产出首份快照,稍后自动重试。</div>';
   }
@@ -248,20 +269,24 @@ function render(s){
     (l.ok?'<span style="color:var(--ok)">✓ 成功</span>':'<span style="color:var(--danger)">✗ 失败</span>')+'</div>').join('')
     || '<div class="muted" style="padding:10px 0">暂无记录</div>';
 
-  // 开支明细(最初购买 / 本月续费 / 当月成本)
-  const crows=(s.cost.items||[]).map(it=>{
+  // 开支明细(最初购买 / 本月续费 / 自动续费开关 / 当月成本)
+  const crows=(s.cost.items||[]).map((it,i)=>{
     const cad=it.cadence==='yearly'?'年付':'月付';
     const renew=it.this_month_renew?it.this_month_renew.slice(5):'<span class="muted">本月无</span>';
     const cash=it.month_cost_aud>0?cur(it.month_cost_aud,it.month_cost_cny):'<span class="muted">A$0</span>';
+    const tg='<label class="tg '+(CAN_EDIT?'':'ro')+'"><input type="checkbox" '+(it.auto_renew?'checked':'')+' '+
+      (CAN_EDIT?'':'disabled')+' onchange="toggleRenew(this,'+i+')"><span class="sl"></span></label>';
     return '<tr><td>'+it.name+' <span class="muted" style="font-size:11px">· '+cad+'</span></td>'+
       '<td class="muted">'+(it.purchase||'—')+'</td><td>'+renew+'</td>'+
+      '<td style="text-align:center">'+tg+'</td>'+
       '<td style="text-align:right">'+cash+'</td></tr>';
   }).join('');
   D.getElementById('costlist').innerHTML=
     '<table style="font-size:13px"><thead><tr><th>项目</th><th>最初购买</th><th>本月续费</th>'+
-    '<th style="text-align:right">当月成本</th></tr></thead><tbody>'+crows+
-    '<tr style="font-weight:600"><td>本月实付合计</td><td></td><td></td>'+
-    '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>';
+    '<th style="text-align:center">自动续费</th><th style="text-align:right">当月成本</th></tr></thead><tbody>'+crows+
+    '<tr style="font-weight:600"><td>本月实付合计</td><td></td><td></td><td></td>'+
+    '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>'+
+    (CAN_EDIT?'':'<div class="muted" style="font-size:11px;padding:6px 2px">开关只读 · 到「价格设置」用你的邮箱登录后即可在此直接切换</div>');
   D.getElementById('fxline').innerHTML= s.fx.aud_cny
     ? '月摊(规划口径)'+cur(s.cost.monthly_aud,s.cost.monthly_cny)+'/月 · 年化 '+cur(s.cost.yearly_aud,s.cost.yearly_cny)+
       ' ｜ 汇率 1 AUD='+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)'
