@@ -595,8 +595,8 @@ def main():
 
     # 内存/磁盘历史:分层留存(1分钟粒度留 24h;小时粒度留 31 天)供多时段趋势
     hist = load_json(os.path.join(DATA_DIR, "history.json"), {})
-    if "min" not in hist:
-        hist = {"min": {"t": [], "mem": [], "disk": []}, "hour": {"t": [], "mem": [], "disk": []}}
+    for tier in ("min", "hour", "day"):
+        hist.setdefault(tier, {"t": [], "mem": [], "disk": []})
     ep = int(time.time())
     mem_v, disk_v = host.get("mem_pct"), host.get("disk_pct")
     m = hist["min"]
@@ -608,9 +608,16 @@ def main():
     if not h["t"] or h["t"][-1] != cur_hour:
         h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v)
     else:
-        h["mem"][-1] = mem_v; h["disk"][-1] = disk_v   # 当前小时用最新值
+        h["mem"][-1] = mem_v; h["disk"][-1] = disk_v
     for k in ("t", "mem", "disk"):
         h[k] = h[k][-744:]                       # 31 天 @ 1hour
+    d = hist["day"]
+    cur_day = ep - (ep % 86400)
+    if not d["t"] or d["t"][-1] != cur_day:
+        d["t"].append(cur_day); d["mem"].append(mem_v); d["disk"].append(disk_v)
+    else:
+        d["mem"][-1] = mem_v; d["disk"][-1] = disk_v
+    # 天级别**不设上限**:一天一个点,永久保留(无期限)
     with open(os.path.join(DATA_DIR, "history.json"), "w") as f:
         json.dump(hist, f)
 
