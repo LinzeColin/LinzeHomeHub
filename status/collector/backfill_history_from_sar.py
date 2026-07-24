@@ -87,6 +87,15 @@ def main():
     ms = sorted(mm.items())[-1440:]
     h["min"] = {"t": [k for k, _ in ms], "mem": [v[0] for _, v in ms], "disk": [v[1] for _, v in ms]}
 
+    day = {}
+    for ep, u in allpts:
+        day[ep - (ep % 86400)] = u
+    md = {db: (m, None) for db, m in day.items()}
+    for t, m, d in tup(h.get("day", {})):
+        md[t - (t % 86400)] = (m, d)
+    ds = sorted(md.items())            # 天级别不截断
+    h["day"] = {"t": [k for k, _ in ds], "mem": [v[0] for _, v in ds], "disk": [v[1] for _, v in ds]}
+
     json.dump(h, open(HF, "w"))
     print("backfilled hour=%d min=%d  mem %s%% -> %s%%" %
           (len(h["hour"]["t"]), len(h["min"]["t"]), h["hour"]["mem"][0], h["hour"]["mem"][-1]))

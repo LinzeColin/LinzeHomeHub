@@ -1,0 +1,9 @@
+# 装到 /etc/logrotate.d/linze-status —— 防止采集日志无限膨胀(每分钟一行)
+/srv/linze/apps/status/collect.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

@@ -18,6 +18,13 @@ for c in $(docker ps --format '{{.Names}} {{.Image}}' | awk '/postgres/{print $1
 done
 cp /data/coolify/source/.env "$STAGE/config/coolify-env-${TS}.env" 2>/dev/null || true
 
+# status 数据/日志(内存磁盘历史、快照、价格库、采集日志)一并进每日备份 → 随备份上 GitHub
+mkdir -p "$STAGE/status"
+for f in history.json snapshot.json prices.json usage_history.json; do
+  cp "/srv/linze/apps/status/data/$f" "$STAGE/status/$f" 2>/dev/null || true
+done
+cp /srv/linze/apps/status/collect.log "$STAGE/status/collect.log" 2>/dev/null || true
+
 TAR="$DEST/linze-backup-${TS}.tar.gz"
 tar -czf "$TAR" -C "$STAGE" .
 ENC="${TAR}.enc"

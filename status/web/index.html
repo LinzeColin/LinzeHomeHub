@@ -363,7 +363,7 @@ function charts(s){
   });
 }
 
-const RANGES=[['实时',900],['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['自定义',null]];
+const RANGES=[['实时',900],['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['90D',7776000],['1Y',31536000],['全部',-1],['自定义',null]];
 let TREND_RANGE='1D', CUSTOM=null;
 function renderRangeBtns(){
   const el=D.getElementById('rangeBtns'); if(!el)return;
@@ -386,10 +386,12 @@ function fmtT(ep,win){const d=new Date(ep*1000),p=n=>('0'+n).slice(-2);
   return win<=86400?p(d.getHours())+':'+p(d.getMinutes()):(p(d.getMonth()+1)+'-'+p(d.getDate()));}
 function renderTrends(){
   if(!SNAP||!SNAP.history||!SNAP.history.min)return;
+  const DAY=SNAP.history.day||{t:[],mem:[],disk:[]};
   let t0,t1,win;
   if(TREND_RANGE==='自定义'){ if(!CUSTOM)return; t0=CUSTOM[0]; t1=CUSTOM[1]; win=t1-t0; }
+  else if(TREND_RANGE==='全部'){ t1=Date.now()/1000; t0=DAY.t.length?DAY.t[0]:t1-86400; win=t1-t0; }
   else { win=RANGES.find(r=>r[0]===TREND_RANGE)[1]; t1=Date.now()/1000; t0=t1-win; }
-  const ser = win<=86400 ? SNAP.history.min : SNAP.history.hour;
+  const ser = (TREND_RANGE==='全部'||win>2678400) ? DAY : (win<=86400 ? SNAP.history.min : SNAP.history.hour);
   const idx=[]; for(let i=0;i<ser.t.length;i++){ if(ser.t[i]>=t0 && ser.t[i]<=t1) idx.push(i); }
   const labels=idx.map(i=>fmtT(ser.t[i],win));
   const opt={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
@@ -399,8 +401,9 @@ function renderTrends(){
   mkT('memChart',idx.map(i=>ser.mem[i]),'#eda100');
   mkT('diskChart',idx.map(i=>ser.disk[i]),'#1baf7a');
   const note=D.getElementById('trendNote');
+  const gran=(TREND_RANGE==='全部'||win>2678400)?'1天':(win<=86400?'1分钟':'1小时');
   if(note)note.textContent = idx.length<2 ? '该时段数据还在累积(采集器每分钟采样,长时段需要时间攒够)' :
-    ('区间 '+TREND_RANGE+':共 '+idx.length+' 个采样点,'+(win<=86400?'1分钟':'1小时')+'粒度');
+    ('区间 '+TREND_RANGE+':共 '+idx.length+' 个采样点,'+gran+'粒度');
 }
 
 function openPrices(){
