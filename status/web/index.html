@@ -288,8 +288,9 @@ function render(s){
     '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>'+
     (CAN_EDIT?'':'<div class="muted" style="font-size:11px;padding:6px 2px">开关只读 · 到「价格设置」用你的邮箱登录后即可在此直接切换</div>');
   D.getElementById('fxline').innerHTML= s.fx.aud_cny
-    ? '月摊(规划口径)'+cur(s.cost.monthly_aud,s.cost.monthly_cny)+'/月 · 年化 '+cur(s.cost.yearly_aud,s.cost.yearly_cny)+
-      ' ｜ 汇率 1 AUD='+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)'
+    ? '<div>月摊(把年费摊到每月):A$'+s.cost.monthly_aud.toFixed(2)+'/月 ≈ ¥'+Math.round(s.cost.monthly_cny)+
+        ' · 年化 A$'+s.cost.yearly_aud.toFixed(2)+' ≈ ¥'+Math.round(s.cost.yearly_cny)+'</div>'+
+      '<div style="margin-top:3px">汇率 1 AUD = '+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)</div>'
     : '汇率暂不可用,金额仅显示 AUD';
 
   // 用量与免费额度(潜在收费预警)
