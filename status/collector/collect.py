@@ -29,10 +29,10 @@ PROJECTS = [
     {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"],       "db": "",                    "notify": "无"},
     {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"],       "db": "",                    "notify": "无"},
     {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"],       "db": "",                    "notify": "无"},
-    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "db": "OVH 自建·SQLite",     "notify": "钉钉"},
-    {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],       "db": "OVH 自建·Postgres",   "notify": "邮件"},
-    {"name": "EEI",      "url": "",                                "parts": ["后台"],       "db": "OVH 自建·Postgres",   "notify": "无"},
-    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"],       "db": "OVH 自建·SQLite",     "notify": "无"},
+    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "db": "无独立库·报告写文件",                        "notify": "钉钉"},
+    {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],       "db": "OVH Postgres · identity-postgres",         "notify": "邮件"},
+    {"name": "EEI",      "url": "",                                "parts": ["后台"],       "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "notify": "无"},
+    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"],       "db": "OVH 文件 · prices.json",                    "notify": "无"},
 ]
 
 
@@ -593,13 +593,24 @@ def main():
     cert = cert_cached(prev)
     ext, ext_at = externals_cached(prev)
 
-    # 内存/磁盘历史(滚动)
-    hist = load_json(os.path.join(DATA_DIR, "history.json"), {"mem": [], "disk": [], "at": []})
-    hist["at"].append(now_cn().strftime("%H:%M"))
-    hist["mem"].append(host["mem_pct"])
-    hist["disk"].append(host["disk_pct"])
-    for k in ("at", "mem", "disk"):
-        hist[k] = hist[k][-HISTORY_MAX:]
+    # 内存/磁盘历史:分层留存(1分钟粒度留 24h;小时粒度留 31 天)供多时段趋势
+    hist = load_json(os.path.join(DATA_DIR, "history.json"), {})
+    if "min" not in hist:
+        hist = {"min": {"t": [], "mem": [], "disk": []}, "hour": {"t": [], "mem": [], "disk": []}}
+    ep = int(time.time())
+    mem_v, disk_v = host.get("mem_pct"), host.get("disk_pct")
+    m = hist["min"]
+    m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v)
+    for k in ("t", "mem", "disk"):
+        m[k] = m[k][-1440:]                      # 24h @ 1min
+    h = hist["hour"]
+    cur_hour = ep - (ep % 3600)
+    if not h["t"] or h["t"][-1] != cur_hour:
+        h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v)
+    else:
+        h["mem"][-1] = mem_v; h["disk"][-1] = disk_v   # 当前小时用最新值
+    for k in ("t", "mem", "disk"):
+        h[k] = h[k][-744:]                       # 31 天 @ 1hour
     with open(os.path.join(DATA_DIR, "history.json"), "w") as f:
         json.dump(hist, f)
 
