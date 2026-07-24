@@ -335,10 +335,10 @@ GB = 1024 ** 3
 MANUAL_USAGE = [
     {"key": "r2", "label": "Cloudflare R2 存储", "used": 5054136, "limit": 10 * GB,
      "unit": "bytes", "source": "manual", "checked": "2026-07-24",
-     "note": "adp-raw-artifacts · 需 R2 读令牌才能自动刷新"},
+     "note": "adp-raw-artifacts 桶 · 手动核对,变动很慢"},
     {"key": "d1", "label": "Cloudflare D1 存储", "used": 53784576, "limit": 5 * GB,
      "unit": "bytes", "source": "manual", "checked": "2026-07-24",
-     "note": "eei-publication + adp-mirror · 需 D1 读令牌才能自动刷新"},
+     "note": "eei-publication + adp-mirror · 手动核对,变动很慢"},
 ]
 
 
@@ -431,7 +431,7 @@ def eta_for(item, hist):
     if item.get("bounded"):
         return None, "自动轮转,不会触顶"
     if item.get("source") == "manual":
-        return None, "人工值 · 授权后可自动测算"
+        return None, "手动核对值 · 变动缓慢"
     arr = hist.get(item["key"], [])
     if len(arr) < 2:
         return None, "增速累积中(需≥2天采样)"
