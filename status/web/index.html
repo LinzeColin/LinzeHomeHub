@@ -272,14 +272,18 @@ function render(s){
     const pct=u.limit?Math.min(100,u.used/u.limit*100):0;
     const col=pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)');
     const src=u.source==='auto'
-      ?'<span class="src auto">自动</span>'
-      :'<span class="src manual">人工 '+(u.checked||'')+'</span>';
+      ?'<span class="src auto">● 自动刷新</span>'
+      :'<span class="src manual">✎ 人工 '+(u.checked||'')+'</span>';
     const val=u.unit==='bytes'?(fmtBytes(u.used)+' / '+fmtBytes(u.limit)):(u.used+' / '+u.limit);
-    const eta=(u.eta_days!=null)?' · 约 '+u.eta_days+' 天后触顶':'';
+    const eta=u.eta_date
+      ? '<b style="color:'+(pct>=50?'var(--warn)':'var(--t1)')+'">预计触顶 '+u.eta_date+'</b>'
+        +'<span class="muted"> · '+(u.eta_note||'')+'</span>'
+      : '<span class="muted">预计触顶:'+(u.eta_note||'—')+'</span>';
     return '<div class="ub"><div class="top"><span class="nm">'+u.label+src+'</span>'+
       '<span class="uval">'+val+' · '+pct.toFixed(pct<1?2:1)+'%</span></div>'+
       '<div class="track"><div class="fill" style="width:'+Math.max(pct,1.5)+'%;background:'+col+'"></div></div>'+
-      '<div class="muted" style="font-size:11px;margin-top:6px">'+(u.note||'')+eta+'</div></div>';
+      '<div style="font-size:11px;margin-top:6px">'+eta+'</div>'+
+      '<div class="muted" style="font-size:11px;margin-top:2px">'+(u.note||'')+'</div></div>';
   }).join('')||'<div class="muted">暂无用量数据</div>';
 
   // 外部

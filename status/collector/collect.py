@@ -351,22 +351,39 @@ def _read_secret(name):
 
 
 def oci_usage():
-    """离机备份 PAR 只写不可删 → 累计上传量 ≈ 远端占用(按日志,属下限估算)。"""
-    total = last = 0
+    """OCI PAR 只写不可删 → 累计上传量 ≈ 远端占用。顺带从日志日期还原历史,用于测增速。"""
+    total, series = 0, []
     try:
         with open(OFFSITE_LOG) as f:
             for line in f:
-                m = re.search(r"offsite=200 size=(\d+)B", line)
+                m = re.search(r"^(\d{4}-\d{2}-\d{2})T.*offsite=200 size=(\d+)B", line)
                 if m:
-                    last = int(m.group(1))
-                    total += last
+                    total += int(m.group(2))
+                    series.append({"d": m.group(1), "u": total})
     except Exception:
         return None
-    limit = 20 * GB
-    return {"key": "oci_backup", "label": "OCI 离机备份", "used": total, "limit": limit,
-            "unit": "bytes", "source": "auto",
-            "eta_days": int((limit - total) / last) if last > 0 else None,
-            "note": "每日上传且远端不可删,只增不减"}
+    return {"key": "oci_backup", "label": "OCI 离机备份(备份的备份)", "used": total,
+            "limit": 20 * GB, "unit": "bytes", "source": "auto", "series": series,
+            "note": "已改为每周日一次;远端不可删,只增不减"}
+
+
+def github_backup_usage():
+    """GitHub Release 备份资产:滚动保留,天然有上限。"""
+    tok = _read_secret("github_pat")
+    if not tok:
+        return None
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/repos/LinzeColin/Private-Database/releases/tags/infra-backups",
+            headers={"Authorization": "Bearer " + tok, "User-Agent": "linze-status"})
+        rel = json.loads(urllib.request.urlopen(req, timeout=15).read())
+        assets = [a for a in rel.get("assets", []) if a.get("name", "").startswith("linze-backup-")]
+        size = sum(a.get("size", 0) for a in assets)
+        return {"key": "github_backup", "label": "GitHub 备份(滚动保留)", "used": len(assets),
+                "limit": 30, "unit": "count", "source": "auto", "bounded": True,
+                "note": "合计 %.1f MB · 满 30 份自动删最旧" % (size / 1048576)}
+    except Exception:
+        return None
 
 
 def access_seats():
@@ -387,19 +404,76 @@ def access_seats():
         return None
 
 
+def record_usage_history(items):
+    """每天给每个指标留一个采样点,用来测增速。"""
+    hist = load_json(os.path.join(DATA_DIR, "usage_history.json"), {})
+    today = now_cn().strftime("%Y-%m-%d")
+    for it in items:
+        k = it["key"]
+        arr = hist.get(k, [])
+        if it.get("series") and len(it["series"]) > len(arr):
+            arr = it["series"]                      # 用日志还原的历史直接补齐
+        elif arr and arr[-1]["d"] == today:
+            arr[-1]["u"] = it["used"]
+        else:
+            arr.append({"d": today, "u": it["used"]})
+        hist[k] = arr[-90:]
+    try:
+        with open(os.path.join(DATA_DIR, "usage_history.json"), "w") as f:
+            json.dump(hist, f)
+    except Exception:
+        pass
+    return hist
+
+
+def eta_for(item, hist):
+    """按历史增速推算触顶日期 → (日期, 说明)。"""
+    if item.get("bounded"):
+        return None, "自动轮转,不会触顶"
+    if item.get("source") == "manual":
+        return None, "人工值 · 授权后可自动测算"
+    arr = hist.get(item["key"], [])
+    if len(arr) < 2:
+        return None, "增速累积中(需≥2天采样)"
+    try:
+        d0 = datetime.strptime(arr[0]["d"], "%Y-%m-%d")
+        d1 = datetime.strptime(arr[-1]["d"], "%Y-%m-%d")
+    except Exception:
+        return None, "增速累积中"
+    days = (d1 - d0).days
+    if days <= 0:
+        return None, "增速累积中(需≥2天采样)"
+    growth = (arr[-1]["u"] - arr[0]["u"]) / days
+    if growth <= 0:
+        return None, "近%d天无增长" % days
+    remain = item["limit"] - item["used"]
+    if remain <= 0:
+        return None, "已超额度"
+    eta_days = int(remain / growth)
+    return (now_cn() + timedelta(days=eta_days)).strftime("%Y-%m-%d"), \
+           "按近%d天增速 · 约%d天" % (days, eta_days)
+
+
 def usage_block(prev, host):
-    """本地项每次算;Access 走网络 → 30 分钟节流。返回 (列表, 席位取数时间)。"""
+    """本地项每次算;走网络的(Access/GitHub)30 分钟节流。返回 (列表, 取数时间)。"""
     out = []
+    pu = {u.get("key"): u for u in (prev.get("usage") or [])}
+    net_at = prev.get("usage_seats_at")
+    stale = not (net_at and age_min(net_at) < 30)
+
     o = oci_usage()
     if o:
         out.append(o)
 
-    pu = {u.get("key"): u for u in (prev.get("usage") or [])}
-    seats, seats_at = pu.get("cf_access"), prev.get("usage_seats_at")
-    if not (seats and seats_at and age_min(seats_at) < 30):
-        fresh = access_seats()
-        if fresh:
-            seats, seats_at = fresh, fmt(now_cn())
+    seats = pu.get("cf_access")
+    gh = pu.get("github_backup")
+    # 过期要刷;某项从没取到过也必须刷(否则节流会一直挡住首次取数)
+    if stale or seats is None or gh is None:
+        fresh_seats, fresh_gh = access_seats(), github_backup_usage()
+        if fresh_seats or fresh_gh:
+            seats, gh, net_at = (fresh_seats or seats), (fresh_gh or gh), fmt(now_cn())
+    if gh:
+        out.append(gh)
     if seats:
         out.append(seats)
 
@@ -409,7 +483,12 @@ def usage_block(prev, host):
                     "note": "OVH VPS-1 系统盘"})
 
     out.extend(MANUAL_USAGE)
-    return out, seats_at
+
+    hist = record_usage_history(out)
+    for it in out:
+        it["eta_date"], it["eta_note"] = eta_for(it, hist)
+        it.pop("series", None)
+    return out, net_at
 
 
 # ---------- 慢变量节流(1分钟采集下不浪费外部接口)----------
