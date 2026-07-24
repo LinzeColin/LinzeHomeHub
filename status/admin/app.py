@@ -82,6 +82,7 @@ def validate(payload):
             row["track_renew"] = bool(it.get("track_renew", True))
         if note:
             row["note"] = note
+        row["auto_renew"] = bool(it.get("auto_renew", False))
         clean.append(row)
     return {"note": "月度开支价格库,由 status /admin 编辑器写入。金额为原币种原周期,采集器按实时汇率折算。",
             "items": clean}
@@ -127,21 +128,41 @@ class H(BaseHTTPRequestHandler):
         who = verify_identity(self.headers)
         if not who:
             return self._json(403, {"error": "未通过 Cloudflare Access 校验"})
-        if not self.path.startswith("/admin/api/prices"):
-            return self._json(404, {"error": "not found"})
         n = int(self.headers.get("Content-Length", "0") or "0")
         if n > 100_000:
             return self._json(413, {"error": "过大"})
         try:
             payload = json.loads(self.rfile.read(n) or b"{}")
-            clean = validate(payload)
-        except ValueError as e:
-            return self._json(400, {"error": str(e)})
         except Exception:
             return self._json(400, {"error": "JSON 解析失败"})
-        with _lock:
-            atomic_write(clean)
-        return self._json(200, {"ok": True, "by": who, "items": clean["items"]})
+
+        # 单项开关(自动续费):主页公开只读,owner 点击才走到这
+        if self.path.startswith("/admin/api/toggle"):
+            name = str(payload.get("name", "")).strip()
+            val = bool(payload.get("auto_renew"))
+            if not name:
+                return self._json(400, {"error": "缺少 name"})
+            with _lock:
+                p = load_prices()
+                changed = 0
+                for it in p.get("items", []):
+                    if str(it.get("name", "")).strip() == name:
+                        it["auto_renew"] = val
+                        changed += 1
+                if changed:
+                    atomic_write(p)
+            return self._json(200, {"ok": True, "changed": changed, "auto_renew": val})
+
+        if self.path.startswith("/admin/api/prices"):
+            try:
+                clean = validate(payload)
+            except ValueError as e:
+                return self._json(400, {"error": str(e)})
+            with _lock:
+                atomic_write(clean)
+            return self._json(200, {"ok": True, "by": who, "items": clean["items"]})
+
+        return self._json(404, {"error": "not found"})
 
 
 EDITOR_HTML = """<!doctype html><html lang=zh-CN><head><meta charset=utf-8>
@@ -203,8 +224,10 @@ function draw(){document.getElementById("list").innerHTML=items.map((it,i)=>`
   <div class=f><label>最初购买日(YYYY-MM-DD,可空)</label><input placeholder=2026-07-17 value="${esc(it.purchase)}" oninput="items[${i}].purchase=this.value"></div>
   <div class=f><label>备注(可空)</label><input value="${esc(it.note)}" oninput="items[${i}].note=this.value"></div>
  </div>
+ <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
+   <input type=checkbox ${it.auto_renew?"checked":""} onchange="items[${i}].auto_renew=this.checked"> 自动续费(到期自动扣费)</label>
 </div>`).join("")||'<div class=muted style="padding:16px 0">还没有开支项,点下面「新增开支项」添加。</div>'}
-function addRow(){items.push({name:"",amount:0,currency:"AUD",cadence:"monthly",purchase:"",note:"",track_renew:true});draw();window.scrollTo(0,document.body.scrollHeight)}
+function addRow(){items.push({name:"",amount:0,currency:"AUD",cadence:"monthly",purchase:"",note:"",track_renew:true,auto_renew:false});draw();window.scrollTo(0,document.body.scrollHeight)}
 function save(){
  const m=document.getElementById("msg");m.textContent="保存中…";m.style.color="var(--t2)";
  fetch("/admin/api/prices",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({items})})
@@ -212,7 +235,7 @@ function save(){
  .then(({ok,j})=>{if(ok){m.innerHTML='已保存 ✓ · <a href="/">去总览看 →</a>';m.style.color="#0f8a4d";items=j.items.map(x=>({track_renew:true,note:"",purchase:"",...x}));draw()}else{m.textContent="失败:"+(j.error||"");m.style.color="#cf3a3a"}})
  .catch(e=>{m.textContent="网络错误";m.style.color="#cf3a3a"})
 }
-fetch("/admin/api/prices").then(r=>r.json()).then(j=>{items=(j.items||[]).map(x=>({track_renew:true,note:"",purchase:"",...x}));draw()}).catch(e=>{document.getElementById("msg").textContent="加载失败"})
+fetch("/admin/api/prices").then(r=>r.json()).then(j=>{items=(j.items||[]).map(x=>({track_renew:true,note:"",purchase:"",auto_renew:false,...x}));draw()}).catch(e=>{document.getElementById("msg").textContent="加载失败"})
 </script></body></html>"""
 
 
