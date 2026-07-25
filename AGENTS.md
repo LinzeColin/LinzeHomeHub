@@ -29,3 +29,7 @@ npx wrangler deploy --dry-run
 ## Safety
 
 不要提交 secrets、token、私有数据、原始导出、浏览器状态、cookie、session、本机凭据或不必要的本机绝对路径。
+
+## 数据落地（长期有效 · 自运行分仓治理）
+
+开发中新产生的任何长期/业务/运行时数据一律写私有仓 `LinzeColin/Private-Database`（其余项目数据 → `Private-MetaDatabase/`），用 `private_db_client.py` 免 clone 读写；**禁止把数据提交进本代码仓**，派生/临时物走 `.gitignore`。`status/` 公开监控数据按设计随备份入仓属例外。目的：分仓治理长期自运行，不需人工反复迁移。

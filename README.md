@@ -2,6 +2,13 @@
 
 Premium personal project gateway built with Vite, TypeScript, Three.js, Rapier, GSAP, Lenis, and Cloudflare Workers Static Assets.
 
+## 📦 数据落地政策（长期有效 · 自运行分仓治理）
+
+**本仓只存前端代码与展示配置，长期/业务/运行时数据不入本仓。** 开发中产生的任何需长期存储的数据
+一律写入私有仓 `LinzeColin/Private-Database`（其余项目数据 → `Private-MetaDatabase/`），用 `private_db_client.py` 免 clone 读写；
+Private-Database 禁止 `git clone`；派生/临时物走 `.gitignore`。**一次分清、长期自运行，不再需要人工反复迁移。**
+> 例外：`status/` 面板的公开监控数据（价格快照等）按设计随每日备份入仓，属展示所需的公开数据，不含 PII。
+
 ## What It Does
 
 - Recreates the supplied `LinzeHomeHub-preview-v0.3.html` default Archive experience as a modular app.
