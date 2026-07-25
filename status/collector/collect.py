@@ -24,15 +24,29 @@ BACKUP_DIR = os.environ.get("STATUS_BACKUP_DIR", "/srv/linze/backups")
 HISTORY_MAX = 96                            # 24h @ 15min
 
 # 项目静态配置(存不存在库、通知渠道等靠运维已知;运行状态靠实时探测)
+# 每个项目的运行逻辑:跑在哪(host)/ 数据库(db)/ 文件存储(store)/ 部署方式(deploy)/
+# 备份(backup)/ agent 依赖度(agent:无/低/中)。运行状态靠实时探测。
 PROJECTS = [
-    {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"],       "db": "",                    "notify": "无"},
-    {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"],       "db": "",                    "notify": "无"},
-    {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"],       "db": "",                    "notify": "无"},
-    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"],       "db": "",                    "notify": "无"},
-    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "db": "无独立库·报告写文件",                        "notify": "钉钉"},
-    {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],       "db": "OVH Postgres · identity-postgres",         "notify": "邮件"},
-    {"name": "EEI",      "url": "",                                "parts": ["后台"],       "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "notify": "无"},
-    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"],       "db": "OVH 文件 · prices.json",                    "notify": "无"},
+    {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"],
+     "host": "OVH VPS-1", "db": "", "store": "无", "deploy": "Golden Path 自动", "backup": "随主机", "agent": "低", "notify": "无"},
+    {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"],
+     "host": "OVH VPS-1", "db": "", "store": "无", "deploy": "Golden Path 自动", "backup": "随主机", "agent": "低", "notify": "无"},
+    {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"],
+     "host": "OVH VPS-1", "db": "", "store": "无", "deploy": "Golden Path 自动", "backup": "随主机", "agent": "低", "notify": "无"},
+    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"],
+     "host": "OVH VPS-1", "db": "", "store": "无", "deploy": "Golden Path 自动", "backup": "随主机", "agent": "低", "notify": "无"},
+    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"],
+     "host": "OVH VPS-1", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
+     "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉"},
+    {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
+     "host": "OVH VPS-1", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
+     "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件"},
+    {"name": "EEI",      "url": "",                                "parts": ["后台"],
+     "host": "OVH VPS-1", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
+     "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无"},
+    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"],
+     "host": "OVH VPS-1", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
+     "backup": "每日加密 → GitHub", "agent": "无", "notify": "无"},
 ]
 
 
@@ -712,10 +726,11 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
     return cards
 
 
-# ---------- 运维自动修复(自愈引擎:内置规则 + 自愈脚本,均不依赖 agent/token)----------
+# ---------- 运维自动修复(两套自愈:主自愈保业务;元自愈=自愈的自愈,保采集/自愈本身)----------
 def selfheal_state(ch, cert, backup, seats):
     sh = load_json(os.path.join(DATA_DIR, "selfheal.json"), {})
-    rules = []
+    main_rules, meta_rules = [], []
+    # —— 主自愈:内置 4 条 ——
     cov = ch.get("policy_covered", 0)
     eph = ch.get("policy_ephemeral", 0)
     persistent = ch.get("policy_total", 0) - eph          # 常驻容器数(排除临时构建容器)
@@ -723,38 +738,78 @@ def selfheal_state(ch, cert, backup, seats):
     detail = "%d/%d 常驻容器已配置崩溃自愈" % (cov, persistent)
     if eph:
         detail += " · %d 个临时容器无需" % eph
-    rules.append({"key": "restart", "name": "容器崩溃自动拉起", "engine": "builtin",
-                  "armed": armed, "threshold": "Docker restart 策略 always/unless-stopped",
-                  "state": "ok" if armed else "warn", "detail": detail,
-                  "actions_total": ch.get("restarts", 0), "last_action": None, "last_action_at": None})
+    main_rules.append({"key": "restart", "name": "容器崩溃自动拉起", "engine": "builtin", "set": "main",
+                       "armed": armed, "threshold": "Docker restart 策略 always/unless-stopped",
+                       "state": "ok" if armed else "warn", "detail": detail,
+                       "actions_total": ch.get("restarts", 0), "last_action": None, "last_action_at": None})
     cd = cert.get("days")
-    rules.append({"key": "cert", "name": "TLS 证书自动续期", "engine": "builtin", "armed": True,
-                  "threshold": "Traefik 到期前自动续(Let's Encrypt)",
-                  "state": "ok" if (cd is None or cd > 7) else "warn",
-                  "detail": ("最早证书 %s 到期 · 剩 %s 天" % (cert.get("date", "—"), cd)) if cd is not None else "自动续期",
-                  "actions_total": 0, "last_action": None, "last_action_at": None})
+    main_rules.append({"key": "cert", "name": "TLS 证书自动续期", "engine": "builtin", "set": "main", "armed": True,
+                       "threshold": "Traefik 到期前自动续(Let's Encrypt)",
+                       "state": "ok" if (cd is None or cd > 7) else "warn",
+                       "detail": ("最早证书 %s 到期 · 剩 %s 天" % (cert.get("date", "—"), cd)) if cd is not None else "自动续期",
+                       "actions_total": 0, "last_action": None, "last_action_at": None})
     su = seats.get("used") if seats else None
-    rules.append({"key": "seatfuse", "name": "Access 席位自动熔断", "engine": "builtin", "armed": True,
-                  "threshold": "席位满 45 自动降级(cron 每 30 分钟)", "state": "ok",
-                  "detail": ("当前 %s/%s 席位" % (su, seats.get("limit"))) if seats else "巡检中",
-                  "actions_total": 0, "last_action": None, "last_action_at": None})
-    rules.append({"key": "backup", "name": "每日异地备份", "engine": "builtin", "armed": bool(backup.get("ok")),
-                  "threshold": "每日打包加密 → GitHub(自动轮转 30 份)",
-                  "state": "ok" if backup.get("ok") else "warn",
-                  "detail": ("上次备份 %s" % backup.get("at")) if backup.get("at") else "尚无备份",
-                  "actions_total": 0, "last_action": None, "last_action_at": None})
+    main_rules.append({"key": "seatfuse", "name": "Access 席位自动熔断", "engine": "builtin", "set": "main", "armed": True,
+                       "threshold": "席位满 45 自动降级(cron 每 30 分钟)", "state": "ok",
+                       "detail": ("当前 %s/%s 席位" % (su, seats.get("limit"))) if seats else "巡检中",
+                       "actions_total": 0, "last_action": None, "last_action_at": None})
+    main_rules.append({"key": "backup", "name": "每日异地备份", "engine": "builtin", "set": "main", "armed": bool(backup.get("ok")),
+                       "threshold": "每日打包加密 → GitHub(自动轮转 30 份)",
+                       "state": "ok" if backup.get("ok") else "warn",
+                       "detail": ("上次备份 %s" % backup.get("at")) if backup.get("at") else "尚无备份",
+                       "actions_total": 0, "last_action": None, "last_action_at": None})
+    # —— 自愈脚本产出的规则(disk/watchdog=主;collector_watch=元)——
     script_rules = sh.get("rules")
     if script_rules:
-        rules += script_rules
+        for r in script_rules:
+            (meta_rules if r.get("set") == "meta" else main_rules).append(r)
         last_run, engine_note, recent = sh.get("last_run"), sh.get("engine"), sh.get("recent", [])
     else:
         for k, n in (("disk", "磁盘守护"), ("watchdog", "服务看门狗")):
-            rules.append({"key": k, "name": n, "engine": "selfheal", "armed": False, "threshold": "—",
-                          "state": "pending", "detail": "自愈脚本待部署/未运行",
-                          "actions_total": 0, "last_action": None, "last_action_at": None})
+            main_rules.append({"key": k, "name": n, "engine": "selfheal", "set": "main", "armed": False,
+                               "threshold": "—", "state": "pending", "detail": "自愈脚本待部署/未运行",
+                               "actions_total": 0, "last_action": None, "last_action_at": None})
         last_run, engine_note, recent = None, "服务器 cron · 不依赖 agent/token", []
+
+    # —— 元自愈(自愈的自愈):监测自愈引擎与采集器自身是否还活着 ——
+    sh_ep = sh.get("last_run_epoch")
+    sh_age = int((time.time() - sh_ep) / 60) if sh_ep else None
+    sh_alive = sh_age is not None and sh_age <= 15               # cron 每5分钟,>15分钟算掉线
+    meta_rules.append({"key": "selfheal_alive", "name": "自愈引擎存活监测", "engine": "builtin", "set": "meta",
+                       "armed": sh_alive, "threshold": "自愈引擎 >15 分钟没心跳即判定失效(它挂了谁来救)",
+                       "state": "ok" if sh_alive else "warn",
+                       "detail": ("自愈引擎 %s 分钟前刚跑过 · 心跳正常" % sh_age) if sh_alive
+                                 else ("自愈引擎已 %s 分钟无心跳,请查 /etc/cron.d/linze-selfheal" % (sh_age if sh_age is not None else "?")),
+                       "actions_total": 0, "last_action": None, "last_action_at": None})
+    gp = load_json(os.path.join(DATA_DIR, "github_public.json"), None)
+    g_ep = gp.get("collected_epoch") if isinstance(gp, dict) else None
+    g_age = int((time.time() - g_ep) / 60) if g_ep else None
+    g_alive = g_age is not None and g_age <= 90                  # cron 每30分钟,>90分钟算掉线
+    meta_rules.append({"key": "github_alive", "name": "GitHub 采集存活监测", "engine": "builtin", "set": "meta",
+                       "armed": bool(g_alive), "threshold": "GitHub 采集 >90 分钟没更新即判定失效",
+                       "state": "ok" if g_alive else ("warn" if g_ep else "pending"),
+                       "detail": ("GitHub 采集 %s 分钟前更新 · 正常" % g_age) if g_alive
+                                 else ("GitHub 采集已 %s 分钟无更新" % g_age if g_ep else "GitHub 采集尚未产出首份"),
+                       "actions_total": 0, "last_action": None, "last_action_at": None})
+
+    rules = main_rules + meta_rules
     return {"last_run": last_run, "engine": engine_note, "recent": recent,
-            "armed": sum(1 for x in rules if x.get("armed")), "total": len(rules), "rules": rules}
+            "armed": sum(1 for x in rules if x.get("armed")), "total": len(rules),
+            "main_armed": sum(1 for x in main_rules if x.get("armed")), "main_total": len(main_rules),
+            "meta_armed": sum(1 for x in meta_rules if x.get("armed")), "meta_total": len(meta_rules),
+            "rules": rules}
+
+
+# ---------- GitHub Engineering Plane(读 github 采集器产出的公开安全聚合)----------
+def github_public_block():
+    gp = load_json(os.path.join(DATA_DIR, "github_public.json"), None)
+    if not isinstance(gp, dict):
+        return {"available": False, "note": "GitHub 采集尚未产出(每 30 分钟一次)"}
+    gp["available"] = True
+    ep = gp.get("collected_epoch")
+    if ep:
+        gp["stale_min"] = int((time.time() - ep) / 60)
+    return gp
 
 
 def main():
@@ -835,6 +890,7 @@ def main():
         "usage_seats_at": usage_seats_at,
         "inventory": inventory(host, fx, costblk, usage, ext, backup, cert, ovh_renew, ch),
         "selfheal": selfheal_state(ch, cert, backup, seats),
+        "github": github_public_block(),
     }
 
     tmp = os.path.join(DATA_DIR, "snapshot.json.tmp")

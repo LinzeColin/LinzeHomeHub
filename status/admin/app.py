@@ -19,6 +19,7 @@ TEAM = os.environ["CF_TEAM_DOMAIN"]
 AUD = os.environ["CF_ACCESS_AUD"]
 OWNER = os.environ["OWNER_EMAIL"]
 PRICES = os.environ.get("PRICES_PATH", "/srv/data/prices.json")
+GITHUB_PRIVATE = os.environ.get("GITHUB_PRIVATE", "/srv/private/github.json")
 PORT = int(os.environ.get("PORT", "8080"))
 
 CURRENCIES = {"AUD", "USD", "CNY", "EUR", "SGD", "GBP", "HKD", "JPY"}
@@ -45,6 +46,14 @@ def load_prices():
             return json.load(f)
     except Exception:
         return {"items": []}
+
+
+def load_github_private():
+    try:
+        with open(GITHUB_PRIVATE) as f:
+            return json.load(f)
+    except Exception:
+        return {"available": False, "note": "GitHub 私有采集尚未产出(每 30 分钟一次)"}
 
 
 def validate(payload):
@@ -122,6 +131,10 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, EDITOR_HTML, "text/html; charset=utf-8")
         if self.path.startswith("/admin/api/prices"):
             return self._json(200, load_prices())
+        if self.path.rstrip("/") == "/admin/github" or self.path.startswith("/admin/github?"):
+            return self._send(200, GITHUB_HTML, "text/html; charset=utf-8")
+        if self.path.startswith("/admin/api/github"):
+            return self._json(200, load_github_private())
         return self._json(404, {"error": "not found"})
 
     def do_POST(self):
@@ -236,6 +249,76 @@ function save(){
  .catch(e=>{m.textContent="网络错误";m.style.color="#cf3a3a"})
 }
 fetch("/admin/api/prices").then(r=>r.json()).then(j=>{items=(j.items||[]).map(x=>({track_renew:true,note:"",purchase:"",auto_renew:false,...x}));draw()}).catch(e=>{document.getElementById("msg").textContent="加载失败"})
+</script></body></html>"""
+
+
+GITHUB_HTML = """<!doctype html><html lang=zh-CN><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>GitHub 私有全量 · LinzeStatus</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232a78d6'/><path d='M5 17h4l3-8 4 14 3-9h8' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+:root{--bg:#f6f6f4;--card:#fff;--soft:#f1f1ee;--line:#e4e3dc;--t1:#1b1b19;--t2:#57564f;--t3:#8b8a83;--accent:#2a78d6;--ok:#0f8a4d;--warn:#c98500;--danger:#cf3a3a;--pro:#4a3aa7;--pro-bg:#eeedfe;--pro-t:#26215c}
+@media(prefers-color-scheme:dark){:root{--bg:#151513;--card:#1e1e1c;--soft:#242422;--line:#33332f;--t1:#f3f2ec;--t2:#c3c2b7;--t3:#8b8a83;--accent:#5a9bea;--ok:#3cc07f;--warn:#e0a53a;--danger:#e26b6a;--pro:#9085e9;--pro-bg:#2a2560;--pro-t:#cecbf6}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t1);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;font-size:15px}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 18px 70px}
+.nav{display:flex;gap:4px;border-bottom:.5px solid var(--line);margin-bottom:16px}
+.nav a{padding:11px 16px;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav a.active{color:var(--t1);border-bottom-color:var(--accent);font-weight:500}
+.nav a:hover{color:var(--t1);text-decoration:none}
+h1{font-size:20px;margin:0}.muted{color:var(--t3);font-size:13px}
+h2{font-size:15px;margin:22px 0 10px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.tile{background:var(--soft);border-radius:10px;padding:13px}.tile .l{font-size:13px;color:var(--t2)}.tile .v{font-size:22px;font-weight:600;margin-top:3px}.tile .s{font-size:13px;color:var(--t3);font-weight:400}
+.card{background:var(--card);border:.5px solid var(--line);border-radius:12px;padding:6px 12px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th{text-align:left;font-weight:500;color:var(--t2);padding:9px 10px;border-bottom:.5px solid var(--line)}
+td{padding:9px 10px;border-bottom:.5px solid var(--line)}
+.pv{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--pro-bg);color:var(--pro-t)}
+.pub{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--soft);color:var(--t3)}
+.banner{background:#fbf0d8;color:#7a5200;padding:11px 14px;border-radius:10px;font-size:13px;margin:12px 0}
+@media(prefers-color-scheme:dark){.banner{background:#3a2f12;color:#e0b055}}
+</style></head><body><div class=wrap>
+<nav class=nav>
+ <a href="/">云平台总览</a><a href="https://uptime.linzezhang.com">运维健康</a><a href="/admin">价格设置</a><a href="/admin/github" class=active>GitHub 私有</a>
+</nav>
+<h1>GitHub 私有全量</h1>
+<div class=muted id=sub>加载中…</div>
+<div id=cap></div>
+<div class=grid id=kpi style=margin-top:14px></div>
+<h2>全部仓库(含私有)</h2>
+<div class=card><table><thead><tr><th>仓库</th><th>可见性</th><th>语言</th><th>7d</th><th>30d</th><th>分支</th><th>PR</th><th>Issue</th><th>Git 占用</th><th>Release</th><th>CI</th><th>通过率</th><th>最近 push</th></tr></thead><tbody id=repos></tbody></table></div>
+<h2>Monorepo 子项目活跃度</h2>
+<div class=card><table><thead><tr><th>子项目</th><th>所在仓</th><th>路径</th><th>30 天提交</th><th>最近提交</th></tr></thead><tbody id=sub2></tbody></table></div>
+<div class=muted style=margin-top:20px>仅本人(Cloudflare Access)可见 · 数据每 30 分钟采集 · 只读</div>
+</div>
+<script>
+function fb(b){if(b==null)return '—';const u=['B','KB','MB','GB','TB'];let i=0,v=b;while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(i>0&&v<100?1:0)+' '+u[i]}
+function fkb(k){return fb((k||0)*1024)}
+function tile(l,v,s){return '<div class=tile><div class=l>'+l+'</div><div class=v>'+v+(s?' <span class=s>· '+s+'</span>':'')+'</div></div>'}
+fetch('/admin/api/github').then(r=>r.json()).then(g=>{
+ if(!g||g.available===false){document.getElementById('sub').textContent=(g&&g.note)||'暂无数据';return;}
+ const t=g.totals||{};
+ document.getElementById('sub').textContent='账号 '+((g.account||{}).login||'')+' · 采集 '+g.collected_at+' · API 余量 '+((g.rate||{}).remaining||'—')+'/'+((g.rate||{}).limit||'—');
+ const cap=g.capability||{};
+ document.getElementById('cap').innerHTML='<div class=banner>Traffic:'+(cap.traffic||'—')+' · Billing:'+(cap.billing||'—')+' — 授权含 Administration:read 的只读令牌后这两项自动采集,不可用时如实标注。</div>';
+ document.getElementById('kpi').innerHTML=[
+   tile('仓库',t.repos,t.public+' 公开 / '+t.private+' 私有'),
+   tile('提交 7d',t.commits_7d,'30天 '+t.commits_30d),
+   tile('Open PR',t.open_pr,'Issue '+t.open_issue),
+   tile('CI 失败',t.ci_fail,'仓'),
+   tile('Git 占用',fkb(t.git_size_kb),'Release '+fb(t.release_bytes))
+ ].join('');
+ document.getElementById('repos').innerHTML=(g.repos||[]).map(r=>{
+   const vis=r.private?'<span class=pv>私有</span>':'<span class=pub>公开</span>';
+   const ci=r.ci&&r.ci.last_conclusion?(r.ci.last_conclusion==='success'?'<span style=color:var(--ok)>通过</span>':'<span style=color:var(--danger)>'+r.ci.last_conclusion+'</span>'):'<span class=muted>—</span>';
+   const pr=r.ci&&r.ci.pass_rate!=null?r.ci.pass_rate+'%':'—';
+   return '<tr><td><a href="'+r.url+'" target=_blank>'+r.name+'</a>'+(r.archived?' <span class=muted>归档</span>':'')+'</td><td>'+vis+'</td><td class=muted>'+(r.top_lang||'—')+'</td>'+
+     '<td>'+(r.commits_7d??'—')+'</td><td>'+(r.commits_30d??'—')+'</td><td>'+(r.branches??'—')+'</td><td>'+(r.open_pr??'—')+'</td><td>'+(r.open_issue??'—')+'</td>'+
+     '<td class=muted>'+fkb(r.size_kb)+'</td><td class=muted>'+fb(r.release_bytes)+'</td><td>'+ci+'</td><td class=muted>'+pr+'</td><td class=muted>'+(r.pushed_at||'—')+'</td></tr>';
+ }).join('');
+ document.getElementById('sub2').innerHTML=(g.subprojects||[]).map(s=>
+   '<tr><td>'+s.project+'</td><td class=muted>'+s.repo+'</td><td class=muted>'+s.path+'</td><td>'+(s.commits_30d??'—')+'</td><td class=muted>'+(s.last_commit_at||'—')+'</td></tr>').join('')||'<tr><td colspan=5 class=muted>暂无</td></tr>';
+}).catch(e=>{document.getElementById('sub').textContent='加载失败:'+e});
 </script></body></html>"""
 
 

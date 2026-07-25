@@ -32,6 +32,13 @@
       "currency": "AUD",
       "cadence": "monthly",
       "note": "免费额度"
+    },
+    {
+      "name": "OCI 离机备份",
+      "amount": 0,
+      "currency": "AUD",
+      "cadence": "monthly",
+      "note": "备份的备份 · 免费额度"
     }
   ]
 }

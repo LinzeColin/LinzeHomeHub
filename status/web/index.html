@@ -26,23 +26,23 @@
 body{margin:0;background:var(--bg);color:var(--t1);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 20px 60px}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 h1{font-size:20px;font-weight:600;margin:0}
-h2{font-size:15px;font-weight:600;margin:26px 0 10px}
+h2{font-size:15px;font-weight:600;margin:24px 0 10px}
 .muted{color:var(--t3);font-size:13px}
-.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:22px}
+.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .pill{font-size:12px;padding:4px 12px;border-radius:20px}
 .pill.ok{color:var(--ok);background:var(--ok-bg)}
 .grid{display:grid;gap:12px}
 .k4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .k3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
-.k2{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.k2{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
 .card{background:var(--card);border:0.5px solid var(--line);border-radius:12px;padding:16px}
-.tile{background:var(--soft);border-radius:10px;padding:14px}
+.tile{background:var(--soft);border-radius:10px;padding:13px}
 .tile .lab{font-size:13px;color:var(--t2)}
-.tile .val{font-size:24px;font-weight:600;margin-top:4px}
+.tile .val{font-size:23px;font-weight:600;margin-top:3px}
 .tile .sub{font-size:13px;color:var(--t3);font-weight:400}
 .opt .lab{font-size:12px;color:var(--t2)}
 .opt .val{font-size:14px;margin-top:3px}
@@ -57,9 +57,9 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .badge.run{color:var(--ok);background:var(--ok-bg)}
 .badge.access{color:var(--accent-t);background:var(--accent-bg)}
 .badge.down{color:var(--danger);background:#fbeaea}
-.chartbox{position:relative;width:100%;height:200px}
-.chartbox.sm{height:160px}
-.row{display:flex;justify-content:space-between;padding:9px 0;font-size:13px;border-bottom:0.5px solid var(--line)}
+.chartbox{position:relative;width:100%;height:190px}
+.chartbox.sm{height:158px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;font-size:13px;border-bottom:0.5px solid var(--line)}
 .row:last-child{border-bottom:none}
 .btn{font-size:12px;padding:6px 12px;border:0.5px solid var(--line);background:var(--card);
   color:var(--t1)!important;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block}
@@ -87,22 +87,22 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .rangebtns button{font-size:12px;padding:4px 10px;border:0.5px solid var(--line);background:var(--card);color:var(--t2);border-radius:7px;cursor:pointer}
 .rangebtns button:hover{color:var(--t1)}
 .rangebtns button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-.foot{margin-top:34px;padding-top:16px;border-top:0.5px solid var(--line);
+.foot{margin-top:30px;padding-top:16px;border-top:0.5px solid var(--line);
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--t3)}
-#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9;
-  align-items:center;justify-content:center;padding:20px}
-#modal .box{background:var(--card);border-radius:14px;padding:22px;max-width:460px;width:100%}
 .err{background:#fbeaea;color:#8a2020;padding:12px 14px;border-radius:10px;font-size:13px}
 .warn{background:#fbf0d8;color:#7a5200;padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
 @media (prefers-color-scheme:dark){.warn{background:#3a2f12;color:#e0b055}.err{background:#3a1a1a;color:#e88}}
-.nav{display:flex;gap:4px;margin-bottom:22px;border-bottom:0.5px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.nav{display:flex;gap:4px;margin-bottom:18px;border-bottom:0.5px solid var(--line)}
 .nav a{padding:11px 18px;font-size:15px;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px}
 .nav a:hover{color:var(--t1);text-decoration:none}
 .nav a.active{color:var(--t1);border-bottom-color:var(--accent);font-weight:500}
-.nav a .ti{margin-right:6px;font-size:16px;vertical-align:-2px}
-/* 资产总览(供应商卡)*/
-.vgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(258px,1fr))}
-.vcard{background:var(--card);border:0.5px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:11px}
+.seg{display:inline-flex;background:var(--soft);border-radius:11px;padding:3px;gap:2px;margin-bottom:18px}
+.seg button{border:0;background:transparent;color:var(--t2);font-size:14px;padding:8px 18px;border-radius:9px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--t1);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.seg button .c{font-size:12px;color:var(--t3);margin-left:5px}
+.seg button.on .c{color:var(--accent)}
+.vgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.vcard{background:var(--card);border:0.5px solid var(--line);border-radius:14px;padding:15px;display:flex;flex-direction:column;gap:10px}
 .vhead{display:flex;align-items:center;gap:8px}
 .vhead .nm{font-size:15px;font-weight:600}
 .vrole{font-size:12px;color:var(--t3);line-height:1.5;margin-top:-6px}
@@ -113,12 +113,11 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .chip.warn{color:var(--warn);background:#fbf0d8}
 .chip.danger{color:var(--danger);background:#fbeaea}
 .vmetrics{display:flex;flex-wrap:wrap;gap:8px}
-.vmetric{background:var(--soft);border-radius:8px;padding:6px 10px;min-width:70px}
+.vmetric{background:var(--soft);border-radius:8px;padding:6px 10px;min-width:66px}
 .vmetric .l{font-size:11px;color:var(--t3)}
 .vmetric .v{font-size:14px;font-weight:600;margin-top:1px}
-/* 自愈引擎 */
 .shead{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.rule{display:flex;align-items:flex-start;gap:10px;padding:11px 2px;border-bottom:0.5px solid var(--line)}
+.rule{display:flex;align-items:flex-start;gap:10px;padding:10px 2px;border-bottom:0.5px solid var(--line)}
 .rule:last-child{border-bottom:none}
 .rule .ic{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none}
 .rule .ic.ok{background:var(--ok)}.rule .ic.warn{background:var(--warn)}.rule .ic.acted{background:var(--accent)}.rule .ic.pending{background:var(--t3)}
@@ -129,7 +128,8 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .eng{font-size:10px;padding:1px 6px;border-radius:5px;margin-left:6px;font-weight:400}
 .eng.builtin{background:var(--accent-bg);color:var(--accent-t)}
 .eng.selfheal{background:var(--ok-bg);color:var(--ok)}
-@media (prefers-color-scheme:dark){.chip.warn{background:#3a2f12}.chip.danger{background:#3a1a1a}}
+.lock{border:1px dashed var(--line);border-radius:14px;padding:20px 16px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;color:var(--t3);text-align:center}
+@media (prefers-color-scheme:dark){.chip.warn{background:#3a2f12}.chip.danger{background:#3a1a1a}.badge.down{background:#3a1a1a}}
 </style>
 </head>
 <body>
@@ -150,79 +150,109 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
   <div id="err"></div>
   <div id="stale"></div>
 
-  <div class="grid k4" id="kpi"></div>
-  <div class="grid k4" id="ops" style="margin-top:12px"></div>
-
-  <h2>资产总览 · 我有哪些云服务</h2>
-  <div class="muted" style="margin-bottom:10px">一共 4 个供应商。每张卡看齐:状态 / 成本 / 潜在风险 / 监控健康。花钱的只有 OVH 和域名,其余都在免费额度内。</div>
-  <div class="vgrid" id="inv"></div>
-
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 8px">
-    <h2 style="margin:0">运维自动修复 · 自愈引擎</h2>
-    <span class="muted" style="font-size:12px">纯服务器 cron 自运行 · 不依赖 agent、不依赖 token</span>
-  </div>
-  <div class="card" id="selfheal" style="padding:8px 16px 14px"></div>
-
-  <h2>项目清单 · 地址 / 组成 / 数据库平台 / 通知</h2>
-  <div class="card scroll" style="padding:6px 10px">
-    <table><thead><tr>
-      <th>项目</th><th>地址</th><th>组成</th><th>数据库平台</th><th>通知</th><th>状态</th>
-    </tr></thead><tbody id="rows"></tbody></table>
+  <div class="seg" id="seg">
+    <button data-plane="infra" class="on" onclick="setPlane('infra')">基础设施 <span class="c" id="segInfra"></span></button>
+    <button data-plane="github" onclick="setPlane('github')">GitHub 工程 <span class="c" id="segGh"></span></button>
   </div>
 
-  <div class="grid k2" style="margin-top:20px">
-    <div><h2 style="margin-top:0">近 7 天部署次数</h2><div class="chartbox"><canvas id="deployChart"></canvas></div></div>
-    <div><h2 style="margin-top:0">部署成功率 · 30天</h2><div class="chartbox"><canvas id="successChart"></canvas></div></div>
-  </div>
+  <!-- ===================== 基础设施平面 ===================== -->
+  <div id="planeInfra">
+    <div class="grid k4" id="kpi"></div>
+    <div class="grid k4" id="ops" style="margin-top:12px"></div>
 
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 8px">
-    <h2 style="margin:0">内存 / 磁盘趋势</h2>
-    <div class="rangebtns" id="rangeBtns"></div>
-  </div>
-  <div id="customRange" style="display:none;margin:0 0 10px;font-size:13px;color:var(--t2)">
-    <input type="datetime-local" id="cr0" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
-    <span style="margin:0 4px">到</span>
-    <input type="datetime-local" id="cr1" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
-    <button class="btn" style="margin-left:6px" onclick="applyCustom()">应用</button>
-  </div>
-  <div class="grid k2">
-    <div><div class="muted" style="margin-bottom:6px">内存 <span id="memNow"></span></div><div class="chartbox sm"><canvas id="memChart"></canvas></div></div>
-    <div><div class="muted" style="margin-bottom:6px">磁盘 <span id="diskNow"></span></div><div class="chartbox sm"><canvas id="diskChart"></canvas></div></div>
-  </div>
-  <div class="muted" id="trendNote" style="font-size:11px;margin-top:6px"></div>
+    <h2>总览清单 · 4 个供应商</h2>
+    <div class="muted" style="margin-bottom:10px">花钱的只有 OVH 和域名,其余在免费额度内。每张卡:状态 / 成本 / 潜在风险 / 监控健康。</div>
+    <div class="vgrid" id="inv"></div>
 
-  <h2>最近部署记录</h2>
-  <div class="card" id="deploylog" style="padding:6px 16px"></div>
+    <h2>项目清单 · 每个项目跑在哪 / 存哪 / 怎么部署 / 怎么备份</h2>
+    <div class="card scroll" style="padding:6px 10px"><table><thead><tr>
+      <th>项目</th><th>组成</th><th>运行主机</th><th>数据库</th><th>文件存储</th><th>部署方式</th><th>备份</th><th>Agent 依赖</th><th>状态</th>
+    </tr></thead><tbody id="rows"></tbody></table></div>
 
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 10px">
-    <h2 style="margin:0">月度开支明细</h2>
-    <div style="display:flex;gap:8px">
-      <a class="btn" href="/admin">编辑价格</a>
-      <a class="btn" href="/admin">新增开支项 +</a>
+    <h2>总览关键数据可视化 <span class="muted" style="font-weight:400">· 含用量额度与外部服务</span></h2>
+    <div class="grid k2">
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+          <div class="muted"><span id="memNow"></span> <span id="diskNow"></span></div>
+          <div class="rangebtns" id="rangeBtns"></div>
+        </div>
+        <div id="customRange" style="display:none;margin:0 0 8px;font-size:13px;color:var(--t2)">
+          <input type="datetime-local" id="cr0" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
+          <span style="margin:0 4px">到</span>
+          <input type="datetime-local" id="cr1" style="padding:6px;border:0.5px solid var(--line);border-radius:7px;background:var(--bg);color:var(--t1)">
+          <button class="btn" style="margin-left:6px" onclick="applyCustom()">应用</button>
+        </div>
+        <div class="chartbox sm"><canvas id="memChart"></canvas></div>
+        <div class="chartbox sm" style="margin-top:6px"><canvas id="diskChart"></canvas></div>
+        <div class="muted" id="trendNote" style="font-size:11px;margin-top:4px"></div>
+      </div>
+      <div class="card">
+        <div class="muted" style="margin-bottom:8px">部署 · 近 7 天次数 / 30 天成功率</div>
+        <div class="chartbox sm"><canvas id="deployChart"></canvas></div>
+        <div class="chartbox sm" style="margin-top:6px"><canvas id="successChart"></canvas></div>
+      </div>
     </div>
+    <h2 style="font-size:13px;color:var(--t2);margin:16px 0 8px">用量与免费额度 · 超了才开始收费</h2>
+    <div class="grid k2" id="usage"></div>
+    <div class="grid k4" id="externals" style="margin-top:12px"></div>
+
+    <h2>项目关键数据可视化 · 关联与耦合</h2>
+    <div class="muted" style="margin-bottom:10px">谁依赖哪块数据/存储、谁需要人盯(agent 依赖)、最近部署流水。</div>
+    <div class="grid k3">
+      <div class="card"><div class="muted" style="margin-bottom:8px">数据/存储承载了几个项目</div><div class="chartbox sm"><canvas id="coupleChart"></canvas></div></div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">Agent 依赖分布(越少越自运行)</div><div class="chartbox sm"><canvas id="agentChart"></canvas></div></div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">最近部署记录</div><div id="deploylog" style="max-height:170px;overflow:auto"></div></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:24px 0 10px">
+      <h2 style="margin:0">账单 · 月度开支明细</h2>
+      <a class="btn" href="/admin">编辑 / 新增开支项</a>
+    </div>
+    <div class="grid k2">
+      <div class="card scroll" id="costlist" style="padding:6px 16px"></div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">当月实付构成</div><div class="chartbox sm"><canvas id="costChart"></canvas></div></div>
+    </div>
+    <div class="muted" id="fxline" style="margin-top:8px"></div>
+
+    <h2>自愈引擎 · 两套自愈</h2>
+    <div class="muted" style="margin-bottom:10px">纯服务器 cron 自运行 · 不依赖 agent、不依赖 token。第一套保业务,第二套保采集器与自愈本身(自愈的自愈)。</div>
+    <div class="grid k2">
+      <div class="card"><div class="shead" style="margin-bottom:4px"><b style="font-size:14px">主自愈 · 保业务</b><span class="pill ok" id="mainArm"></span></div><div id="rulesMain"></div></div>
+      <div class="card"><div class="shead" style="margin-bottom:4px"><b style="font-size:14px">自愈的自愈 · 保采集/自愈本身</b><span class="pill ok" id="metaArm"></span></div><div id="rulesMeta"></div></div>
+    </div>
+    <div class="card" id="healRecent" style="margin-top:12px;padding:8px 16px"></div>
   </div>
-  <div class="card scroll" id="costlist" style="padding:6px 16px"></div>
-  <div class="card" style="margin-top:12px;max-width:460px"><div class="chartbox sm"><canvas id="costChart"></canvas></div></div>
-  <div class="muted" id="fxline" style="margin-top:8px"></div>
 
-  <h2>用量与免费额度 <span class="muted" style="font-weight:400">· 现在免费,超了才开始收费</span></h2>
-  <div class="grid k2" id="usage"></div>
+  <!-- ===================== GitHub 工程平面 ===================== -->
+  <div id="planeGithub" style="display:none">
+    <div id="ghUnavail"></div>
+    <div class="grid k4" id="ghKpi"></div>
 
-  <h2>外部服务状态</h2>
-  <div class="grid k4" id="externals"></div>
+    <h2>仓库清单 · 公开仓工程数据</h2>
+    <div class="muted" style="margin-bottom:10px" id="ghNote"></div>
+    <div class="card scroll" style="padding:6px 10px"><table><thead><tr>
+      <th>仓库</th><th>语言</th><th>7d</th><th>30d</th><th>分支</th><th>PR</th><th>Issue</th><th>Git 占用</th><th>CI</th><th>最近 push</th>
+    </tr></thead><tbody id="ghRows"></tbody></table></div>
+    <div class="grid k2" style="margin-top:8px" id="ghLockWrap"></div>
+
+    <h2>GitHub 关键数据可视化</h2>
+    <div class="grid k3">
+      <div class="card"><div class="muted" style="margin-bottom:8px">各仓 30 天提交数</div><div class="chartbox sm"><canvas id="ghCommitChart"></canvas></div></div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">语言分布(公开仓)</div><div class="chartbox sm"><canvas id="ghLangChart"></canvas></div></div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">各仓 Git 占用</div><div class="chartbox sm"><canvas id="ghSizeChart"></canvas></div></div>
+    </div>
+
+    <h2>Monorepo 子项目活跃度 <span class="muted" style="font-weight:400">· KMOS / MetaDatabase</span></h2>
+    <div class="card scroll" style="padding:6px 10px"><table><thead><tr>
+      <th>子项目</th><th>所在仓</th><th>路径</th><th>30 天提交</th><th>最近提交</th>
+    </tr></thead><tbody id="ghSub"></tbody></table></div>
+
+    <div class="card" id="ghCap" style="margin-top:16px"></div>
+  </div>
 
   <div class="foot">
-    <span>只读快照 · 每 1 分钟自动刷新</span>
-    <span><a href="https://uptime.linzezhang.com">运维健康(存活探测)</a></span>
-  </div>
-</div>
-
-<div id="modal" onclick="if(event.target.id==='modal')closeModal()">
-  <div class="box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <strong>价格设置</strong><button class="btn" onclick="closeModal()">关闭</button>
-    </div>
-    <div id="modalbody"></div>
+    <span>只读快照 · 每 1 分钟自动刷新 · GitHub 每 30 分钟</span>
+    <span><a href="/admin/github">GitHub 私有全量(需登录)</a> · <a href="https://uptime.linzezhang.com">运维健康</a></span>
   </div>
 </div>
 
@@ -232,65 +262,70 @@ const D=document, C=Chart;
 C.defaults.animation=false;
 C.defaults.font.family='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
 const dark=matchMedia('(prefers-color-scheme:dark)').matches;
-const ink=dark?'#8b8a83':'#8b8a83', grid=dark?'rgba(139,138,131,.18)':'rgba(139,138,131,.15)';
-let SNAP=null, CAN_EDIT=false, PROBED=false;
-function probeEdit(){
-  if(PROBED)return; PROBED=true;
-  fetch('/admin/api/prices',{method:'GET'}).then(r=>{ if(r.ok){CAN_EDIT=true; if(SNAP)render(SNAP);} }).catch(()=>{});
-}
+const ink='#8b8a83', grid=dark?'rgba(139,138,131,.18)':'rgba(139,138,131,.15)';
+const PAL=['#2a78d6','#008300','#eda100','#4a3aa7','#e87ba4','#e34948','#1baf7a','#eb6834','#5a9bea','#9085e9'];
+let SNAP=null, CAN_EDIT=false, PROBED=false, ACTIVE='infra';
+
+function probeEdit(){ if(PROBED)return; PROBED=true;
+  fetch('/admin/api/prices',{method:'GET'}).then(r=>{if(r.ok){CAN_EDIT=true;if(SNAP)render(SNAP);}}).catch(()=>{}); }
 function toggleRenew(el,i){
   if(!SNAP||!SNAP.cost||!SNAP.cost.items[i])return;
-  const name=SNAP.cost.items[i].name, val=el.checked;
-  el.disabled=true;
+  const name=SNAP.cost.items[i].name, val=el.checked; el.disabled=true;
   fetch('/admin/api/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,auto_renew:val})})
-    .then(r=>{ if(!r.ok)throw new Error(r.status); return r.json(); })
-    .then(j=>{ SNAP.cost.items[i].auto_renew=val; el.disabled=false; })
-    .catch(e=>{ el.checked=!val; el.disabled=false; alert('保存失败:请先到「价格设置」用你的邮箱登录一次,再回来切换开关。'); });
+    .then(r=>{if(!r.ok)throw 0;return r.json();})
+    .then(()=>{SNAP.cost.items[i].auto_renew=val;el.disabled=false;})
+    .catch(()=>{el.checked=!val;el.disabled=false;alert('保存失败:请先到「价格设置」用你的邮箱登录一次再切换。');});
 }
-function el(h){const t=D.createElement('template');t.innerHTML=h.trim();return t.content.firstChild}
 function cur(a,c){return 'A$'+(a==null?'—':a.toFixed(2))+' · ¥'+(c==null?'—':c.toFixed(2))}
 function fmtBytes(b){if(b==null)return '—';const u=['B','KB','MB','GB','TB'];let i=0,v=b;
   while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(i>0&&v<100?1:0)+' '+u[i]}
+function fmtKB(kb){return fmtBytes((kb||0)*1024)}
+function tile(l,v,sub){return '<div class="tile"><div class="lab">'+l+'</div><div class="val">'+v+(sub?' <span class="sub">· '+sub+'</span>':'')+'</div></div>'}
+function opt(l,v){return '<div class="tile opt"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>'}
 function daysHtml(d){if(d==null)return '';const col=d<=7?'var(--danger)':'var(--ok)';return ' <span style="color:'+col+'">· '+d+'天</span>'}
 
 async function load(){
   try{
     const r=await fetch('data/snapshot.json?t='+Date.now());
-    if(!r.ok)throw new Error('快照文件不可用('+r.status+')');
-    SNAP=await r.json();
-    render(SNAP);
-    probeEdit();
-  }catch(e){
-    D.getElementById('err').innerHTML='<div class="err">数据加载失败:'+e.message+'。采集器可能尚未产出首份快照,稍后自动重试。</div>';
-  }
+    if(!r.ok)throw new Error('快照不可用('+r.status+')');
+    SNAP=await r.json(); render(SNAP); probeEdit();
+  }catch(e){ D.getElementById('err').innerHTML='<div class="err">数据加载失败:'+e.message+'。稍后自动重试。</div>'; }
+}
+
+function setPlane(p){
+  ACTIVE=p;
+  D.getElementById('planeInfra').style.display = p==='infra'?'':'none';
+  D.getElementById('planeGithub').style.display = p==='github'?'':'none';
+  D.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.plane===p));
+  if(SNAP)drawCharts(SNAP,p);
 }
 
 function render(s){
-  D.getElementById('updated').textContent='快照更新 '+s.updated_at+'('+s.tz+') · 每 1 分钟自动刷新';
+  D.getElementById('updated').textContent='快照 '+s.updated_at+'('+s.tz+') · 每 1 分钟自动刷新';
   const staleEl=D.getElementById('stale');
-  if(s.updated_epoch){
-    const mins=Math.floor((Date.now()/1000 - s.updated_epoch)/60);
-    staleEl.innerHTML = mins>=3
-      ? '<div class="warn"><b>数据可能过期</b> · 快照已 '+mins+' 分钟未更新,采集器可能停了。请检查主机 cron(<code>/etc/cron.d/linze-status</code>)。</div>'
-      : '';
-  }
+  if(s.updated_epoch){const mins=Math.floor((Date.now()/1000-s.updated_epoch)/60);
+    staleEl.innerHTML=mins>=3?'<div class="warn"><b>数据可能过期</b> · 快照已 '+mins+' 分钟未更新(元自愈会自动重跑采集器)。</div>':'';}
   const anyDown=(s.projects||[]).some(p=>p.status==='down');
-  const h=D.getElementById('health');
-  h.textContent=anyDown?'有异常':'全部健康';
+  const h=D.getElementById('health'); h.textContent=anyDown?'有异常':'全部健康';
   h.className='pill '+(anyDown?'':'ok'); if(anyDown){h.style.color='var(--danger)';h.style.background='#fbeaea'}
 
-  // KPI
+  const g=s.github||{};
+  D.getElementById('segInfra').textContent=(s.summary&&s.summary.services_online)||'';
+  D.getElementById('segGh').textContent=g.available?(g.repos_total+'仓'):'—';
+
+  renderInfra(s); renderGithub(s);
+  drawCharts(s,ACTIVE);
+}
+
+/* ---------------- 基础设施平面 ---------------- */
+function renderInfra(s){
   const su=s.summary;
   D.getElementById('kpi').innerHTML=[
     tile('服务在线',su.services_online),
     tile('部署成功率 · 30天',su.deploy_rate+'%','成功 '+su.deploy_success+'/'+su.deploy_total),
-    tile('当月成本','A$'+ (s.cost.month_cash_aud??'—'),'¥'+(s.cost.month_cash_cny??'—')),
+    tile('当月成本','A$'+(s.cost.month_cash_aud??'—'),'¥'+(s.cost.month_cash_cny??'—')),
     tile('自动修复',(s.selfheal?s.selfheal.armed+'/'+s.selfheal.total:'—'),'条规则守护')
   ].join('');
-  renderInventory(s);
-  renderSelfheal(s);
-
-  // 运维
   const o=s.ops;
   D.getElementById('ops').innerHTML=[
     opt('上次备份',(o.backup.at||'—')+(o.backup.ok?' <span style="color:var(--ok)">正常</span>':' <span style="color:var(--danger)">!</span>')),
@@ -299,196 +334,180 @@ function render(s){
     opt('容器重启',o.restarts+' <span class="muted">· '+(o.restarts===0?'全部稳定':'注意')+'</span>')
   ].join('');
 
-  // 项目表
+  const dotc=ok=>ok===true?'ok':(ok===false?'bad':'unk');
+  D.getElementById('inv').innerHTML=(s.inventory||[]).map(v=>{
+    const risks=(v.risks||[]).map(r=>'<span class="chip '+r.level+'">'+r.text+'</span>').join('');
+    const health=(v.health||[]).map(m=>'<div class="vmetric"><div class="l">'+m.label+'</div><div class="v">'+m.value+'</div></div>').join('');
+    return '<div class="vcard"><div class="vhead"><span class="dot '+dotc(v.status.ok)+'"></span><span class="nm">'+v.name+'</span></div>'+
+      '<div class="vrole">'+v.role+'</div>'+
+      '<div><div class="vsec">状态</div><div style="font-size:13px">'+v.status.note+'</div></div>'+
+      '<div><div class="vsec">成本</div><div class="vcost">'+v.cost+'</div></div>'+
+      '<div><div class="vsec">潜在风险</div><div>'+risks+'</div></div>'+
+      '<div><div class="vsec">监控 / 健康</div><div class="vmetrics">'+health+'</div></div></div>';
+  }).join('')||'<div class="muted">暂无资产数据</div>';
+
+  const agentCol=a=>{const m={'无':'var(--ok)','低':'var(--ok)','中':'var(--warn)','高':'var(--danger)'};
+    return '<span style="color:'+(m[a]||'var(--t2)')+'">'+(a||'—')+'</span>';};
   D.getElementById('rows').innerHTML=(s.projects||[]).map(p=>{
     const name=p.url?'<a href="'+p.url+'" target="_blank">'+p.name+'</a>':p.name;
-    const addr=p.url?'<a href="'+p.url+'" target="_blank">'+p.url.replace('https://','')+'</a>':'<span class="muted">仅服务器内部</span>';
     const parts=p.parts.map(t=>'<span class="tag '+(t==='前台'?'fe':'be')+'">'+t+'</span>').join('');
-    const db=p.db?'<span class="muted">'+p.db+'</span>':'<span class="muted">—</span>';
     const bmap={run:['run','运行中'],access:['access','Access 保护'],down:['down','离线']};
     const b=bmap[p.status]||bmap.run;
-    return '<tr><td>'+name+'</td><td>'+addr+'</td><td>'+parts+'</td><td>'+db+'</td><td style="color:var(--t2)">'+p.notify+'</td><td><span class="badge '+b[0]+'">'+b[1]+'</span></td></tr>';
+    const cell=x=>'<td class="muted">'+(x||'—')+'</td>';
+    return '<tr><td>'+name+'</td><td>'+parts+'</td>'+cell(p.host)+cell(p.db)+cell(p.store)+cell(p.deploy)+cell(p.backup)+
+      '<td>'+agentCol(p.agent)+'</td><td><span class="badge '+b[0]+'">'+b[1]+'</span></td></tr>';
   }).join('');
 
-  // 部署记录
-  D.getElementById('deploylog').innerHTML=(s.deploy.log||[]).map(l=>
-    '<div class="row"><span style="color:var(--t2)">'+l.at+' · '+l.app+'</span>'+
-    (l.ok?'<span style="color:var(--ok)">成功</span>':'<span style="color:var(--danger)">失败</span>')+'</div>').join('')
-    || '<div class="muted" style="padding:10px 0">暂无记录</div>';
-
-  // 开支明细(最初购买 / 本月续费 / 自动续费开关 / 当月成本)
-  const crows=(s.cost.items||[]).map((it,i)=>{
-    const cad=it.cadence==='yearly'?'年付':'月付';
-    const renew=it.this_month_renew?it.this_month_renew.slice(5):'<span class="muted">本月无</span>';
-    const cash=it.month_cost_aud>0?cur(it.month_cost_aud,it.month_cost_cny):'<span class="muted">A$0</span>';
-    const tg='<label class="tg '+(CAN_EDIT?'':'ro')+'"><input type="checkbox" '+(it.auto_renew?'checked':'')+' '+
-      (CAN_EDIT?'':'disabled')+' onchange="toggleRenew(this,'+i+')"><span class="sl"></span></label>';
-    return '<tr><td>'+it.name+' <span class="muted" style="font-size:11px">· '+cad+'</span></td>'+
-      '<td class="muted">'+(it.purchase||'—')+'</td><td>'+renew+'</td>'+
-      '<td style="text-align:center">'+tg+'</td>'+
-      '<td style="text-align:right">'+cash+'</td></tr>';
-  }).join('');
-  D.getElementById('costlist').innerHTML=
-    '<table style="font-size:13px"><thead><tr><th>项目</th><th>最初购买</th><th>本月续费</th>'+
-    '<th style="text-align:center">自动续费</th><th style="text-align:right">当月成本</th></tr></thead><tbody>'+crows+
-    '<tr style="font-weight:600"><td>本月实付合计</td><td></td><td></td><td></td>'+
-    '<td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>'+
-    (CAN_EDIT?'':'<div class="muted" style="font-size:11px;padding:6px 2px">开关只读 · 到「价格设置」用你的邮箱登录后即可在此直接切换</div>');
-  D.getElementById('fxline').innerHTML= s.fx.aud_cny
-    ? '<div>月摊(把年费摊到每月):A$'+s.cost.monthly_aud.toFixed(2)+'/月 约 ¥'+Math.round(s.cost.monthly_cny)+
-        ' · 年化 A$'+s.cost.yearly_aud.toFixed(2)+' 约 ¥'+Math.round(s.cost.yearly_cny)+'</div>'+
-      '<div style="margin-top:3px">汇率 1 AUD = '+s.fx.aud_cny+' CNY · 取自 '+(s.fx.at||'—')+'(北京时间)</div>'
-    : '汇率暂不可用,金额仅显示 AUD';
-
-  // 用量与免费额度(潜在收费预警)
   D.getElementById('usage').innerHTML=(s.usage||[]).map(u=>{
     const pct=u.limit?Math.min(100,u.used/u.limit*100):0;
     const col=pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)');
-    const src=u.source==='auto'
-      ?'<span class="src auto">自动刷新</span>'
-      :'<span class="src manual">人工 '+(u.checked||'')+'</span>';
+    const src=u.source==='auto'?'<span class="src auto">自动</span>':'<span class="src manual">人工 '+(u.checked||'')+'</span>';
     const val=u.unit==='bytes'?(fmtBytes(u.used)+' / '+fmtBytes(u.limit)):(u.used+' / '+u.limit);
-    const eta=u.eta_date
-      ? '<b style="color:'+(pct>=50?'var(--warn)':'var(--t1)')+'">预计触顶 '+u.eta_date+'</b>'
-        +'<span class="muted"> · '+(u.eta_note||'')+'</span>'
-      : '<span class="muted">预计触顶:'+(u.eta_note||'—')+'</span>';
-    return '<div class="ub"><div class="top"><span class="nm">'+u.label+src+'</span>'+
-      '<span class="uval">'+val+' · '+pct.toFixed(pct<1?2:1)+'%</span></div>'+
+    const eta=u.eta_date?'<b style="color:'+(pct>=50?'var(--warn)':'var(--t1)')+'">预计触顶 '+u.eta_date+'</b>':'<span class="muted">'+(u.eta_note||'—')+'</span>';
+    return '<div class="ub"><div class="top"><span class="nm">'+u.label+src+'</span><span class="uval">'+val+' · '+pct.toFixed(pct<1?2:1)+'%</span></div>'+
       '<div class="track"><div class="fill" style="width:'+Math.max(pct,1.5)+'%;background:'+col+'"></div></div>'+
-      '<div style="font-size:11px;margin-top:6px">'+eta+'</div>'+
-      '<div class="muted" style="font-size:11px;margin-top:2px">'+(u.note||'')+'</div></div>';
+      '<div style="font-size:11px;margin-top:6px">'+eta+' <span class="muted">'+(u.note||'')+'</span></div></div>';
   }).join('')||'<div class="muted">暂无用量数据</div>';
-
-  // 外部
   D.getElementById('externals').innerHTML=(s.externals||[]).map(e=>{
     const cls=e.ok===true?'ok':(e.ok===false?'bad':'unk');
     return '<div class="tile ext"><span class="dot '+cls+'"></span><div><div style="font-size:13px">'+e.name+'</div><div class="muted" style="font-size:12px">'+e.note+'</div></div></div>';
   }).join('');
 
-  D.getElementById('memNow').textContent='当前 '+(s.host.mem_pct??'—')+'%';
-  D.getElementById('diskNow').textContent='当前 '+(s.host.disk_pct??'—')+'%';
-  charts(s);
-  renderRangeBtns();
-  renderTrends();
-}
-function tile(l,v,sub){return '<div class="tile"><div class="lab">'+l+'</div><div class="val">'+v+(sub?' <span class="sub">· '+sub+'</span>':'')+'</div></div>'}
-function opt(l,v){return '<div class="tile opt"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>'}
+  D.getElementById('deploylog').innerHTML=(s.deploy.log||[]).map(l=>
+    '<div class="row"><span style="color:var(--t2)">'+l.at.slice(5)+' · '+l.app+'</span>'+
+    (l.ok?'<span style="color:var(--ok)">成功</span>':'<span style="color:var(--danger)">失败</span>')+'</div>').join('')||'<div class="muted">暂无</div>';
 
-function renderInventory(s){
-  const dotc=ok=>ok===true?'ok':(ok===false?'bad':'unk');
-  D.getElementById('inv').innerHTML=(s.inventory||[]).map(v=>{
-    const risks=(v.risks||[]).map(r=>'<span class="chip '+r.level+'">'+r.text+'</span>').join('');
-    const health=(v.health||[]).map(m=>'<div class="vmetric"><div class="l">'+m.label+'</div><div class="v">'+m.value+'</div></div>').join('');
-    return '<div class="vcard">'+
-      '<div class="vhead"><span class="dot '+dotc(v.status.ok)+'"></span><span class="nm">'+v.name+'</span></div>'+
-      '<div class="vrole">'+v.role+'</div>'+
-      '<div><div class="vsec">状态</div><div style="font-size:13px">'+v.status.note+'</div></div>'+
-      '<div><div class="vsec">成本</div><div class="vcost">'+v.cost+'</div></div>'+
-      '<div><div class="vsec">潜在风险</div><div>'+risks+'</div></div>'+
-      '<div><div class="vsec">监控 / 健康</div><div class="vmetrics">'+health+'</div></div>'+
-      '</div>';
-  }).join('')||'<div class="muted">暂无资产数据</div>';
+  const crows=(s.cost.items||[]).map((it,i)=>{
+    const cad=it.cadence==='yearly'?'年付':'月付';
+    const renew=it.this_month_renew?it.this_month_renew.slice(5):'<span class="muted">本月无</span>';
+    const cash=it.month_cost_aud>0?cur(it.month_cost_aud,it.month_cost_cny):'<span class="muted">A$0</span>';
+    const tg='<label class="tg '+(CAN_EDIT?'':'ro')+'"><input type="checkbox" '+(it.auto_renew?'checked':'')+' '+(CAN_EDIT?'':'disabled')+' onchange="toggleRenew(this,'+i+')"><span class="sl"></span></label>';
+    return '<tr><td>'+it.name+' <span class="muted" style="font-size:11px">· '+cad+'</span></td><td class="muted">'+(it.purchase||'—')+'</td><td>'+renew+'</td>'+
+      '<td style="text-align:center">'+tg+'</td><td style="text-align:right">'+cash+'</td></tr>';
+  }).join('');
+  D.getElementById('costlist').innerHTML='<table style="font-size:13px"><thead><tr><th>项目</th><th>最初购买</th><th>本月续费</th><th style="text-align:center">自动续费</th><th style="text-align:right">当月成本</th></tr></thead><tbody>'+crows+
+    '<tr style="font-weight:600"><td>本月实付合计</td><td></td><td></td><td></td><td style="text-align:right">'+cur(s.cost.month_cash_aud,s.cost.month_cash_cny)+'</td></tr></tbody></table>'+
+    (CAN_EDIT?'':'<div class="muted" style="font-size:11px;padding:6px 2px">开关只读 · 到「价格设置」登录后可切换</div>');
+  D.getElementById('fxline').innerHTML=s.fx.aud_cny?
+    '月摊(年费摊到每月):A$'+s.cost.monthly_aud.toFixed(2)+'/月 约 ¥'+Math.round(s.cost.monthly_cny)+' · 年化 A$'+s.cost.yearly_aud.toFixed(2)+' 约 ¥'+Math.round(s.cost.yearly_cny)+
+    ' · 汇率 1 AUD='+s.fx.aud_cny+' CNY(取自 '+(s.fx.at||'—')+')':'汇率暂不可用';
+
+  renderRules('rulesMain','mainArm',s.selfheal,'main',s.selfheal&&s.selfheal.main_armed,s.selfheal&&s.selfheal.main_total);
+  renderRules('rulesMeta','metaArm',s.selfheal,'meta',s.selfheal&&s.selfheal.meta_armed,s.selfheal&&s.selfheal.meta_total);
+  const rec=((s.selfheal&&s.selfheal.recent)||[]).slice(0,6).map(x=>'<div class="row"><span style="color:var(--t2)">'+x.at+' · '+x.rule+'</span><span style="text-align:right">'+x.msg+'</span></div>').join('');
+  D.getElementById('healRecent').innerHTML=rec?'<div class="vsec" style="margin:2px 0 2px">最近自愈动作</div>'+rec:'<div class="muted" style="font-size:12px;padding:8px 0">目前一切正常 · 尚无需要出手的自愈动作</div>';
+
+  D.getElementById('memNow').textContent='内存 '+(s.host.mem_pct??'—')+'%';
+  D.getElementById('diskNow').textContent='· 磁盘 '+(s.host.disk_pct??'—')+'%';
+  renderRangeBtns();
 }
-function renderSelfheal(s){
-  const box=D.getElementById('selfheal'); const sh=s.selfheal;
-  if(!sh){box.innerHTML='<div class="muted" style="padding:10px 0">采集器尚未产出自愈数据</div>';return;}
-  const rules=(sh.rules||[]).map(r=>{
+function renderRules(box,arm,sh,set,armed,total){
+  if(!sh){D.getElementById(box).innerHTML='';return;}
+  D.getElementById(arm).textContent=(armed??'—')+'/'+(total??'—')+' 守护中';
+  D.getElementById(box).innerHTML=(sh.rules||[]).filter(r=>(r.set||'main')===set).map(r=>{
     const st=['ok','warn','acted','pending'].includes(r.state)?r.state:'ok';
     const eng=r.engine==='builtin'?'<span class="eng builtin">内置</span>':'<span class="eng selfheal">自愈脚本</span>';
-    const act=r.actions_total?'<span class="muted"> · 累计动作 '+r.actions_total+'</span>':'';
-    const la=r.last_action?'<div class="rd" style="color:var(--accent)">最近:'+r.last_action+(r.last_action_at?'('+r.last_action_at+')':'')+'</div>':'';
-    return '<div class="rule"><span class="ic '+st+'"></span><div class="body">'+
-      '<div class="rn">'+r.name+eng+act+'</div>'+
-      '<div class="rt">'+(r.threshold||'')+'</div>'+
-      '<div class="rd">'+(r.detail||'')+'</div>'+la+'</div></div>';
+    const act=r.actions_total?'<span class="muted"> · 累计 '+r.actions_total+'</span>':'';
+    const la=r.last_action?'<div class="rd" style="color:var(--accent)">最近:'+r.last_action+'</div>':'';
+    return '<div class="rule"><span class="ic '+st+'"></span><div class="body"><div class="rn">'+r.name+eng+act+'</div>'+
+      '<div class="rt">'+(r.threshold||'')+'</div><div class="rd">'+(r.detail||'')+'</div>'+la+'</div></div>';
   }).join('');
-  const recent=(sh.recent||[]).slice(0,6).map(x=>
-    '<div class="row"><span style="color:var(--t2)">'+x.at+' · '+x.rule+'</span><span style="text-align:right">'+x.msg+'</span></div>').join('');
-  box.innerHTML=
-    '<div class="shead" style="padding:8px 0 4px"><div class="muted" style="font-size:12px">引擎:'+sh.engine+' · 上次运行 '+(sh.last_run||'—')+'</div>'+
-    '<span class="pill ok">'+sh.armed+'/'+sh.total+' 条规则守护中</span></div>'+
-    rules +
-    (recent?'<div style="margin-top:12px"><div class="vsec" style="margin-bottom:2px">最近自愈动作</div>'+recent+'</div>'
-           :'<div class="muted" style="font-size:12px;padding:10px 0 2px">目前一切正常 · 尚无需要出手的自愈动作</div>');
 }
 
+/* ---------------- GitHub 平面 ---------------- */
+function renderGithub(s){
+  const g=s.github;
+  if(!g||!g.available){
+    D.getElementById('ghUnavail').innerHTML='<div class="warn">GitHub 采集尚未产出(每 30 分钟一次)。'+((g&&g.note)||'')+'</div>';
+    D.getElementById('ghKpi').innerHTML=''; return;
+  }
+  D.getElementById('ghUnavail').innerHTML=(g.stale_min!=null&&g.stale_min>90)?'<div class="warn">GitHub 数据已 '+g.stale_min+' 分钟未更新。</div>':'';
+  D.getElementById('ghKpi').innerHTML=[
+    tile('仓库',g.repos_total,g.public+' 公开 / '+g.private+' 私有'),
+    tile('提交 · 近7天',g.commits_7d,'30天 '+g.commits_30d),
+    tile('待处理','PR '+g.open_pr,'Issue '+g.open_issue),
+    tile('CI 失败',g.ci_fail,'Git 占用 '+fmtKB(g.git_size_kb))
+  ].join('');
+  D.getElementById('ghNote').textContent='采集 '+g.collected_at+' · '+g.note;
+  const ciBadge=r=>{if(r.ci_conclusion==null)return '<span class="muted">—</span>';
+    return r.ci_ok?'<span style="color:var(--ok)">通过</span>':'<span style="color:var(--danger)">'+r.ci_conclusion+'</span>';};
+  D.getElementById('ghRows').innerHTML=(g.public_repos||[]).map(r=>
+    '<tr><td><a href="'+r.url+'" target="_blank">'+r.name+'</a></td><td class="muted">'+r.top_lang+'</td>'+
+    '<td>'+r.commits_7d+'</td><td>'+r.commits_30d+'</td><td>'+r.branches+'</td><td>'+r.open_pr+'</td><td>'+r.open_issue+'</td>'+
+    '<td class="muted">'+fmtKB(r.size_kb)+'</td><td>'+ciBadge(r)+'</td><td class="muted">'+r.pushed_at+'</td></tr>').join('');
+  D.getElementById('ghLockWrap').innerHTML=g.private>0?
+    '<div class="lock"><div style="font-size:22px">🔒</div><div>另有 <b>'+g.private+'</b> 个私有仓(明细不公开)</div><a class="btn" href="/admin/github">登录查看私有全量</a></div>'+
+    '<div class="card"><div class="muted" style="margin-bottom:6px">私有页能看到什么</div><div style="font-size:13px;color:var(--t2)">10 个仓完整明细 + 子项目 + 分支保护 + Traffic/Actions(授权后)。用你本人的 Cloudflare Access 登录,匿名访问被拦。</div></div>':'';
+  D.getElementById('ghSub').innerHTML=(g.subprojects||[]).map(sp=>
+    '<tr><td>'+sp.project+'</td><td class="muted">'+sp.repo+'</td><td class="muted">'+sp.path+'</td><td>'+(sp.commits_30d??'—')+'</td><td class="muted">'+(sp.last_commit_at||'—')+'</td></tr>').join('')||'<tr><td colspan="5" class="muted">暂无</td></tr>';
+  const cap=g.capability||{};
+  D.getElementById('ghCap').innerHTML='<div class="vsec" style="margin-bottom:6px">采集能力</div>'+
+    '<div style="font-size:13px;color:var(--t2)">Traffic 访问流量:<b>'+(cap.traffic||'—')+'</b><br>Actions 账单分钟/费用:<b>'+(cap.billing||'—')+'</b></div>'+
+    '<div class="muted" style="font-size:12px;margin-top:6px">这两项当前令牌读不到;授权一个含 Administration:read 的只读令牌后即自动采集,不可用时如实标注,绝不编造费用。</div>';
+}
+
+/* ---------------- 图表 ---------------- */
 let _ch={};
-function mk(id,cfg){if(_ch[id])_ch[id].destroy();_ch[id]=new C(D.getElementById(id),cfg)}
-function charts(s){
-  const ax={ticks:{color:ink},grid:{color:grid}};
-  mk('deployChart',{
-    type:'line',
-    data:{labels:s.deploy.d7_labels,datasets:[{data:s.deploy.d7_data,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,.10)',fill:true,tension:.3,borderWidth:2,pointRadius:4,pointBackgroundColor:'#2a78d6'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,...ax},x:{ticks:{color:ink},grid:{display:false}}}}
-  });
-  mk('successChart',{
-    type:'doughnut',
-    data:{labels:['成功','失败'],datasets:[{data:[s.deploy.success,Math.max(0,s.deploy.total-s.deploy.success)],backgroundColor:['#1baf7a','#e34948'],borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10}}}}
-  });
-  const PAL=['#2a78d6','#008300','#eda100','#4a3aa7','#e87ba4','#e34948','#1baf7a','#eb6834'];
-  const ci=s.cost.items.filter(i=>i.month_cost_aud>0);
-  mk('costChart',{
-    type:'doughnut',
-    data:{labels:ci.map(i=>i.name+' A$'+i.month_cost_aud.toFixed(2)),datasets:[{data:ci.map(i=>i.month_cost_aud),backgroundColor:ci.map((_,k)=>PAL[k%PAL.length]),borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10,font:{size:11}}}}}
-  });
+function mk(id,cfg){const el=D.getElementById(id);if(!el)return;if(_ch[id])_ch[id].destroy();_ch[id]=new C(el,cfg)}
+function donut(id,labels,data,colors){mk(id,{type:'doughnut',data:{labels:labels,datasets:[{data:data,backgroundColor:colors,borderWidth:2,borderColor:dark?'#1e1e1c':'#fff'}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{color:ink,boxWidth:10,font:{size:11}}}}}})}
+function bar(id,labels,data,horiz){mk(id,{type:'bar',data:{labels:labels,datasets:[{data:data,backgroundColor:labels.map((_,k)=>PAL[k%PAL.length]),borderRadius:4}]},
+  options:{indexAxis:horiz?'y':'x',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:ink},grid:{color:grid,display:!horiz}},y:{ticks:{color:ink},grid:{color:grid,display:horiz}}}}})}
+
+function drawCharts(s,plane){
+  if(plane==='infra'){
+    const ax={ticks:{color:ink},grid:{color:grid}};
+    mk('deployChart',{type:'line',data:{labels:s.deploy.d7_labels,datasets:[{data:s.deploy.d7_data,borderColor:'#2a78d6',backgroundColor:'rgba(42,120,214,.10)',fill:true,tension:.3,borderWidth:2,pointRadius:3,pointBackgroundColor:'#2a78d6'}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,...ax},x:{ticks:{color:ink},grid:{display:false}}}}});
+    donut('successChart',['成功','失败'],[s.deploy.success,Math.max(0,s.deploy.total-s.deploy.success)],['#1baf7a','#e34948']);
+    const ci=s.cost.items.filter(i=>i.month_cost_aud>0);
+    donut('costChart',ci.map(i=>i.name+' A$'+i.month_cost_aud.toFixed(2)),ci.map(i=>i.month_cost_aud),ci.map((_,k)=>PAL[k%PAL.length]));
+    const store={}; (s.projects||[]).forEach(p=>{const k=(p.store&&p.store!=='无')?p.store:'无存储';store[k]=(store[k]||0)+1;});
+    bar('coupleChart',Object.keys(store),Object.values(store),true);
+    const ag={}; (s.projects||[]).forEach(p=>{const k='依赖:'+(p.agent||'—');ag[k]=(ag[k]||0)+1;});
+    donut('agentChart',Object.keys(ag),Object.values(ag),Object.keys(ag).map((k,i)=>k.includes('中')?'#eda100':(k.includes('高')?'#e34948':PAL[i%PAL.length])));
+    renderTrends();
+  }else{
+    const g=s.github; if(!g||!g.available)return;
+    const rp=(g.public_repos||[]).slice().sort((a,b)=>b.commits_30d-a.commits_30d);
+    bar('ghCommitChart',rp.map(r=>r.name),rp.map(r=>r.commits_30d),true);
+    const lang={}; (g.public_repos||[]).forEach(r=>{lang[r.top_lang]=(lang[r.top_lang]||0)+1;});
+    donut('ghLangChart',Object.keys(lang),Object.values(lang),Object.keys(lang).map((_,k)=>PAL[k%PAL.length]));
+    const rs=(g.public_repos||[]).slice().sort((a,b)=>b.size_kb-a.size_kb);
+    bar('ghSizeChart',rs.map(r=>r.name),rs.map(r=>Math.round(r.size_kb/1024)),true);
+  }
 }
 
-const RANGES=[['实时',900],['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['90D',7776000],['1Y',31536000],['全部',-1],['自定义',null]];
+/* 内存/磁盘趋势 */
+const RANGES=[['实时',900],['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['90D',7776000],['全部',-1],['自定义',null]];
 let TREND_RANGE='1D', CUSTOM=null;
-function renderRangeBtns(){
-  const el=D.getElementById('rangeBtns'); if(!el)return;
-  el.innerHTML=RANGES.map(r=>'<button class="'+(r[0]===TREND_RANGE?'on':'')+'" onclick="setRange(\''+r[0]+'\')">'+r[0]+'</button>').join('');
-}
-function setRange(lab){
-  TREND_RANGE=lab;
-  const cr=D.getElementById('customRange'); if(cr)cr.style.display=(lab==='自定义')?'block':'none';
-  renderRangeBtns();
-  if(lab!=='自定义')renderTrends();
-}
-function applyCustom(){
-  const a=D.getElementById('cr0').value, b=D.getElementById('cr1').value;
-  if(!a||!b){alert('请选择开始和结束时间');return;}
-  CUSTOM=[new Date(a).getTime()/1000, new Date(b).getTime()/1000];
-  if(CUSTOM[0]>=CUSTOM[1]){alert('开始时间要早于结束时间');return;}
-  renderTrends();
-}
-function fmtT(ep,win){const d=new Date(ep*1000),p=n=>('0'+n).slice(-2);
-  return win<=86400?p(d.getHours())+':'+p(d.getMinutes()):(p(d.getMonth()+1)+'-'+p(d.getDate()));}
+function renderRangeBtns(){const el=D.getElementById('rangeBtns');if(!el)return;
+  el.innerHTML=RANGES.map(r=>'<button class="'+(r[0]===TREND_RANGE?'on':'')+'" onclick="setRange(\''+r[0]+'\')">'+r[0]+'</button>').join('');}
+function setRange(lab){TREND_RANGE=lab;const cr=D.getElementById('customRange');if(cr)cr.style.display=(lab==='自定义')?'block':'none';renderRangeBtns();if(lab!=='自定义')renderTrends();}
+function applyCustom(){const a=D.getElementById('cr0').value,b=D.getElementById('cr1').value;if(!a||!b){alert('请选择起止时间');return;}
+  CUSTOM=[new Date(a).getTime()/1000,new Date(b).getTime()/1000];if(CUSTOM[0]>=CUSTOM[1]){alert('开始要早于结束');return;}renderTrends();}
+function fmtT(ep,win){const d=new Date(ep*1000),p=n=>('0'+n).slice(-2);return win<=86400?p(d.getHours())+':'+p(d.getMinutes()):(p(d.getMonth()+1)+'-'+p(d.getDate()));}
 function renderTrends(){
   if(!SNAP||!SNAP.history||!SNAP.history.min)return;
   const DAY=SNAP.history.day||{t:[],mem:[],disk:[]};
   let t0,t1,win;
-  if(TREND_RANGE==='自定义'){ if(!CUSTOM)return; t0=CUSTOM[0]; t1=CUSTOM[1]; win=t1-t0; }
-  else if(TREND_RANGE==='全部'){ t1=Date.now()/1000; t0=DAY.t.length?DAY.t[0]:t1-86400; win=t1-t0; }
-  else { win=RANGES.find(r=>r[0]===TREND_RANGE)[1]; t1=Date.now()/1000; t0=t1-win; }
-  const ser = (TREND_RANGE==='全部'||win>2678400) ? DAY : (win<=86400 ? SNAP.history.min : SNAP.history.hour);
-  const idx=[]; for(let i=0;i<ser.t.length;i++){ if(ser.t[i]>=t0 && ser.t[i]<=t1) idx.push(i); }
+  if(TREND_RANGE==='自定义'){if(!CUSTOM)return;t0=CUSTOM[0];t1=CUSTOM[1];win=t1-t0;}
+  else if(TREND_RANGE==='全部'){t1=Date.now()/1000;t0=DAY.t.length?DAY.t[0]:t1-86400;win=t1-t0;}
+  else{win=RANGES.find(r=>r[0]===TREND_RANGE)[1];t1=Date.now()/1000;t0=t1-win;}
+  const ser=(TREND_RANGE==='全部'||win>2678400)?DAY:(win<=86400?SNAP.history.min:SNAP.history.hour);
+  const idx=[];for(let i=0;i<ser.t.length;i++){if(ser.t[i]>=t0&&ser.t[i]<=t1)idx.push(i);}
   const labels=idx.map(i=>fmtT(ser.t[i],win));
-  const opt={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-    scales:{y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}},x:{ticks:{color:ink,maxTicksLimit:8},grid:{display:false}}}};
-  const mkT=(id,data,col)=>mk(id,{type:'line',data:{labels:labels,datasets:[{data:data,borderColor:col,
-    backgroundColor:'rgba(139,138,131,.08)',fill:true,tension:.3,borderWidth:2,pointRadius:idx.length<=48?2:0}]},options:opt});
+  const opt={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}},x:{ticks:{color:ink,maxTicksLimit:7},grid:{display:false}}}};
+  const mkT=(id,data,col)=>mk(id,{type:'line',data:{labels:labels,datasets:[{data:data,borderColor:col,backgroundColor:'rgba(139,138,131,.08)',fill:true,tension:.3,borderWidth:2,pointRadius:idx.length<=48?2:0}]},options:opt});
   mkT('memChart',idx.map(i=>ser.mem[i]),'#eda100');
   mkT('diskChart',idx.map(i=>ser.disk[i]),'#1baf7a');
   const note=D.getElementById('trendNote');
   const gran=(TREND_RANGE==='全部'||win>2678400)?'1天':(win<=86400?'1分钟':'1小时');
-  if(note)note.textContent = idx.length<2 ? '该时段数据还在累积(采集器每分钟采样,长时段需要时间攒够)' :
-    ('区间 '+TREND_RANGE+':共 '+idx.length+' 个采样点,'+gran+'粒度');
+  if(note)note.textContent=idx.length<2?'该时段数据还在累积':'区间 '+TREND_RANGE+':'+idx.length+' 点,'+gran+'粒度';
 }
-
-function openPrices(){
-  const s=SNAP; if(!s)return;
-  const rows=(s.cost.items||[]).map(i=>'<div class="row"><span>'+i.name+'</span><span class="muted">'+cur(i.aud,i.cny)+'</span></div>').join('');
-  D.getElementById('modalbody').innerHTML=rows+
-    '<p class="muted" style="margin-top:14px">价格保存在服务器持久化价格库 <code>prices.json</code>。带写入的编辑器(仅本人登录可改)正在接入 Cloudflare Access,开放后此处可直接改并入库。</p>';
-  D.getElementById('modal').style.display='flex';
-}
-function closeModal(){D.getElementById('modal').style.display='none'}
 
 load();
-setInterval(load, 60*1000);
+setInterval(load,60*1000);
 </script>
 </body>
 </html>
