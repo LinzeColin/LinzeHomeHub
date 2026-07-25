@@ -33,8 +33,10 @@ services:
       CF_ACCESS_AUD: "3154ca98269ded50f05fb4c3cd35398e0e6dc078f76ab2fa244c4ac526a59d74"
       OWNER_EMAIL: linzezhang35@gmail.com
       PRICES_PATH: /srv/data/prices.json
+      GITHUB_PRIVATE: /srv/private/github.json
     volumes:
       - /srv/linze/apps/status/data:/srv/data:rw
+      - /srv/linze/apps/status/private:/srv/private:ro
     networks:
       - coolify
     labels:

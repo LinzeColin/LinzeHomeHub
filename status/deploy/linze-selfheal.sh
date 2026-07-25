@@ -76,10 +76,31 @@ done <<< "$MON"
 wd_state="ok"; [ "$wd_online" -lt "$wd_total" ] && wd_state="acted"
 wd_detail="${wd_online}/${wd_total} host-direct 服务在线"
 
+# ---------- R3 元自愈:采集器看门狗(自愈的自愈——采集器卡死就自动重跑)----------
+SNAP=/srv/linze/apps/status/data/snapshot.json
+cw_state="ok"; cw_detail="采集器心跳正常"; cw_last=$(cat "$SD/cw_last" 2>/dev/null || echo "")
+cw_last_at=$(cat "$SD/cw_last_at" 2>/dev/null || echo ""); cw_count=$(cat "$SD/cw_count" 2>/dev/null || echo 0)
+if [ -f "$SNAP" ]; then
+  snap_age=$(( NOW - $(stat -c %Y "$SNAP") ))
+  if [ "$snap_age" -gt 300 ]; then         # 快照 >5 分钟没更新 = 采集器卡死
+    sudo -u ubuntu python3 /srv/linze/apps/status/collector/collect.py >/dev/null 2>&1 && ok=1 || ok=0
+    cw_count=$(( cw_count + 1 )); cw_state="acted"
+    cw_last="快照已 $(( snap_age/60 )) 分钟未更新,已自动重跑采集器(ok=$ok)"
+    cw_last_at="$TS"; cw_detail="已自动重跑采集器"
+    echo "$cw_last" > "$SD/cw_last"; echo "$cw_last_at" > "$SD/cw_last_at"; echo "$cw_count" > "$SD/cw_count"
+    log "COLLECTOR-WATCH $cw_last"; push_recent collector_watch "$cw_last"
+  else
+    cw_detail="快照 $(( snap_age/60 )) 分钟内更新过 · 采集器正常"
+  fi
+else
+  cw_state="warn"; cw_detail="尚无快照文件"
+fi
+
 # ---------- 写状态(python3 保证 JSON 转义正确)----------
 RECENT=$( [ -f "$SD/recent.jsonl" ] && tail -n 12 "$SD/recent.jsonl" | tac | paste -sd, - || echo "" )
 export TS NOW disk_pct disk_state disk_detail disk_count disk_last disk_last_at DISK_TRIP
 export wd_state wd_detail wd_count wd_last wd_last_at wd_online wd_total FAIL_TRIP COOLDOWN RECENT
+export cw_state cw_detail cw_count cw_last cw_last_at
 python3 - "$STATE" <<'PY'
 import json, os, sys
 g=os.environ.get
@@ -92,16 +113,21 @@ if raw:
     try: recent=json.loads("["+raw+"]")
     except Exception: recent=[]
 rules=[
- {"key":"disk","name":"磁盘守护","engine":"selfheal","armed":True,
+ {"key":"disk","name":"磁盘守护","engine":"selfheal","set":"main","armed":True,
   "threshold":"磁盘 ≥%s%% 自动清理可回收空间"%g("DISK_TRIP","85"),
   "state":g("disk_state","ok"),"detail":g("disk_detail",""),
   "actions_total":num(g("disk_count","0")),
   "last_action":g("disk_last","") or None,"last_action_at":g("disk_last_at","") or None},
- {"key":"watchdog","name":"服务看门狗","engine":"selfheal","armed":True,
+ {"key":"watchdog","name":"服务看门狗","engine":"selfheal","set":"main","armed":True,
   "threshold":"HTTP 连续%s次失败且过%d分钟冷却 → 自动重启容器"%(g("FAIL_TRIP","2"),num(g("COOLDOWN","1200"))//60),
   "state":g("wd_state","ok"),"detail":g("wd_detail",""),
   "actions_total":num(g("wd_count","0")),
   "last_action":g("wd_last","") or None,"last_action_at":g("wd_last_at","") or None},
+ {"key":"collector_watch","name":"采集器看门狗","engine":"selfheal","set":"meta","armed":True,
+  "threshold":"快照 >5 分钟停更 → 自动重跑采集器(自愈的自愈)",
+  "state":g("cw_state","ok"),"detail":g("cw_detail",""),
+  "actions_total":num(g("cw_count","0")),
+  "last_action":g("cw_last","") or None,"last_action_at":g("cw_last_at","") or None},
 ]
 out={"last_run":g("TS",""),"last_run_epoch":num(g("NOW","0")),
      "engine":"服务器 cron · 不依赖 agent/token",
