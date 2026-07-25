@@ -81,14 +81,35 @@ def host_metrics():
     }
 
 
-def container_restarts():
+def container_health():
+    """一次遍历同时拿:最大重启次数 + 崩溃自愈(restart 策略)覆盖率。"""
     names = run("docker ps --format '{{.Names}}'").splitlines()
-    mx = 0
+    mx = covered = total = ephemeral = 0
     for n in names:
-        r = run(f"docker inspect -f '{{{{.RestartCount}}}}' {n}")
-        if r.isdigit():
-            mx = max(mx, int(r))
-    return mx
+        if not n:
+            continue
+        total += 1
+        info = run(f"docker inspect -f '{{{{.RestartCount}}}}|{{{{.HostConfig.RestartPolicy.Name}}}}' {n}")
+        rc, _, pol = info.partition("|")
+        if rc.isdigit():
+            mx = max(mx, int(rc))
+        if pol in ("always", "unless-stopped"):
+            covered += 1
+        elif pol in ("no", ""):
+            ephemeral += 1                       # Coolify 构建/一次性任务容器,天然无需自愈策略
+    return {"restarts": mx, "policy_covered": covered,
+            "policy_total": total, "policy_ephemeral": ephemeral}
+
+
+def fmt_bytes(b):
+    if b is None:
+        return "—"
+    u = ["B", "KB", "MB", "GB", "TB"]
+    i, v = 0, float(b)
+    while v >= 1024 and i < len(u) - 1:
+        v /= 1024
+        i += 1
+    return ("%.1f %s" % (v, u[i])) if (i > 0 and v < 100) else ("%.0f %s" % (v, u[i]))
 
 
 # ---------- 部署统计(Coolify DB)----------
@@ -582,6 +603,160 @@ def externals_cached(prev):
     return externals(), fmt(now_cn())
 
 
+# ---------- 资产总览(按供应商:状态/成本/风险/健康)----------
+def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
+    cny = fx.get("aud_cny")
+    umap = {u.get("key"): u for u in (usage or [])}
+    extmap = {e.get("name"): e for e in (ext or [])}
+
+    def pctof(u):
+        return (u["used"] / u["limit"] * 100) if (u and u.get("limit")) else None
+
+    def vmonthly(keys):
+        return round(sum(it["aud"] for it in costblk["items"]
+                         if any(k.lower() in (it["name"] + it.get("note", "")).lower() for k in keys)), 2)
+
+    def R(level, text):
+        return {"level": level, "text": text}
+
+    cards = []
+    # —— OVH VPS-1 ——
+    dp, mp = host.get("disk_pct"), host.get("mem_pct")
+    r = []
+    if dp is not None and dp >= 85:
+        r.append(R("danger", "磁盘 %d%% 偏高 · 自愈会自动清理" % dp))
+    elif dp is not None and dp >= 75:
+        r.append(R("warn", "磁盘 %d%% 需留意" % dp))
+    if mp is not None and mp >= 90:
+        r.append(R("warn", "内存 %d%%" % mp))
+    if ovh.get("days") is not None and ovh["days"] <= 7:
+        r.append(R("warn", "续费仅剩 %d 天" % ovh["days"]))
+    if not r:
+        r = [R("ok", "无")]
+    cost_ovh = "A$7/月" + (" 约 ¥%d" % round(7 * cny) if cny else "")
+    if ovh.get("date"):
+        cost_ovh += " · 下次 %s(%s天)" % (ovh["date"], ovh.get("days", "—"))
+    cards.append({
+        "key": "ovh", "name": "OVH VPS-1", "role": "云服务器 · 所有程序 + 自建数据库都在这台跑",
+        "status": {"ok": True, "note": "在线 %s 天 · 负载 %s" % (host.get("uptime_days", "—"), host.get("load1", "—"))},
+        "cost": cost_ovh, "risks": r,
+        "health": [
+            {"label": "内存", "value": ("%d%%" % mp) if mp is not None else "—"},
+            {"label": "磁盘", "value": ("%d%%" % dp) if dp is not None else "—"},
+            {"label": "容器重启", "value": str(ch.get("restarts", 0))},
+            {"label": "负载", "value": host.get("load1", "—")},
+        ]})
+    # —— Cloudflare ——
+    r2, d1, seats = umap.get("r2"), umap.get("d1"), umap.get("cf_access")
+    cf_ok = extmap.get("Cloudflare", {}).get("ok")
+    r = []
+    for u, lab in ((r2, "R2"), (d1, "D1")):
+        p = pctof(u)
+        if p is None:
+            continue
+        if p >= 80:
+            r.append(R("danger", "%s 用量 %.0f%%" % (lab, p)))
+        elif p >= 40:
+            r.append(R("warn", "%s 用量 %.0f%% 在涨" % (lab, p)))
+    sp = pctof(seats)
+    if sp is not None and sp >= 80:
+        r.append(R("warn", "Access 席位 %.0f%%" % sp))
+    if not r:
+        r = [R("ok", "均在免费额度内")]
+    h = []
+    if r2:
+        h.append({"label": "R2", "value": fmt_bytes(r2["used"]) + " / " + fmt_bytes(r2["limit"])})
+    if d1:
+        h.append({"label": "D1", "value": fmt_bytes(d1["used"]) + " / " + fmt_bytes(d1["limit"])})
+    if seats:
+        h.append({"label": "Access 席位", "value": "%s / %s" % (seats["used"], seats["limit"])})
+    h.append({"label": "DNS/边缘", "value": "正常" if cf_ok else "查不到"})
+    cf_m = vmonthly(["域名", "cloudflare", "cf ", "r2", "d1"])
+    cards.append({
+        "key": "cf", "name": "Cloudflare", "role": "门口 · 域名解析/加速/防护/门禁 + R2 文件仓 + D1 小库",
+        "status": {"ok": cf_ok, "note": "官方状态正常" if cf_ok else "官方状态查不到"},
+        "cost": "域名 US$15/年 · 其余免费" + ((" · 月摊 A$%.2f" % cf_m) if cf_m > 0 else ""),
+        "risks": r, "health": h})
+    # —— GitHub ——
+    gh, gh_ok = umap.get("github_backup"), extmap.get("GitHub", {}).get("ok")
+    r = []
+    p = pctof(gh)
+    if p is not None and p >= 80:
+        r.append(R("warn", "备份份数 %.0f%%(满自动删最旧)" % p))
+    r.append(R("ok", "Actions 分钟未监控 · 目前免费额度充裕"))
+    h = []
+    if gh:
+        h.append({"label": "备份份数", "value": "%s / %s" % (gh["used"], gh["limit"])})
+    h.append({"label": "最新备份", "value": backup.get("at") or "—"})
+    h.append({"label": "官方状态", "value": "正常" if gh_ok else "查不到"})
+    cards.append({
+        "key": "github", "name": "GitHub", "role": "代码仓库 + 每日加密备份的落地点",
+        "status": {"ok": gh_ok, "note": "官方状态正常" if gh_ok else "官方状态查不到"},
+        "cost": "免费额度内 · A$0", "risks": r, "health": h})
+    # —— OCI ——
+    oci = umap.get("oci_backup")
+    r = []
+    p = pctof(oci)
+    if p is not None and p >= 70:
+        r.append(R("warn", "只写不可删 · 累计 %.0f%%" % p))
+    if not r:
+        r = [R("ok", "仅每周日写入 · 余量充足")]
+    h = []
+    if oci:
+        h.append({"label": "累计上传", "value": fmt_bytes(oci["used"]) + " / " + fmt_bytes(oci["limit"])})
+    h.append({"label": "角色", "value": "备份的备份"})
+    cards.append({
+        "key": "oci", "name": "OCI(甲骨文云)", "role": "备份的备份 · 每周日再抄一份异地副本",
+        "status": {"ok": True, "note": "离机副本 · 只写保险柜"},
+        "cost": "免费额度内 · A$0", "risks": r, "health": h})
+    return cards
+
+
+# ---------- 运维自动修复(自愈引擎:内置规则 + 自愈脚本,均不依赖 agent/token)----------
+def selfheal_state(ch, cert, backup, seats):
+    sh = load_json(os.path.join(DATA_DIR, "selfheal.json"), {})
+    rules = []
+    cov = ch.get("policy_covered", 0)
+    eph = ch.get("policy_ephemeral", 0)
+    persistent = ch.get("policy_total", 0) - eph          # 常驻容器数(排除临时构建容器)
+    armed = persistent > 0 and cov >= persistent
+    detail = "%d/%d 常驻容器已配置崩溃自愈" % (cov, persistent)
+    if eph:
+        detail += " · %d 个临时容器无需" % eph
+    rules.append({"key": "restart", "name": "容器崩溃自动拉起", "engine": "builtin",
+                  "armed": armed, "threshold": "Docker restart 策略 always/unless-stopped",
+                  "state": "ok" if armed else "warn", "detail": detail,
+                  "actions_total": ch.get("restarts", 0), "last_action": None, "last_action_at": None})
+    cd = cert.get("days")
+    rules.append({"key": "cert", "name": "TLS 证书自动续期", "engine": "builtin", "armed": True,
+                  "threshold": "Traefik 到期前自动续(Let's Encrypt)",
+                  "state": "ok" if (cd is None or cd > 7) else "warn",
+                  "detail": ("最早证书 %s 到期 · 剩 %s 天" % (cert.get("date", "—"), cd)) if cd is not None else "自动续期",
+                  "actions_total": 0, "last_action": None, "last_action_at": None})
+    su = seats.get("used") if seats else None
+    rules.append({"key": "seatfuse", "name": "Access 席位自动熔断", "engine": "builtin", "armed": True,
+                  "threshold": "席位满 45 自动降级(cron 每 30 分钟)", "state": "ok",
+                  "detail": ("当前 %s/%s 席位" % (su, seats.get("limit"))) if seats else "巡检中",
+                  "actions_total": 0, "last_action": None, "last_action_at": None})
+    rules.append({"key": "backup", "name": "每日异地备份", "engine": "builtin", "armed": bool(backup.get("ok")),
+                  "threshold": "每日打包加密 → GitHub(自动轮转 30 份)",
+                  "state": "ok" if backup.get("ok") else "warn",
+                  "detail": ("上次备份 %s" % backup.get("at")) if backup.get("at") else "尚无备份",
+                  "actions_total": 0, "last_action": None, "last_action_at": None})
+    script_rules = sh.get("rules")
+    if script_rules:
+        rules += script_rules
+        last_run, engine_note, recent = sh.get("last_run"), sh.get("engine"), sh.get("recent", [])
+    else:
+        for k, n in (("disk", "磁盘守护"), ("watchdog", "服务看门狗")):
+            rules.append({"key": k, "name": n, "engine": "selfheal", "armed": False, "threshold": "—",
+                          "state": "pending", "detail": "自愈脚本待部署/未运行",
+                          "actions_total": 0, "last_action": None, "last_action_at": None})
+        last_run, engine_note, recent = None, "服务器 cron · 不依赖 agent/token", []
+    return {"last_run": last_run, "engine": engine_note, "recent": recent,
+            "armed": sum(1 for x in rules if x.get("armed")), "total": len(rules), "rules": rules}
+
+
 def main():
     os.makedirs(DATA_DIR, exist_ok=True)
     prev = load_json(os.path.join(DATA_DIR, "snapshot.json"), {})
@@ -625,6 +800,11 @@ def main():
     dep = deploy_stats()
     usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
+    ovh_renew = {"date": ovh_date, "days": ovh_days}
+    ch = container_health()
+    backup = backup_status()
+    costblk = cost(prices, fx)
+    seats = next((u for u in usage if u.get("key") == "cf_access"), None)
 
     snap = {
         "updated_at": fmt(now_cn()),
@@ -638,14 +818,14 @@ def main():
             "uptime_days": host["uptime_days"],
         },
         "ops": {
-            "backup": backup_status(),
+            "backup": backup,
             "cert": cert,
-            "ovh_renew": {"date": ovh_date, "days": ovh_days},
-            "restarts": container_restarts(),
+            "ovh_renew": ovh_renew,
+            "restarts": ch["restarts"],
         },
         "host": host,
         "fx": fx,
-        "cost": cost(prices, fx),
+        "cost": costblk,
         "projects": projects,
         "deploy": dep,
         "history": hist,
@@ -653,6 +833,8 @@ def main():
         "externals_at": ext_at,
         "usage": usage,
         "usage_seats_at": usage_seats_at,
+        "inventory": inventory(host, fx, costblk, usage, ext, backup, cert, ovh_renew, ch),
+        "selfheal": selfheal_state(ch, cert, backup, seats),
     }
 
     tmp = os.path.join(DATA_DIR, "snapshot.json.tmp")

@@ -100,6 +100,36 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
 .nav a:hover{color:var(--t1);text-decoration:none}
 .nav a.active{color:var(--t1);border-bottom-color:var(--accent);font-weight:500}
 .nav a .ti{margin-right:6px;font-size:16px;vertical-align:-2px}
+/* 资产总览(供应商卡)*/
+.vgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(258px,1fr))}
+.vcard{background:var(--card);border:0.5px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:11px}
+.vhead{display:flex;align-items:center;gap:8px}
+.vhead .nm{font-size:15px;font-weight:600}
+.vrole{font-size:12px;color:var(--t3);line-height:1.5;margin-top:-6px}
+.vsec{font-size:11px;color:var(--t3);letter-spacing:.03em;margin-bottom:3px}
+.vcost{font-size:13px;color:var(--t1)}
+.chip{display:inline-block;font-size:12px;padding:2px 9px;border-radius:7px;margin:0 5px 4px 0}
+.chip.ok{color:var(--ok);background:var(--ok-bg)}
+.chip.warn{color:var(--warn);background:#fbf0d8}
+.chip.danger{color:var(--danger);background:#fbeaea}
+.vmetrics{display:flex;flex-wrap:wrap;gap:8px}
+.vmetric{background:var(--soft);border-radius:8px;padding:6px 10px;min-width:70px}
+.vmetric .l{font-size:11px;color:var(--t3)}
+.vmetric .v{font-size:14px;font-weight:600;margin-top:1px}
+/* 自愈引擎 */
+.shead{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.rule{display:flex;align-items:flex-start;gap:10px;padding:11px 2px;border-bottom:0.5px solid var(--line)}
+.rule:last-child{border-bottom:none}
+.rule .ic{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none}
+.rule .ic.ok{background:var(--ok)}.rule .ic.warn{background:var(--warn)}.rule .ic.acted{background:var(--accent)}.rule .ic.pending{background:var(--t3)}
+.rule .body{flex:1;min-width:0}
+.rule .rn{font-size:13px;font-weight:500}
+.rule .rt{font-size:12px;color:var(--t2);margin-top:2px}
+.rule .rd{font-size:12px;color:var(--t3);margin-top:2px}
+.eng{font-size:10px;padding:1px 6px;border-radius:5px;margin-left:6px;font-weight:400}
+.eng.builtin{background:var(--accent-bg);color:var(--accent-t)}
+.eng.selfheal{background:var(--ok-bg);color:var(--ok)}
+@media (prefers-color-scheme:dark){.chip.warn{background:#3a2f12}.chip.danger{background:#3a1a1a}}
 </style>
 </head>
 <body>
@@ -123,15 +153,17 @@ td{padding:9px 10px;border-bottom:0.5px solid var(--line)}
   <div class="grid k4" id="kpi"></div>
   <div class="grid k4" id="ops" style="margin-top:12px"></div>
 
-  <h2>架构三层</h2>
-  <div class="muted" style="margin-bottom:10px">程序和数据库全在 OVH 那一台机器;Cloudflare 只做门口加速防护,不跑程序;邮件走外部 NitroSend。</div>
-  <div class="grid k3">
-    <div class="card"><div style="font-weight:500">Cloudflare · 门口</div><div class="muted" style="margin-top:4px">域名解析 · 加速缓存 · 挡攻击 · 登录门禁</div></div>
-    <div class="card"><div style="font-weight:500">OVH VPS-1 · 主机</div><div class="muted" style="margin-top:4px">全部前后台 + 数据库都在这台跑</div></div>
-    <div class="card"><div style="font-weight:500">NitroSend · 邮件</div><div class="muted" style="margin-top:4px">外部服务 · 免费额度</div></div>
-  </div>
+  <h2>资产总览 · 我有哪些云服务</h2>
+  <div class="muted" style="margin-bottom:10px">一共 4 个供应商。每张卡看齐:状态 / 成本 / 潜在风险 / 监控健康。花钱的只有 OVH 和域名,其余都在免费额度内。</div>
+  <div class="vgrid" id="inv"></div>
 
-  <h2>各项目 · 地址 / 组成 / 数据库平台 / 通知</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:26px 0 8px">
+    <h2 style="margin:0">运维自动修复 · 自愈引擎</h2>
+    <span class="muted" style="font-size:12px">纯服务器 cron 自运行 · 不依赖 agent、不依赖 token</span>
+  </div>
+  <div class="card" id="selfheal" style="padding:8px 16px 14px"></div>
+
+  <h2>项目清单 · 地址 / 组成 / 数据库平台 / 通知</h2>
   <div class="card scroll" style="padding:6px 10px">
     <table><thead><tr>
       <th>项目</th><th>地址</th><th>组成</th><th>数据库平台</th><th>通知</th><th>状态</th>
@@ -253,8 +285,10 @@ function render(s){
     tile('服务在线',su.services_online),
     tile('部署成功率 · 30天',su.deploy_rate+'%','成功 '+su.deploy_success+'/'+su.deploy_total),
     tile('当月成本','A$'+ (s.cost.month_cash_aud??'—'),'¥'+(s.cost.month_cash_cny??'—')),
-    tile('主机在线',(su.uptime_days??'—')+' 天')
+    tile('自动修复',(s.selfheal?s.selfheal.armed+'/'+s.selfheal.total:'—'),'条规则守护')
   ].join('');
+  renderInventory(s);
+  renderSelfheal(s);
 
   // 运维
   const o=s.ops;
@@ -339,6 +373,44 @@ function render(s){
 }
 function tile(l,v,sub){return '<div class="tile"><div class="lab">'+l+'</div><div class="val">'+v+(sub?' <span class="sub">· '+sub+'</span>':'')+'</div></div>'}
 function opt(l,v){return '<div class="tile opt"><div class="lab">'+l+'</div><div class="val">'+v+'</div></div>'}
+
+function renderInventory(s){
+  const dotc=ok=>ok===true?'ok':(ok===false?'bad':'unk');
+  D.getElementById('inv').innerHTML=(s.inventory||[]).map(v=>{
+    const risks=(v.risks||[]).map(r=>'<span class="chip '+r.level+'">'+r.text+'</span>').join('');
+    const health=(v.health||[]).map(m=>'<div class="vmetric"><div class="l">'+m.label+'</div><div class="v">'+m.value+'</div></div>').join('');
+    return '<div class="vcard">'+
+      '<div class="vhead"><span class="dot '+dotc(v.status.ok)+'"></span><span class="nm">'+v.name+'</span></div>'+
+      '<div class="vrole">'+v.role+'</div>'+
+      '<div><div class="vsec">状态</div><div style="font-size:13px">'+v.status.note+'</div></div>'+
+      '<div><div class="vsec">成本</div><div class="vcost">'+v.cost+'</div></div>'+
+      '<div><div class="vsec">潜在风险</div><div>'+risks+'</div></div>'+
+      '<div><div class="vsec">监控 / 健康</div><div class="vmetrics">'+health+'</div></div>'+
+      '</div>';
+  }).join('')||'<div class="muted">暂无资产数据</div>';
+}
+function renderSelfheal(s){
+  const box=D.getElementById('selfheal'); const sh=s.selfheal;
+  if(!sh){box.innerHTML='<div class="muted" style="padding:10px 0">采集器尚未产出自愈数据</div>';return;}
+  const rules=(sh.rules||[]).map(r=>{
+    const st=['ok','warn','acted','pending'].includes(r.state)?r.state:'ok';
+    const eng=r.engine==='builtin'?'<span class="eng builtin">内置</span>':'<span class="eng selfheal">自愈脚本</span>';
+    const act=r.actions_total?'<span class="muted"> · 累计动作 '+r.actions_total+'</span>':'';
+    const la=r.last_action?'<div class="rd" style="color:var(--accent)">最近:'+r.last_action+(r.last_action_at?'('+r.last_action_at+')':'')+'</div>':'';
+    return '<div class="rule"><span class="ic '+st+'"></span><div class="body">'+
+      '<div class="rn">'+r.name+eng+act+'</div>'+
+      '<div class="rt">'+(r.threshold||'')+'</div>'+
+      '<div class="rd">'+(r.detail||'')+'</div>'+la+'</div></div>';
+  }).join('');
+  const recent=(sh.recent||[]).slice(0,6).map(x=>
+    '<div class="row"><span style="color:var(--t2)">'+x.at+' · '+x.rule+'</span><span style="text-align:right">'+x.msg+'</span></div>').join('');
+  box.innerHTML=
+    '<div class="shead" style="padding:8px 0 4px"><div class="muted" style="font-size:12px">引擎:'+sh.engine+' · 上次运行 '+(sh.last_run||'—')+'</div>'+
+    '<span class="pill ok">'+sh.armed+'/'+sh.total+' 条规则守护中</span></div>'+
+    rules +
+    (recent?'<div style="margin-top:12px"><div class="vsec" style="margin-bottom:2px">最近自愈动作</div>'+recent+'</div>'
+           :'<div class="muted" style="font-size:12px;padding:10px 0 2px">目前一切正常 · 尚无需要出手的自愈动作</div>');
+}
 
 let _ch={};
 function mk(id,cfg){if(_ch[id])_ch[id].destroy();_ch[id]=new C(D.getElementById(id),cfg)}
