@@ -1,0 +1,5 @@
+# 装到 /etc/cron.d/linze-selfheal —— 自愈引擎每 5 分钟跑一次。
+# root 运行(磁盘清理需 journalctl;容器重启需 docker)。纯本地,无 agent、无 token。
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root /usr/local/bin/linze-selfheal.sh >/dev/null 2>&1

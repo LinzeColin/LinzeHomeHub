@@ -1,5 +1,6 @@
-# 装到 /etc/logrotate.d/linze-status —— 防止采集日志无限膨胀(每分钟一行)
-/srv/linze/apps/status/collect.log {
+# 装到 /etc/logrotate.d/linze-status —— 防止采集/自愈日志无限膨胀
+/srv/linze/apps/status/collect.log
+/srv/linze/apps/status/selfheal.log {
     daily
     rotate 14
     compress
