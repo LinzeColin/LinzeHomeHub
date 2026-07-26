@@ -1,5 +1,8 @@
-# 装到 /etc/cron.d/linze-github —— GitHub Engineering Plane 采集,每 30 分钟一次(慢变量、约 50s)。
-# 以 ubuntu 跑(读 .secrets/github_pat);写 data/github_public.json(公开安全)+ private/github.json(仅登录页)。
+# 装到 /etc/cron.d/linze-github —— GitHub Engineering Plane 采集(双层)。
+#   fast 每 1 分钟:单条 GraphQL,cost 约 2 点、约 3 秒 -> 每小时约 120/5000 点(2.4%),安全。
+#   deep 每小时 07 分:REST 深采(release 字节 / 子项目 / 精确 Issue),约 50 秒。
+# flock -n:上一轮没跑完就跳过本轮,避免重入堆积。
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-*/30 * * * * ubuntu python3 /srv/linze/apps/status/collector/collect_github.py >> /srv/linze/apps/status/github.log 2>&1
+*/1 * * * * ubuntu flock -n /tmp/linze-gh-fast.lock python3 /srv/linze/apps/status/collector/collect_github.py fast >> /srv/linze/apps/status/github.log 2>&1
+7 * * * * ubuntu flock -n /tmp/linze-gh-deep.lock python3 /srv/linze/apps/status/collector/collect_github.py deep >> /srv/linze/apps/status/github.log 2>&1

@@ -204,12 +204,8 @@ input,select{width:100%;padding:9px;border:.5px solid var(--line);border-radius:
 button.act{padding:10px 18px;border:.5px solid var(--line);border-radius:9px;background:var(--card);color:var(--t1);font-size:15px;cursor:pointer}
 button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 #msg{margin-left:auto;font-size:14px}
-</style></head><body><div class=wrap>
-<nav class=nav>
- <a href="/">云平台总览</a>
- <a href="https://uptime.linzezhang.com">运维健康</a>
- <a href="/admin" class=active>价格设置</a>
-</nav>
+__NAVCSS__</style></head><body>__NAVSTART__<div class=wrap>
+__NAV__
 <h1>价格设置</h1>
 <div class=muted>金额填<b>原币种、原周期</b>(月付填月费、年付填年费),页面自动按实时汇率折算,并算出「本月续费日」与「当月成本」。改完点保存  <a href="/">总览</a> 1 分钟内更新。</div>
 <div id=list></div>
@@ -277,10 +273,8 @@ td{padding:9px 10px;border-bottom:.5px solid var(--line)}
 .pub{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--soft);color:var(--t3)}
 .banner{background:#fbf0d8;color:#7a5200;padding:11px 14px;border-radius:10px;font-size:13px;margin:12px 0}
 @media(prefers-color-scheme:dark){.banner{background:#3a2f12;color:#e0b055}}
-</style></head><body><div class=wrap>
-<nav class=nav>
- <a href="/">云平台总览</a><a href="https://uptime.linzezhang.com">运维健康</a><a href="/admin">价格设置</a><a href="/admin/github" class=active>GitHub 私有</a>
-</nav>
+__NAVCSS__</style></head><body>__NAVSTART__<div class=wrap>
+__NAV__
 <h1>GitHub 私有全量</h1>
 <div class=muted id=sub>加载中…</div>
 <div id=cap></div>
@@ -321,6 +315,47 @@ fetch('/admin/api/github').then(r=>r.json()).then(g=>{
 }).catch(e=>{document.getElementById('sub').textContent='加载失败:'+e});
 </script></body></html>"""
 
+
+
+# ===== 全站统一顶栏(与主页 index.html 完全一致,消除页面间跳转割裂)=====
+NAV_CSS = """
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:.5px solid var(--line)}
+.topbar .in{max-width:1120px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;padding:12px 0;font-weight:600;font-size:15px;color:var(--t1)}
+.brand:hover{text-decoration:none}
+.brand .lg{width:20px;height:20px;border-radius:5px;background:var(--accent);display:inline-block;flex:none}
+.tabs{display:flex;gap:2px;flex-wrap:wrap;flex:1}
+.tabs a{padding:12px 12px;font-size:14px;color:var(--t2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs a:hover{color:var(--t1);text-decoration:none}
+.tabs a.on{color:var(--t1);border-bottom-color:var(--accent);font-weight:600}
+.exts{display:flex;gap:6px;align-items:center;padding:8px 0}
+.exts a{font-size:12px;padding:5px 11px;border:.5px solid var(--line);border-radius:8px;color:var(--t2)}
+.exts a:hover{background:var(--soft);color:var(--t1);text-decoration:none}
+.exts a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+"""
+
+_TABS = [("/#/", "总览"), ("/#/projects", "项目"), ("/#/host", "主机"), ("/#/cost", "成本"),
+         ("/#/usage", "用量"), ("/#/heal", "自愈"), ("/#/github", "GitHub")]
+
+
+def nav_html(active):
+    tabs = "".join('<a href="%s">%s</a>' % (h, t) for h, t in _TABS)
+    ex = "".join('<a href="%s"%s>%s</a>' % (h, ' class="on"' if h == active else "", t)
+                 for h, t in [("https://uptime.linzezhang.com", "运维健康"),
+                              ("/admin", "价格设置"), ("/admin/github", "GitHub 私有")])
+    return ('<div class="topbar"><div class="in">'
+            '<a class="brand" href="/"><span class="lg"></span>LinzeCloud</a>'
+            '<nav class="tabs">' + tabs + '</nav>'
+            '<div class="exts">' + ex + '</div></div></div>')
+
+
+
+EDITOR_HTML = (EDITOR_HTML.replace("__NAVCSS__", NAV_CSS)
+               .replace("__NAVSTART__", nav_html("/admin"))
+               .replace("__NAV__", ""))
+GITHUB_HTML = (GITHUB_HTML.replace("__NAVCSS__", NAV_CSS)
+               .replace("__NAVSTART__", nav_html("/admin/github"))
+               .replace("__NAV__", ""))
 
 if __name__ == "__main__":
     ThreadingHTTPServer(("0.0.0.0", PORT), H).serve_forever()
