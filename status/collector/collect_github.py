@@ -364,6 +364,114 @@ def gather_throughput(token):
     }
 
 
+# ======================= Traffic(GitHub 只留 14 天,必须归档)=======================
+TRAFFIC_HISTORY = os.path.join(DATA_DIR, "traffic_history.json")
+PRIVATE_NAMES_GUARD = {"Private-Database", "Governance", "KMFA-App-State-Backup"}
+
+
+def gather_traffic(token, repos):
+    """访问流量。**GitHub 只返回最近 14 天,过期永久丢失**,所以逐日归档进
+    traffic_history.json(只增不减),这样时间越久历史越完整。"""
+    hist = load_json(TRAFFIC_HISTORY, {}) or {}
+    per_repo, unreadable = [], 0
+    for r in repos:
+        name = r["name"]
+        full = r.get("full_name") or ("LinzeColin/" + name)
+        v, _ = _get(f"{API}/repos/{full}/traffic/views", token)
+        c, _ = _get(f"{API}/repos/{full}/traffic/clones", token)
+        if not isinstance(v, dict) and not isinstance(c, dict):
+            unreadable += 1
+            continue
+        h = hist.setdefault(name, {"views": {}, "clones": {}})
+        for key, data, field in (("views", v, "views"), ("clones", c, "clones")):
+            for row in ((data or {}).get(field) or []):
+                d = (row.get("timestamp") or "")[:10]
+                if d:
+                    h[key][d] = {"c": row.get("count", 0), "u": row.get("uniques", 0)}
+        paths, _ = _get(f"{API}/repos/{full}/traffic/popular/paths", token)
+        refs, _ = _get(f"{API}/repos/{full}/traffic/popular/referrers", token)
+        per_repo.append({
+            "name": name, "private": bool(r.get("private")),
+            "views_14d": (v or {}).get("count"), "views_uniq_14d": (v or {}).get("uniques"),
+            "clones_14d": (c or {}).get("count"), "clones_uniq_14d": (c or {}).get("uniques"),
+            "top_paths": [{"p": x.get("path"), "c": x.get("count")} for x in (paths or [])[:5]]
+                         if isinstance(paths, list) else [],
+            "referrers": [{"r": x.get("referrer"), "c": x.get("count")} for x in (refs or [])[:5]]
+                         if isinstance(refs, list) else [],
+        })
+    # 归档保 400 天
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=400)).strftime("%Y-%m-%d")
+    for name, h in hist.items():
+        for key in ("views", "clones"):
+            h[key] = {d: x for d, x in h[key].items() if d >= cutoff}
+    _atomic_write(TRAFFIC_HISTORY, hist)
+
+    # 逐日汇总(只汇总公开仓,供公开面用)
+    pub = {r["name"] for r in per_repo if not r["private"]}
+    daily = {}
+    for name, h in hist.items():
+        if name not in pub:
+            continue
+        for key in ("views", "clones"):
+            for d, x in h[key].items():
+                slot = daily.setdefault(d, {"v": 0, "c": 0})
+                slot["v" if key == "views" else "c"] += x.get("c", 0)
+    days = sorted(daily)
+    per_repo.sort(key=lambda x: -(x.get("views_14d") or 0))
+    return {
+        "per_repo": per_repo,
+        "archived_days": len(days),
+        "archive_since": days[0] if days else None,
+        "daily": [{"d": d, "v": daily[d]["v"], "c": daily[d]["c"]} for d in days[-90:]],
+        "totals_14d": {
+            "views": sum(r.get("views_14d") or 0 for r in per_repo if not r["private"]),
+            "clones": sum(r.get("clones_14d") or 0 for r in per_repo if not r["private"]),
+        },
+        "unreadable_repos": unreadable,
+        "note": "GitHub 只提供最近 14 天,本站逐日归档累积,越久越完整",
+    }
+
+
+# ======================= 账单(新版 billing/usage 端点)=======================
+def gather_billing(token, login):
+    """真实账单用量。旧 `/settings/billing/actions` 已 410,改用 `/settings/billing/usage`。
+    净费用直接取 GitHub 的 netAmount,不做任何估算。"""
+    d, _ = _get(f"{API}/users/{login}/settings/billing/usage", token)
+    if not isinstance(d, dict) or "usageItems" not in d:
+        return {"available": False, "note": "账单接口不可用(需 Plan:read 授权)"}
+    items = d.get("usageItems") or []
+    by_sku, by_month, net_total, gross_total = {}, {}, 0.0, 0.0
+    for it in items:
+        sku = it.get("sku") or "?"
+        a = by_sku.setdefault(sku, {"sku": sku, "product": it.get("product"),
+                                    "unit": it.get("unitType"), "qty": 0.0,
+                                    "gross": 0.0, "discount": 0.0, "net": 0.0})
+        a["qty"] += it.get("quantity") or 0
+        a["gross"] += it.get("grossAmount") or 0
+        a["discount"] += it.get("discountAmount") or 0
+        a["net"] += it.get("netAmount") or 0
+        net_total += it.get("netAmount") or 0
+        gross_total += it.get("grossAmount") or 0
+        if it.get("product") == "actions" and (it.get("unitType") or "").lower() == "minutes":
+            by_month[(it.get("date") or "")[:7]] = by_month.get((it.get("date") or "")[:7], 0) + (it.get("quantity") or 0)
+    months = sorted(by_month)
+    cur = months[-1] if months else None
+    repos_in_bill = sorted({(i.get("repositoryName") or "").strip()
+                            for i in items if i.get("repositoryName")})
+    return {
+        "available": True,
+        "billed_repos": repos_in_bill,
+        "net_total": round(net_total, 2),
+        "gross_total": round(gross_total, 2),
+        "saved": round(gross_total - net_total, 2),
+        "by_sku": sorted(by_sku.values(), key=lambda x: -x["qty"]),
+        "actions_minutes_by_month": [{"m": m, "q": round(by_month[m], 1)} for m in months],
+        "current_month": cur,
+        "current_month_minutes": round(by_month.get(cur, 0), 1) if cur else None,
+        "note": "netAmount 为 GitHub 实际计费口径;公开仓用量由折扣全额抵消",
+    }
+
+
 def gather_deep(token):
     """REST 深采:仓库清单(权威,含 GraphQL 看不到的仓)+ release/CI/子项目。"""
     me, _ = _get(f"{API}/user", token)
@@ -397,6 +505,8 @@ def gather_deep(token):
     return {"repos": out, "subprojects": subs, "capability": cap,
             "actions": gather_actions(token, repo_rows),
             "throughput": gather_throughput(token),
+            "traffic": gather_traffic(token, repo_rows),
+            "billing": gather_billing(token, login),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 
@@ -430,6 +540,27 @@ def recompute_totals(doc):
             t["ci_fail"] += 1
     doc["totals"] = t
     return t
+
+
+def _public_traffic(t):
+    """公开派生:per_repo 只留公开仓。"""
+    if not t:
+        return {}
+    out = dict(t)
+    out["per_repo"] = [r for r in t.get("per_repo", []) if not r.get("private")]
+    return out
+
+
+def _public_billing(b):
+    """账单是账号级聚合,本身不含仓名;防御性再过滤一次。"""
+    if not b or not b.get("available"):
+        return b or {}
+    out = dict(b)
+    out["by_sku"] = [x for x in b.get("by_sku", []) if x.get("sku") not in PRIVATE_NAMES_GUARD]
+    billed = set(b.get("billed_repos") or [])
+    out["private_billed_count"] = len(billed & PRIVATE_NAMES_GUARD)
+    out["billed_repos"] = sorted(billed - PRIVATE_NAMES_GUARD)   # 公开面只留非私有仓名
+    return out
 
 
 def _public_actions(a):
@@ -474,6 +605,8 @@ def build_public(priv):
         "calendar": priv.get("calendar", {}),          # 贡献网格:仅逐日计数,无仓名
         "actions": _public_actions(priv.get("actions") or {}),
         "throughput": priv.get("throughput", {}),
+        "traffic": _public_traffic(priv.get("traffic") or {}),
+        "billing": _public_billing(priv.get("billing") or {}),
         "public_repos": pub_rows,
         "subprojects": [s for s in priv.get("subprojects", []) if s.get("repo") in pub_names],
         "note": "私有仓明细仅登录 /admin/github 可见",
@@ -510,6 +643,7 @@ def run_deep(token):
     priv.update({"repos": merged, "subprojects": deep["subprojects"],
                  "capability": deep["capability"], "account": deep["account"],
                  "actions": deep["actions"], "throughput": deep["throughput"],
+                 "traffic": deep["traffic"], "billing": deep["billing"],
                  "deep_at": _fmt(now), "collected_at": _fmt(now),
                  "collected_epoch": int(time.time())})
     write_all(priv)
