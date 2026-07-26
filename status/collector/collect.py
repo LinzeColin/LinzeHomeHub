@@ -784,9 +784,9 @@ def selfheal_state(ch, cert, backup, seats):
     gp = load_json(os.path.join(DATA_DIR, "github_public.json"), None)
     g_ep = gp.get("collected_epoch") if isinstance(gp, dict) else None
     g_age = int((time.time() - g_ep) / 60) if g_ep else None
-    g_alive = g_age is not None and g_age <= 90                  # cron 每30分钟,>90分钟算掉线
+    g_alive = g_age is not None and g_age <= 10                  # cron 每1分钟,>10分钟算掉线
     meta_rules.append({"key": "github_alive", "name": "GitHub 采集存活监测", "engine": "builtin", "set": "meta",
-                       "armed": bool(g_alive), "threshold": "GitHub 采集 >90 分钟没更新即判定失效",
+                       "armed": bool(g_alive), "threshold": "GitHub 采集 >10 分钟没更新即判定失效",
                        "state": "ok" if g_alive else ("warn" if g_ep else "pending"),
                        "detail": ("GitHub 采集 %s 分钟前更新 · 正常" % g_age) if g_alive
                                  else ("GitHub 采集已 %s 分钟无更新" % g_age if g_ep else "GitHub 采集尚未产出首份"),
@@ -800,11 +800,45 @@ def selfheal_state(ch, cert, backup, seats):
             "rules": rules}
 
 
+# ---------- 服务器贡献网格(每日部署次数,365 天)----------
+def deploy_calendar():
+    """从 Coolify 库取每日部署数,**累积存档**到 deploy_calendar.json。
+    Coolify 队列表会被清理,存档只增不减,所以网格能长期保留。"""
+    path = os.path.join(DATA_DIR, "deploy_calendar.json")
+    store = load_json(path, {}) or {}
+    rows = psql("select to_char((created_at + interval '8 hours')::date,'YYYY-MM-DD'), count(*) "
+                "from application_deployment_queues "
+                "where created_at > now()-interval '365 days' group by 1;")
+    for line in rows.splitlines():
+        if "|" not in line:
+            continue
+        d, c = line.split("|", 1)
+        if c.strip().isdigit():
+            store[d.strip()] = max(int(c), store.get(d.strip(), 0))
+    cutoff = (now_cn() - timedelta(days=400)).strftime("%Y-%m-%d")
+    store = {k: v for k, v in store.items() if k >= cutoff}
+    try:
+        with open(path, "w") as f:
+            json.dump(store, f)
+    except Exception:
+        pass
+    # 输出成与 GitHub 网格一致的结构(最近 365 天,缺失日补 0)
+    today = now_cn().date()
+    days = []
+    for i in range(364, -1, -1):
+        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        days.append({"d": d, "c": store.get(d, 0)})
+    vals = [x["c"] for x in days]
+    first = min(store) if store else None
+    return {"total": sum(vals), "days": days, "max": max(vals) if vals else 0,
+            "since": first, "label": "每日部署次数"}
+
+
 # ---------- GitHub Engineering Plane(读 github 采集器产出的公开安全聚合)----------
 def github_public_block():
     gp = load_json(os.path.join(DATA_DIR, "github_public.json"), None)
     if not isinstance(gp, dict):
-        return {"available": False, "note": "GitHub 采集尚未产出(每 30 分钟一次)"}
+        return {"available": False, "note": "GitHub 采集尚未产出(每 1 分钟一次)"}
     gp["available"] = True
     ep = gp.get("collected_epoch")
     if ep:
@@ -891,6 +925,7 @@ def main():
         "inventory": inventory(host, fx, costblk, usage, ext, backup, cert, ovh_renew, ch),
         "selfheal": selfheal_state(ch, cert, backup, seats),
         "github": github_public_block(),
+        "deploy_calendar": deploy_calendar(),
     }
 
     tmp = os.path.join(DATA_DIR, "snapshot.json.tmp")
