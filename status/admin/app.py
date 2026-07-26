@@ -319,6 +319,51 @@ fetch('/admin/api/github').then(r=>r.json()).then(g=>{
 
 # ===== 全站统一顶栏(与主页 index.html 完全一致,消除页面间跳转割裂)=====
 NAV_CSS = """
+/* ===== 与主页共用的设计令牌(从 index.html 原样同步,勿手改)===== */
+:root{
+  --bg:#f6f6f4; --card:#fff; --soft:#f1f1ee; --line:#e4e3dc;
+  --t1:#1b1b19; --t2:#57564f; --t3:#8b8a83;
+  --accent:#2a78d6; --accent-bg:#e6f1fb; --accent-t:#0c447c;
+  --pro:#4a3aa7; --pro-bg:#eeedfe; --pro-t:#26215c;
+  --ok:#0f8a4d; --ok-bg:#e4f3ea; --warn:#c98500; --warn-bg:#fbf0d8;
+  --danger:#cf3a3a; --danger-bg:#fbeaea;
+  --h0:#eceada; --h1:#c6e6c1; --h2:#7bc47f; --h3:#3f9e57; --h4:#1e6b3a;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#151513; --card:#1e1e1c; --soft:#242422; --line:#33332f;
+    --t1:#f3f2ec; --t2:#c3c2b7; --t3:#8b8a83;
+    --accent:#5a9bea; --accent-bg:#12314f; --accent-t:#b5d4f4;
+    --pro:#9085e9; --pro-bg:#2a2560; --pro-t:#cecbf6;
+    --ok:#3cc07f; --ok-bg:#123320; --warn:#e0a53a; --warn-bg:#3a2f12;
+    --danger:#e26b6a; --danger-bg:#3a1a1a;
+    --h0:#26261f; --h1:#0e4429; --h2:#006d32; --h3:#26a641; --h4:#39d353;
+  }
+}
+/* ===== 与主页共用的基础组件 ===== */
+body{background:var(--bg);color:var(--t1);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 60px}
+h1{font-size:20px;font-weight:600;margin:0}
+h2{font-size:15px;font-weight:600;margin:24px 0 10px}
+.muted{color:var(--t3);font-size:13px}
+.card{background:var(--card);border:.5px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+.card.p0{padding:6px 12px}
+.tile{background:var(--soft);border-radius:10px;padding:13px}
+.tile .l,.tile .lab{font-size:13px;color:var(--t2)}
+.tile .v,.tile .val{font-size:22px;font-weight:600;margin-top:3px}
+.tile .s,.tile .sub{font-size:13px;color:var(--t3);font-weight:400}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th{text-align:left;font-weight:500;color:var(--t2);padding:9px 10px;border-bottom:.5px solid var(--line)}
+td{padding:9px 10px;border-bottom:.5px solid var(--line)}
+tr:last-child td{border-bottom:none}
+.pill{font-size:12px;padding:4px 12px;border-radius:20px}
+.pill.ok{color:var(--ok);background:var(--ok-bg)}
+.chip{display:inline-block;font-size:12px;padding:2px 9px;border-radius:7px;margin:0 5px 4px 0}
+.chip.warn{color:var(--warn);background:var(--warn-bg)}
+.btn,button.act{border-radius:9px;border:.5px solid var(--line);background:var(--card);color:var(--t1);cursor:pointer}
+input,select{border-radius:8px;border:.5px solid var(--line);background:var(--bg);color:var(--t1)}
+.head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:20px 0 16px}
+
 .topbar{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:.5px solid var(--line)}
 .topbar .in{max-width:1120px;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:8px;padding:12px 0;font-weight:600;font-size:15px;color:var(--t1)}

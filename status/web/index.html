@@ -542,25 +542,39 @@ function actionsPanel(g){
   const failPct=done?((c.failure||0)/done*100):0;
   const bv=a.billable_verified||{};
   const riskColor=failPct>=30?'var(--warn)':'var(--ok)';
+  const B=g.billing||{};
+  const realBill = B.available
+    ? ('<div style="font-size:13px;color:var(--t2);margin-top:8px;line-height:1.8">'+
+       '<b style="color:var(--t1);font-size:15px">GitHub 账单实付 US$'+(B.net_total??0).toFixed(2)+'</b>'+
+       '<span class="muted"> (原价 US$'+(B.gross_total??0).toFixed(2)+',折扣抵掉 US$'+(B.saved??0).toFixed(2)+')</span><br>'+
+       '本月 Actions 已用 <b>'+(B.current_month_minutes??'—')+'</b> 分钟('+(B.current_month||'')+')</div>'+
+       '<div class="card p0" style="margin:10px 0 0;overflow-x:auto"><table><thead><tr><th>计费项</th><th>用量</th><th>原价</th><th style="text-align:right">实付</th></tr></thead><tbody>'+
+       (B.by_sku||[]).map(x=>'<tr><td>'+esc(x.sku)+'</td><td class="muted">'+x.qty.toFixed(1)+' '+esc(x.unit||'')+
+         '</td><td class="muted">US$'+x.gross.toFixed(2)+'</td><td style="text-align:right;color:'+(x.net>0?'var(--warn)':'var(--ok)')+'">US$'+x.net.toFixed(2)+'</td></tr>').join('')+
+       '</tbody></table></div>')
+    : ('<div style="font-size:13px;color:var(--t2);margin-top:8px;line-height:1.7">'+
+       '公开仓 <b>'+a.public_runs_30d+'</b> 次运行 / 30 天 &mdash; <b style="color:var(--ok)">不花钱</b>。'+
+       '已实测抽样 <b>'+(bv.sampled_runs||0)+'</b> 次运行计费合计 <b>'+(bv.billable_ms||0)+' ms</b>。'+
+       '<br><span class="muted">'+esc(B.note||'账单接口不可用')+'</span></div>');
   return '<h2>Actions 额度与收费风险</h2>'+
    '<div class="grid k2">'+
-    '<div class="card"><div class="shead"><b style="font-size:14px">当前收费风险</b>'+
-      '<span class="pill ok">A$0 · 无风险</span></div>'+
-      '<div style="font-size:13px;color:var(--t2);margin-top:8px;line-height:1.7">'+
-      '公开仓 <b>'+a.public_runs_30d+'</b> 次运行 / 30 天 &mdash; <b style="color:var(--ok)">不花钱</b>。'+
-      'GitHub 对公开仓的标准 runner <b>免费且不限量</b>,'+
-      '已实测抽样 <b>'+(bv.sampled_runs||0)+'</b> 次运行的计费时长合计 <b>'+(bv.billable_ms||0)+' ms</b>(即 0 分钟)。'+
-      '</div>'+
-      '<div class="track" style="margin-top:12px"><div class="fill" style="width:1.5%;background:var(--ok)"></div></div>'+
-      '<div class="muted" style="font-size:11px;margin-top:6px">免费额度 '+a.free_tier_minutes+' 分钟/月 &mdash; '+
-      '<b>只被私有仓消耗</b>,公开仓不占用</div>'+
+    '<div class="card"><div class="shead"><b style="font-size:14px">真实账单</b>'+
+      '<span class="pill ok">US$'+(B.available?(B.net_total??0).toFixed(2):'0.00')+' · 实付</span></div>'+
+      realBill+
+      '<div class="muted" style="font-size:11px;margin-top:8px">'+esc(B.note||'')+'</div>'+
     '</div>'+
     '<div class="card"><div class="shead"><b style="font-size:14px">私有仓 Actions</b>'+
-      '<span class="chip warn">需授权</span></div>'+
+      (B.available&&(B.private_billed_count===0)
+        ? '<span class="chip ok">账单证明:0 分钟</span>'
+        : '<span class="chip warn">需授权</span>')+'</div>'+
       '<div style="font-size:13px;color:var(--t2);margin-top:8px;line-height:1.7">'+
-      '有 <b>'+(a.private_repos_unreadable||0)+'</b> 个私有仓的 Actions 当前令牌读不到('+esc(a.private_status)+')。'+
-      '<b>只有私有仓会消耗那 2000 分钟/月</b>,所以这是唯一的潜在收费点。'+
-      '授权后这里会显示真实已用分钟与触顶预测,<b>在此之前不做任何估算</b>。</div>'+
+      (B.available&&(B.private_billed_count===0)
+        ? ('<b>只有私有仓会消耗那 2000 分钟/月</b>,这是唯一的潜在收费点。'+
+           '账单明细里出现的计费仓只有 <b>'+((B.billed_repos||[]).join('、')||'—')+'</b>,'+
+           '<b style="color:var(--ok)">'+(a.private_repos_unreadable||0)+' 个私有仓一条计费记录都没有</b> &mdash; '+
+           '即它们没跑过任何消耗分钟的 Actions,<b>无需额外授权,收费风险为零</b>。')
+        : ('有 <b>'+(a.private_repos_unreadable||0)+'</b> 个私有仓的 Actions 读不到明细('+esc(a.private_status)+')。'+
+           '<b>只有私有仓会消耗那 2000 分钟/月</b>。在拿到真实数据前<b>不做任何估算</b>。'))+'</div>'+
       '<div style="margin-top:10px;padding-top:10px;border-top:0.5px solid var(--line)">'+
       '<div class="muted" style="font-size:12px">30 天失败率 <b style="color:'+riskColor+'">'+failPct.toFixed(1)+'%</b>'+
       '('+(c.failure||0)+' 失败 / '+done+' 已完成)&mdash; 失败本身不额外收费,但会拖慢反馈</div></div>'+
@@ -588,6 +602,28 @@ function vGithub(){
   actionsPanel(g)+
   '<h2>贡献网格 · 一年 '+((g.calendar||{}).total||0)+' 次</h2>'+
   '<div class="card">'+heatmap(g.calendar,{unit:' 次提交'})+'</div>'+
+  ((g.billing&&g.billing.available)?('<h2>Actions 分钟数趋势 · 按月</h2>'+
+    '<div class="card"><div class="chartbox"><canvas id="gBillMonths"></canvas></div>'+
+    '<div class="muted" style="font-size:11px;margin-top:6px">GitHub 账单口径的真实分钟数。实付为 0 是因为公开仓用量被折扣全额抵消;'+
+    '若把工作流搬到私有仓,这些分钟就会开始扣 2000 分钟/月的免费额度。</div></div>'):'')+
+  (g.traffic?('<h2>访问流量 · Traffic</h2>'+
+    '<div class="sub">GitHub 官方只保留最近 14 天,本站已逐日归档 '+(g.traffic.archived_days||0)+' 天(自 '+(g.traffic.archive_since||'—')+'),越久越完整。</div>'+
+    '<div class="grid k4">'+[
+      tile('浏览 · 14天',(g.traffic.totals_14d||{}).views??'—'),
+      tile('克隆 · 14天',(g.traffic.totals_14d||{}).clones??'—'),
+      tile('已归档',(g.traffic.archived_days||0)+' 天','自 '+(g.traffic.archive_since||'—')),
+      tile('覆盖仓',(g.traffic.per_repo||[]).length,'公开仓')
+    ].join('')+'</div>'+
+    '<div class="grid k2" style="margin-top:12px">'+
+      '<div class="card"><div class="muted" style="margin-bottom:6px">浏览 / 克隆 逐日趋势</div><div class="chartbox sm"><canvas id="gTrafficTrend"></canvas></div></div>'+
+      '<div class="card"><div class="muted" style="margin-bottom:6px">各仓 14 天浏览量</div><div class="chartbox sm"><canvas id="gTrafficRepo"></canvas></div></div>'+
+    '</div>'+
+    '<div class="card p0 scroll" style="margin-top:12px"><table><thead><tr><th>仓库</th><th>浏览 14天</th><th>独立访客</th><th>克隆 14天</th><th>独立克隆</th><th>主要来源</th><th>热门路径</th></tr></thead><tbody>'+
+      (g.traffic.per_repo||[]).map(r=>'<tr><td>'+esc(r.name)+'</td><td>'+(r.views_14d??'—')+'</td><td class="muted">'+(r.views_uniq_14d??'—')+
+        '</td><td>'+(r.clones_14d??'—')+'</td><td class="muted">'+(r.clones_uniq_14d??'—')+
+        '</td><td class="muted">'+((r.referrers||[]).map(x=>esc(x.r)).join(', ')||'—')+
+        '</td><td class="muted">'+((r.top_paths||[]).slice(0,2).map(x=>esc((x.p||'').split('/').slice(-1)[0]||'/')).join(', ')||'—')+'</td></tr>').join('')+
+    '</tbody></table></div>'):'')+
   '<h2>仓库清单 · 公开仓</h2><div class="sub">采集 '+esc(g.collected_at)+' · 每 1 分钟刷新 · '+esc(g.note)+'</div>'+
   '<div class="card p0 scroll"><table><thead><tr><th>仓库</th><th>语言</th><th>7d</th><th>30d</th><th>分支</th><th>PR</th><th>Issue</th><th>Git 占用</th><th>Release</th><th>CI</th><th>最近 push</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
   (g.private>0?'<div class="grid k2" style="margin-top:12px">'+
@@ -645,6 +681,28 @@ DRAW['github']=function(){
     datasets:[{data:(A.daily14||[]).map(x=>x.c),backgroundColor:'#4a3aa7',borderRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:{ticks:{color:ink,maxTicksLimit:7},grid:{display:false}},y:{ticks:{color:ink},grid:{color:grid}}}}});
+  const B=g.billing||{};
+  if(B.available){
+    const mm=B.actions_minutes_by_month||[];
+    mk('gBillMonths',{type:'bar',data:{labels:mm.map(x=>x.m),datasets:[{data:mm.map(x=>x.q),
+      backgroundColor:mm.map((x,i)=>i===mm.length-1?'#eda100':'#2a78d6'),borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:cx=>cx.parsed.y.toLocaleString()+' 分钟'}}},
+        scales:{x:{ticks:{color:ink},grid:{display:false}},y:{ticks:{color:ink},grid:{color:grid}}}}});
+  }
+  const T=g.traffic;
+  if(T){
+    const dd=T.daily||[];
+    mk('gTrafficTrend',{type:'line',data:{labels:dd.map(x=>x.d.slice(5)),datasets:[
+      {label:'浏览',data:dd.map(x=>x.v),borderColor:'#2a78d6',borderWidth:2,pointRadius:0,tension:.3,fill:false},
+      {label:'克隆',data:dd.map(x=>x.c),borderColor:'#4a3aa7',borderWidth:2,pointRadius:0,tension:.3,fill:false,yAxisID:'y1'}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:ink,boxWidth:10,font:{size:10}}}},
+        scales:{x:{ticks:{color:ink,maxTicksLimit:7},grid:{display:false}},
+          y:{position:'left',ticks:{color:ink},grid:{color:grid}},
+          y1:{position:'right',ticks:{color:ink},grid:{display:false}}}}});
+    const tr=(T.per_repo||[]).filter(r=>r.views_14d);
+    bar('gTrafficRepo',tr.map(r=>r.name),tr.map(r=>r.views_14d),true);
+  }
   const c=A.conclusions||{};
   donut('gConcl',['成功','失败','取消','跳过'],[c.success||0,c.failure||0,c.cancelled||0,c.skipped||0],
     ['#1baf7a','#e34948','#eda100','#8b8a83']);
