@@ -108,6 +108,26 @@
           </div>
         </section>
 
+        <section id="atlas">
+          <div class="section-head reveal">
+            <p class="eyebrow">Project Atlas / 0 Agent · 0 Token</p>
+            <h2>全仓全项目关系图,随增删改实时演化</h2>
+            <p>供应商、项目、数据存储、代码仓、子项目之间的真实依赖。数据由服务器 cron 每分钟从既有采集结果纯推导 —— 不调用任何模型、不消耗 token、不依赖 agent。仓库或项目一旦增删改,这张图会自己变。</p>
+          </div>
+          <div class="atlas-wrap reveal" id="atlasRoot" data-atlas-state="loading">
+            <div class="atlas-bar">
+              <div class="atlas-legend" id="atlasLegend"></div>
+              <button type="button" class="atlas-tour" id="atlasTour">分层演示</button>
+            </div>
+            <canvas id="atlasCanvas" role="img" aria-label="全仓全项目依赖关系图"></canvas>
+            <div class="atlas-side">
+              <p class="atlas-meta" id="atlasMeta">正在载入关系图…</p>
+              <p class="atlas-sub">最近结构变更</p>
+              <ul class="atlas-feed" id="atlasFeed"></ul>
+            </div>
+          </div>
+        </section>
+
         <section id="gravity">
           <div class="section-head reveal">
             <p class="eyebrow">Scroll Driven Gravity</p>

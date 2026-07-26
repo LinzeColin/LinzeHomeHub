@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, extname } from 'node:path';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -116,9 +116,49 @@ if (existsSync(join(root, 'src/ui/renderProjects.ts'))) {
   }
 }
 
+checkNoRuntimeAI(failures);
+
 if (failures.length) {
   console.error(failures.map((failure) => `- ${failure}`).join('\n'));
   process.exit(1);
 }
 
 console.log('HomeHub structural validation passed');
+
+// ---- 零 Agent / 零 Token 守卫 ----
+// 运行期代码不得调用任何推理接口。这条规则写在 AGENTS.md,这里让它可被机器判定,
+// 否则时间一长就会被悄悄破坏。只扫运行期源码,不扫文档与本脚本自身。
+function checkNoRuntimeAI(failures) {
+  const roots = ['src', 'status/collector', 'status/deploy', 'status/web', 'status/admin'];
+  const banned = [
+    /api\.openai\.com/i,
+    /api\.anthropic\.com/i,
+    /generativelanguage\.googleapis\.com/i,
+    /api\.cohere\.ai/i,
+    /api\.mistral\.ai/i,
+    /\bopenai\s*\(/i,
+    /\bAnthropic\s*\(/i,
+  ];
+  const exts = new Set(['.ts', '.js', '.mjs', '.py', '.sh', '.html', '.json']);
+  const walk = (dir) => {
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) {
+        if (['node_modules', 'dist', '.git', 'vendor', 'data'].includes(e.name)) continue;
+        walk(full);
+      } else if (exts.has(extname(e.name))) {
+        let text;
+        try { text = readFileSync(full, 'utf8'); } catch { continue; }
+        for (const re of banned) {
+          if (re.test(text)) {
+            failures.push(`零Token守卫: ${full} 出现运行期 AI 接口调用 (${re})`);
+            break;
+          }
+        }
+      }
+    }
+  };
+  roots.forEach(walk);
+}
