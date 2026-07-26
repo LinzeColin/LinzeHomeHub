@@ -16,10 +16,19 @@
 
 ## 部署
 
-**host-direct rsync**，不走 Golden Path / Coolify 自动部署 —— 改完要手动同步到主机：
+**host-direct rsync**，不走 Golden Path / Coolify 自动部署 —— 改完要手动同步到主机。
+
+⚠️ **必须排除 `data/`**：`data/prices.json` 是线上通过 `/admin` 编辑的活数据，仓内那份只是初始快照，
+整目录同步会把你在后台改过的价格库覆盖回旧值。主机上的 `private/`、`.secrets/` 同理，仓内根本没有。
 
 ```bash
-rsync -av status/ ubuntu@139.99.61.6:/srv/linze/apps/status/
+rsync -av --exclude 'data/' --exclude 'private/' --exclude '.secrets/' status/ ubuntu@139.99.61.6:/srv/linze/apps/status/
+```
+
+只改了采集器时，同步那一个文件最稳：
+
+```bash
+rsync -av status/collector/collect.py ubuntu@139.99.61.6:/srv/linze/apps/status/collector/collect.py
 ```
 
 `collector/` 的改动在下一次 cron（≤15 分钟）生效；`web/` 与 `deploy/` 的改动需重启 `linze-status` 容器。
