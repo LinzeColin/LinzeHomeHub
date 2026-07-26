@@ -2,7 +2,8 @@
 # LinzeStatus 自愈引擎 —— 装到 /usr/local/bin/linze-selfheal.sh,由 root cron 每 5 分钟运行。
 # 设计铁律:纯服务器 cron 自运行,**不依赖 agent、不依赖任何 token/外部接口**。
 # 只做「安全、可回收、可自愈」的动作,绝不做破坏性操作:
-#   R1 磁盘守护:磁盘 >=85% 时清理 docker 可回收缓存 + 收敛系统日志 + 删 7 天前的本地备份副本(异地副本不动)。
+#   R1 磁盘守护:两级。>=70% 只清 docker build cache(纯可再生,提前清);
+#      >=85% 再叠加 system prune + 收敛系统日志 + 删 7 天前的本地备份副本(异地副本不动)。
 #   R2 服务看门狗:host-direct 服务 HTTP 连续 2 次失败且过冷却期,自动 docker restart 对应容器。
 # 状态写 data/selfheal.json,供 status 云平台总览页只读展示。动作留痕到 selfheal.log 与 recent。
 set -uo pipefail
@@ -13,7 +14,9 @@ STATE="$DATA/selfheal.json"
 LOG="$APP/selfheal.log"
 NOW=$(date +%s)
 TS=$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M')
-DISK_TRIP=85                         # 磁盘触发线 %
+DISK_TRIP=85                         # 全面清理触发线 %
+CACHE_TRIP=70                        # 仅清 docker build cache 的触发线 %(纯可再生,提前清)
+CACHE_KEEP=2GB                       # build cache 保留量(留一点,下次构建不至于全冷)
 FAIL_TRIP=2                          # 连续失败几次才动手
 COOLDOWN=1200                        # 同一容器两次重启最小间隔(秒)=20分钟
 mkdir -p "$SD"
@@ -26,20 +29,28 @@ push_recent(){ # rule msg
 
 # ---------- R1 磁盘守护 ----------
 disk_pct=$(df / | awk 'NR==2{gsub("%","",$5);print $5}')
-disk_state="ok"; disk_detail="当前 ${disk_pct}% · 低于 ${DISK_TRIP}% 触发线,无需清理"
+disk_state="ok"; disk_detail="当前 ${disk_pct}% · 低于 ${CACHE_TRIP}% 触发线,无需清理"
 disk_last=$(cat "$SD/disk_last" 2>/dev/null || echo "")
 disk_last_at=$(cat "$SD/disk_last_at" 2>/dev/null || echo "")
 disk_count=$(cat "$SD/disk_count" 2>/dev/null || echo 0)
-if [ "${disk_pct:-0}" -ge "$DISK_TRIP" ]; then
+if [ "${disk_pct:-0}" -ge "$CACHE_TRIP" ]; then
   before=$disk_pct
-  docker system prune -f --filter "until=168h" >/dev/null 2>&1 || true
-  sudo -n journalctl --vacuum-size=200M >/dev/null 2>&1 || true
-  find /srv/linze/backups -name 'linze-backup-*.enc' -mtime +7 -delete 2>/dev/null || true
+  # 主要涨点是 docker build cache(频繁部署产生)。它绝大部分不到 168h,
+  # 所以 `system prune --filter until=168h` 够不到 —— 2026-07-26 实测磁盘 3 小时涨 16 个点、
+  # 可回收 build cache 10.9GB,而按老规则触发时一点都清不掉。必须单独 builder prune。
+  docker builder prune -f --keep-storage="$CACHE_KEEP" >/dev/null 2>&1 || true
+  scope="build cache"
+  if [ "${disk_pct:-0}" -ge "$DISK_TRIP" ]; then
+    docker system prune -f --filter "until=168h" >/dev/null 2>&1 || true
+    sudo -n journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+    find /srv/linze/backups -name 'linze-backup-*.enc' -mtime +7 -delete 2>/dev/null || true
+    scope="全量可回收空间"
+  fi
   after=$(df / | awk 'NR==2{gsub("%","",$5);print $5}')
-  disk_last="清理可回收空间:磁盘 ${before}% → ${after}%"
+  disk_last="清理${scope}:磁盘 ${before}% → ${after}%"
   disk_last_at="$TS"; disk_pct=$after
   disk_count=$(( disk_count + 1 )); disk_state="acted"
-  disk_detail="已清理 · 磁盘 ${before}% → ${after}%"
+  disk_detail="已清理${scope} · 磁盘 ${before}% → ${after}%"
   echo "$disk_last" > "$SD/disk_last"; echo "$disk_last_at" > "$SD/disk_last_at"; echo "$disk_count" > "$SD/disk_count"
   log "DISK $disk_last"; push_recent disk "$disk_last"
 fi
@@ -98,7 +109,7 @@ fi
 
 # ---------- 写状态(python3 保证 JSON 转义正确)----------
 RECENT=$( [ -f "$SD/recent.jsonl" ] && tail -n 12 "$SD/recent.jsonl" | tac | paste -sd, - || echo "" )
-export TS NOW disk_pct disk_state disk_detail disk_count disk_last disk_last_at DISK_TRIP
+export TS NOW disk_pct disk_state disk_detail disk_count disk_last disk_last_at DISK_TRIP CACHE_TRIP
 export wd_state wd_detail wd_count wd_last wd_last_at wd_online wd_total FAIL_TRIP COOLDOWN RECENT
 export cw_state cw_detail cw_count cw_last cw_last_at
 python3 - "$STATE" <<'PY'
@@ -114,7 +125,7 @@ if raw:
     except Exception: recent=[]
 rules=[
  {"key":"disk","name":"磁盘守护","engine":"selfheal","set":"main","armed":True,
-  "threshold":"磁盘 ≥%s%% 自动清理可回收空间"%g("DISK_TRIP","85"),
+  "threshold":"磁盘 ≥%s%% 清 build cache · ≥%s%% 全量清理"%(g("CACHE_TRIP","70"),g("DISK_TRIP","85")),
   "state":g("disk_state","ok"),"detail":g("disk_detail",""),
   "actions_total":num(g("disk_count","0")),
   "last_action":g("disk_last","") or None,"last_action_at":g("disk_last_at","") or None},
