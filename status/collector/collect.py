@@ -27,37 +27,37 @@ HISTORY_MAX = 96                            # 24h @ 15min
 # 每个项目的运行逻辑:跑在哪(host)/ 数据库(db)/ 文件存储(store)/ 部署方式(deploy)/
 # 备份(backup)/ agent 依赖度(agent:无/低/中)。运行状态靠实时探测。
 PROJECTS = [
-    {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"],
+    {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
-    {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"],
+    {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
-    {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"],
+    {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
-    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"],
+    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
-    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"],
+    {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "repo": "KMOS",
      "host": "OVH VPS-1", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
      "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉"},
     {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
      "host": "OVH VPS-1", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
      "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件"},
-    {"name": "EEI",      "url": "https://eei.linzezhang.com",      "parts": ["前台", "后台"],
+    {"name": "EEI",      "url": "https://eei.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
      "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无(内部服务)"},
-    {"name": "Alpha",    "url": "https://alpha.linzezhang.com",    "parts": ["前台", "后台"],
+    {"name": "Alpha",    "url": "https://alpha.linzezhang.com",    "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "OVH 文件 · 交易账本 sqlite", "store": "OVH 文件",
      "deploy": "host-direct systemd ×5", "backup": "随主机 + 账本邮件归档", "agent": "低", "notify": "邮件"},
-    {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"],
+    {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "Cloudflare Workers", "db": "CF D1 · adp", "store": "CF D1 + R2",
      "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件"},
     {"name": "Uptime",   "url": "https://uptime.linzezhang.com",   "parts": ["前台"],
      "host": "OVH VPS-1", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
      "backup": "随主机", "agent": "无", "notify": "无"},
-    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"],
+    {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-1", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
      "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无"},
 ]
@@ -859,6 +859,116 @@ def github_public_block():
     return gp
 
 
+
+# ---------- 全仓全项目关系图(纯派生:0 agent / 0 token / 不新增任何 API 调用)----------
+def project_graph(projects, gh):
+    """把「已经采到的数据」推导成节点+连线。
+
+    数据全部来自本次快照与 GitHub 采集结果,**不额外请求任何接口、不调用任何模型**。
+    另维护 graph_state.json 记录每个节点的首次出现时间,从而能识别
+    **新增 / 删除 / 变更**,让前端做动态演示。私有仓只出一个匿名聚合节点,不出名字。
+    """
+    nodes, edges = {}, []
+    def node(nid, label, kind, **meta):
+        nodes.setdefault(nid, {"id": nid, "label": label, "kind": kind, **meta})
+        return nid
+    def edge(a, b, rel):
+        if a and b:
+            edges.append({"s": a, "t": b, "rel": rel})
+
+    # 供应商层
+    v_ovh = node("v:ovh", "OVH VPS-1", "vendor", role="云服务器")
+    v_cf = node("v:cf", "Cloudflare", "vendor", role="门口/边缘")
+    v_gh = node("v:github", "GitHub", "vendor", role="代码+备份")
+    v_oci = node("v:oci", "OCI", "vendor", role="异地备份")
+
+    # 项目层 + 存储层
+    for p in projects:
+        pid = node("p:" + p["name"], p["name"], "project",
+                   status=p.get("status"), url=p.get("url") or "",
+                   agent=p.get("agent") or "", deploy=p.get("deploy") or "")
+        host = (p.get("host") or "")
+        if "OVH" in host:
+            edge(pid, v_ovh, "运行在")
+        elif "Cloudflare" in host or "Workers" in host:
+            edge(pid, v_cf, "运行在")
+        for raw in (p.get("db") or "") .split("+"):
+            raw = raw.strip()
+            if not raw or raw.startswith("无"):
+                continue
+            sid = node("s:" + raw, raw, "store")
+            edge(pid, sid, "数据存于")
+            edge(sid, v_cf if ("CF " in raw or "D1" in raw or "R2" in raw) else v_ovh, "属于")
+        if p.get("repo"):
+            edge(pid, "r:" + p["repo"], "源码在")
+
+    # 代码仓层(公开仓出名字;私有仓只出一个匿名聚合节点)
+    if gh and gh.get("available"):
+        for r in gh.get("public_repos", []) or []:
+            rid = node("r:" + r["name"], r["name"], "repo",
+                       lang=r.get("top_lang") or "", commits30=r.get("commits_30d") or 0,
+                       url=r.get("url") or "", size_kb=r.get("size_kb") or 0)
+            edge(rid, v_gh, "托管在")
+        npriv = gh.get("private") or 0
+        if npriv:
+            pid = node("r:__private__", "%d 个私有仓" % npriv, "repo_private", count=npriv)
+            edge(pid, v_gh, "托管在")
+        for sp in gh.get("subprojects", []) or []:
+            sid = node("sp:%s/%s" % (sp["repo"], sp["project"]), sp["project"], "subproject",
+                       path=sp.get("path") or "", commits30=sp.get("commits_30d") or 0)
+            edge(sid, "r:" + sp["repo"], "属于")
+    # 备份链
+    edge(v_ovh, v_gh, "每日备份")
+    edge(v_ovh, v_oci, "每周备份")
+
+    # 只保留两端都存在的连线(避免悬空)
+    edges = [e for e in edges if e["s"] in nodes and e["t"] in nodes]
+
+    # ---- 增删改识别 ----
+    path = os.path.join(DATA_DIR, "graph_state.json")
+    st = load_json(path, {}) or {}
+    seen, now = st.get("nodes", {}), int(time.time())
+    changes = st.get("changes", [])
+    cur_ids = set(nodes)
+    for nid, n in nodes.items():
+        prev = seen.get(nid)
+        sig = "%s|%s" % (n["label"], n["kind"])
+        if not prev:
+            seen[nid] = {"first": now, "sig": sig}
+            n["change"] = "added"
+            changes.append({"t": now, "op": "added", "id": nid, "label": n["label"], "kind": n["kind"]})
+        else:
+            n["first_seen"] = prev.get("first")
+            if prev.get("sig") != sig:
+                prev["sig"] = sig
+                n["change"] = "changed"
+                changes.append({"t": now, "op": "changed", "id": nid, "label": n["label"], "kind": n["kind"]})
+            elif now - prev.get("first", now) < 900:      # 15 分钟内算“新”
+                n["change"] = "added"
+    for nid in list(seen):
+        if nid not in cur_ids:
+            changes.append({"t": now, "op": "removed", "id": nid,
+                            "label": seen[nid].get("sig", "").split("|")[0], "kind": "gone"})
+            seen.pop(nid, None)
+    changes = changes[-60:]
+    try:
+        with open(path, "w") as f:
+            json.dump({"nodes": seen, "changes": changes}, f)
+    except Exception:
+        pass
+
+    kinds = {}
+    for n in nodes.values():
+        kinds[n["kind"]] = kinds.get(n["kind"], 0) + 1
+    return {
+        "generated_at": fmt(now_cn()), "generated_epoch": now,
+        "nodes": list(nodes.values()), "edges": edges,
+        "counts": {"nodes": len(nodes), "edges": len(edges), "by_kind": kinds},
+        "changes": list(reversed(changes))[:20],
+        "provenance": "由服务器 cron 从既有采集数据纯派生;不调用任何模型、不新增任何外部请求",
+    }
+
+
 def main():
     os.makedirs(DATA_DIR, exist_ok=True)
     prev = load_json(os.path.join(DATA_DIR, "snapshot.json"), {})
@@ -940,6 +1050,16 @@ def main():
         "github": github_public_block(),
         "deploy_calendar": deploy_calendar(),
     }
+    snap["graph"] = project_graph(projects, snap["github"])
+
+    # 关系图单独出一份小文件,供 home 站跨域拉取(比整份 80KB 快照轻得多)
+    try:
+        gtmp = os.path.join(DATA_DIR, "graph.json.tmp")
+        with open(gtmp, "w") as f:
+            json.dump(snap["graph"], f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(gtmp, os.path.join(DATA_DIR, "graph.json"))
+    except Exception:
+        pass
 
     tmp = os.path.join(DATA_DIR, "snapshot.json.tmp")
     with open(tmp, "w") as f:

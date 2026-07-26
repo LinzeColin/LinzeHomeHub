@@ -9,6 +9,7 @@ import { attachCardTilt } from '../motion/cardTilt';
 import { SceneController } from '../scene/SceneController';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { renderProjects } from '../ui/renderProjects';
+import { initProjectAtlas } from '../ui/projectAtlas';
 import { updateReadouts } from '../ui/readouts';
 
 const modes: ModeId[] = ['archive', 'nebula', 'voyage', 'garden'];
@@ -32,6 +33,10 @@ export async function initApp(): Promise<void> {
     const session = await initSession();
     if (projectContainer) {
       renderProjects(filterProjects(projectsData as Project[], session), projectContainer);
+    }
+    const atlasRoot = document.getElementById('atlasRoot');
+    if (atlasRoot instanceof HTMLElement) {
+      initProjectAtlas(atlasRoot);
     }
     const slot = document.querySelector('[data-auth-slot]');
     if (slot) {
