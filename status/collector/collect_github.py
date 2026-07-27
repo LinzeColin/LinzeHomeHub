@@ -365,14 +365,84 @@ def gather_throughput(token):
 
 
 # ======================= Traffic(GitHub 只留 14 天,必须归档)=======================
-TRAFFIC_HISTORY = os.path.join(DATA_DIR, "traffic_history.json")
+# ★ 逐仓归档**必须放私有目录**:它按仓名分桶,天然含私有仓名。
+#   曾经放在 DATA_DIR(= nginx 公开根),等于把私有仓名和它们的流量数字挂在公网上。
+#   凡是「按仓名分桶」的原始档,一律 PRIVATE_DIR;公开面只吃派生后的聚合结果。
+PRIVATE_DIR = os.path.dirname(PRIVATE_OUT)
+TRAFFIC_HISTORY = os.path.join(PRIVATE_DIR, "traffic_history.json")
+COMMIT_HISTORY = os.path.join(PRIVATE_DIR, "commit_history.json")
+LEGACY_TRAFFIC_HISTORY = os.path.join(DATA_DIR, "traffic_history.json")
 PRIVATE_NAMES_GUARD = {"Private-Database", "Governance", "KMFA-App-State-Backup"}
+
+
+def _load_traffic_history():
+    """读私有归档;首次运行时把历史数据从公开目录搬过来并**删掉公开副本**。"""
+    hist = load_json(TRAFFIC_HISTORY, None)
+    if hist is None:
+        hist = load_json(LEGACY_TRAFFIC_HISTORY, {}) or {}
+        if hist:
+            _atomic_write(TRAFFIC_HISTORY, hist, 0o640)
+    if os.path.exists(LEGACY_TRAFFIC_HISTORY):
+        try:
+            os.remove(LEGACY_TRAFFIC_HISTORY)
+            print("traffic: removed publicly-served legacy archive")
+        except OSError as e:
+            print("traffic: cannot remove legacy archive: %s" % e)
+    return hist or {}
+
+
+def _traffic_freshness(hist, arrivals):
+    """把「GitHub 上游到底给到哪一天」算清楚,并据此估下一批到达时间。
+
+    ★ 这是本页最容易被误解成 bug 的地方:实测 GitHub 的 traffic 接口**恒定滞后约 2 天**
+      (今天 07-27,窗口只到 07-25),且**一天才发布一次**。所以逐日浏览/克隆
+      在物理上就不可能实时,任何采集频率都改变不了。我们能做的是:
+        1) 把滞后天数与「上游截止到哪天」如实标出来,别让人以为页面坏了;
+        2) 把还没发布的日子标成「待发布」,而不是画成 0(画 0 就是编造数据);
+        3) 记录每一天数据**真正到达的时刻**,据此估下一批 ETA,并让前端高亮「刚到达」。
+    """
+    latest = ""
+    for h in hist.values():
+        for key in ("views", "clones"):
+            for d in h.get(key, {}):
+                if d > latest:
+                    latest = d
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    pending = []
+    if latest:
+        cur = datetime.strptime(latest, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end = datetime.strptime(today, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        while cur < end:
+            cur += timedelta(days=1)
+            pending.append(cur.strftime("%Y-%m-%d"))
+    # 观测到的到达间隔中位数 -> ETA(样本不足则退回 24h,并如实标成 estimated)
+    ats = [a["at"] for a in arrivals[-8:]]
+    gaps = sorted(b - a for a, b in zip(ats, ats[1:]) if b > a)
+    period = gaps[len(gaps) // 2] if gaps else 86400
+    last_at = ats[-1] if ats else None
+    return {
+        "upstream_through": latest or None,
+        "lag_days": len(pending),
+        "pending_days": pending,
+        "last_arrival_epoch": last_at,
+        "next_eta_epoch": (last_at + period) if last_at else None,
+        "arrival_period_sec": period,
+        "arrivals": arrivals[-30:],
+        "why": "GitHub 的 traffic 接口每天只发布一次且滞后约 2 天,这是上游限制,"
+               "不是本站故障。想看真正实时的访问,请看「本站实时访问」。",
+    }
 
 
 def gather_traffic(token, repos):
     """访问流量。**GitHub 只返回最近 14 天,过期永久丢失**,所以逐日归档进
-    traffic_history.json(只增不减),这样时间越久历史越完整。"""
-    hist = load_json(TRAFFIC_HISTORY, {}) or {}
+    traffic_history.json(只增不减),这样时间越久历史越完整。
+
+    同时记录每一天**首次被我们看到的时刻**(`t`),用来算上游发布节奏与「刚到达」高亮。
+    """
+    hist = _load_traffic_history()
+    arrivals = list((hist.pop("__arrivals__", None) or []))   # 与逐仓数据同档保存,不额外开文件
+    known = {d["d"] for d in arrivals}
+    now_epoch = int(time.time())
     per_repo, unreadable = [], 0
     for r in repos:
         name = r["name"]
@@ -386,8 +456,15 @@ def gather_traffic(token, repos):
         for key, data, field in (("views", v, "views"), ("clones", c, "clones")):
             for row in ((data or {}).get(field) or []):
                 d = (row.get("timestamp") or "")[:10]
-                if d:
-                    h[key][d] = {"c": row.get("count", 0), "u": row.get("uniques", 0)}
+                if not d:
+                    continue
+                prev = h[key].get(d) or {}
+                # t 只在第一次见到这一天时落定,之后即使数值被上游修订也不改
+                h[key][d] = {"c": row.get("count", 0), "u": row.get("uniques", 0),
+                             "t": prev.get("t", now_epoch)}
+                if d not in known:
+                    known.add(d)
+                    arrivals.append({"d": d, "at": now_epoch})
         paths, _ = _get(f"{API}/repos/{full}/traffic/popular/paths", token)
         refs, _ = _get(f"{API}/repos/{full}/traffic/popular/referrers", token)
         per_repo.append({
@@ -404,7 +481,11 @@ def gather_traffic(token, repos):
     for name, h in hist.items():
         for key in ("views", "clones"):
             h[key] = {d: x for d, x in h[key].items() if d >= cutoff}
-    _atomic_write(TRAFFIC_HISTORY, hist)
+    arrivals = sorted((a for a in arrivals if a["d"] >= cutoff), key=lambda a: a["d"])
+    fresh = _traffic_freshness(hist, arrivals)
+    hist["__arrivals__"] = arrivals
+    _atomic_write(TRAFFIC_HISTORY, hist, 0o640)
+    hist.pop("__arrivals__", None)
 
     # 逐日汇总(只汇总公开仓,供公开面用)
     pub = {r["name"] for r in per_repo if not r["private"]}
@@ -414,7 +495,7 @@ def gather_traffic(token, repos):
             continue
         for key in ("views", "clones"):
             for d, x in h[key].items():
-                slot = daily.setdefault(d, {"v": 0, "c": 0})
+                slot = daily.setdefault(d, {"v": 0, "c": 0, "t": x.get("t")})
                 slot["v" if key == "views" else "c"] += x.get("c", 0)
     days = sorted(daily)
     per_repo.sort(key=lambda x: -(x.get("views_14d") or 0))
@@ -422,14 +503,150 @@ def gather_traffic(token, repos):
         "per_repo": per_repo,
         "archived_days": len(days),
         "archive_since": days[0] if days else None,
-        "daily": [{"d": d, "v": daily[d]["v"], "c": daily[d]["c"]} for d in days[-90:]],
+        "daily": [{"d": d, "v": daily[d]["v"], "c": daily[d]["c"], "t": daily[d].get("t")}
+                  for d in days[-90:]],
         "totals_14d": {
             "views": sum(r.get("views_14d") or 0 for r in per_repo if not r["private"]),
             "clones": sum(r.get("clones_14d") or 0 for r in per_repo if not r["private"]),
         },
         "unreadable_repos": unreadable,
+        "freshness": fresh,
+        "checked_at": int(time.time()),
         "note": "GitHub 只提供最近 14 天,本站逐日归档累积,越久越完整",
     }
+
+
+# ======================= 逐日提交 & 仓库耦合(仓库宇宙的数据层)=======================
+def _commit_days_query(names, back=14):
+    """每仓 × 每天一个 `history(since,until){totalCount}` 别名。
+
+    **按仓起别名**(和 _counts_query 同一条教训):某个仓不可见时只让该别名为 null,
+    不会把整份结果吞掉。实测 9 仓 × 14 天 = 126 个连接,`rateLimit.cost` 仍然是 **1**——
+    因为 totalCount 不取节点,不计入 GraphQL 的节点成本。
+    """
+    today = datetime.now(timezone.utc).date()
+    blocks = []
+    for i, n in enumerate(names):
+        days = " ".join(
+            'd%d: history(since:"%sT00:00:00Z", until:"%sT00:00:00Z"){totalCount}'
+            % (k, today - timedelta(days=k), today - timedelta(days=k - 1))
+            for k in range(back)
+        )
+        blocks.append('r%d: repository(owner:"LinzeColin", name:"%s"){ defaultBranchRef{ '
+                      'target{ ... on Commit { %s } } } }' % (i, n, days))
+    return "query{ rateLimit{cost remaining} " + " ".join(blocks) + " }"
+
+
+def gather_commit_days(token, names, back=14):
+    """逐仓逐日提交数,归档进 commit_history.json(私有:按仓名分桶)。只增不减保 400 天。"""
+    d = _gql(token, _commit_days_query(names, back))
+    hist = load_json(COMMIT_HISTORY, {}) or {}
+    if not d:
+        return hist
+    data = d.get("data") or {}
+    today = datetime.now(timezone.utc).date()
+    for i, n in enumerate(names):
+        node = data.get("r%d" % i)
+        if not node:
+            continue                       # 该仓不可见:保留旧值,不清零
+        tgt = ((node.get("defaultBranchRef") or {}).get("target")) or {}
+        bucket = hist.setdefault(n, {})
+        for k in range(back):
+            cell = tgt.get("d%d" % k)
+            if isinstance(cell, dict) and cell.get("totalCount") is not None:
+                bucket[str(today - timedelta(days=k))] = cell["totalCount"]
+    cutoff = str(today - timedelta(days=400))
+    for n in list(hist):
+        hist[n] = {k: v for k, v in hist[n].items() if k >= cutoff}
+    _atomic_write(COMMIT_HISTORY, hist, 0o640)
+    return hist
+
+
+def _jaccard(a, b):
+    u = len(a | b)
+    return (len(a & b) / u) if u else 0.0
+
+
+def build_coupling(repos_rows, hist, subprojects):
+    """从**已经采到的数据**推导仓与仓之间的耦合,不额外请求接口、不调用任何模型。
+
+    三类边,各自独立可解释:
+      co_change  共变 —— 同一天都有提交。用活跃日集合的 Jaccard 做强度,
+                 并对比「近 7 天 vs 前 7 天」得出**增强/减弱**趋势,这就是「动态」。
+      stack      同栈 —— 主语言相同,改一个的技能/工具链会牵动另一个。
+      contains   归属 —— 子项目属于哪个仓(monorepo 里真实存在的包含关系)。
+    """
+    priv_of = {r["name"]: bool(r.get("private")) for r in repos_rows}
+    lang_of = {r["name"]: (r.get("top_lang") or "—") for r in repos_rows}
+    today = datetime.now(timezone.utc).date()
+
+    def active(name, lo, hi):
+        """[lo,hi) 天前窗口内有提交的日期集合。"""
+        b = hist.get(name) or {}
+        return {d for d, c in b.items()
+                if c and str(today - timedelta(days=hi - 1)) <= d <= str(today - timedelta(days=lo))}
+
+    names = [n for n in hist if n in priv_of]
+    edges = []
+    for i, a in enumerate(names):
+        for b in names[i + 1:]:
+            aa, bb = active(a, 0, 14), active(b, 0, 14)
+            both = aa & bb
+            if len(both) < 2:
+                continue                    # 只同框一天说明不了耦合,不画
+            w = _jaccard(aa, bb)
+            recent = _jaccard(active(a, 0, 7), active(b, 0, 7))
+            prior = _jaccard(active(a, 7, 14), active(b, 7, 14))
+            edges.append({
+                "s": a, "t": b, "rel": "co_change", "w": round(w, 3),
+                "days": len(both), "trend": round(recent - prior, 3),
+                "why": "近 14 天有 %d 天同时改动" % len(both),
+            })
+    # 同栈边只在「没有共变边」时才画:已经同框改动的两个仓,再叠一条同语言线纯属噪音
+    paired = {frozenset((e["s"], e["t"])) for e in edges}
+    by_lang = {}
+    for n in names:
+        by_lang.setdefault(lang_of.get(n) or "—", []).append(n)
+    for lang, group in by_lang.items():
+        if lang in ("—", "") or len(group) < 2:
+            continue
+        group = sorted(group)
+        for i, a in enumerate(group):
+            for b in group[i + 1:]:
+                if frozenset((a, b)) in paired:
+                    continue
+                edges.append({"s": a, "t": b, "rel": "stack", "w": 0.2,
+                              "days": None, "trend": 0.0, "why": "同为 %s 主栈" % lang})
+    for sp in subprojects or []:
+        edges.append({"s": "sp:%s/%s" % (sp["repo"], sp["project"]), "t": sp["repo"],
+                      "rel": "contains", "w": 1.0, "days": None, "trend": 0.0,
+                      "why": "子项目位于 %s" % (sp.get("path") or "")})
+
+    # 每个仓的耦合度 = 它所有共变边的强度和,用来在星图里定"引力质量"
+    degree = {}
+    for e in edges:
+        if e["rel"] == "co_change":
+            for k in (e["s"], e["t"]):
+                degree[k] = round(degree.get(k, 0) + e["w"], 3)
+    return {
+        "edges": edges,
+        "degree": degree,
+        "window_days": 14,
+        "archived_days": max((len(v) for v in hist.values()), default=0),
+        "note": "共变耦合由逐日提交推导(Jaccard),同栈由主语言推导,归属由子项目登记推导",
+    }
+
+
+def _public_coupling(c, repos_rows):
+    """公开派生:**只保留两端都是公开仓的边**,私有仓不出名、不出边。"""
+    if not c:
+        return {}
+    pub = {r["name"] for r in repos_rows if not r.get("private")}
+    ok = lambda k: (k in pub) or (k.startswith("sp:") and k.split("/")[0][3:] in pub)
+    out = dict(c)
+    out["edges"] = [e for e in c.get("edges", []) if ok(e["s"]) and ok(e["t"])]
+    out["degree"] = {k: v for k, v in (c.get("degree") or {}).items() if k in pub}
+    return out
 
 
 # ======================= 账单(新版 billing/usage 端点)=======================
@@ -502,11 +719,13 @@ def gather_deep(token):
         if r["name"] in SUBPROJECTS:
             subs += _subprojects_for(r["name"], db, token)
     repo_rows = list(out.values())
+    chist = gather_commit_days(token, [r["name"] for r in repo_rows])
     return {"repos": out, "subprojects": subs, "capability": cap,
             "actions": gather_actions(token, repo_rows),
             "throughput": gather_throughput(token),
             "traffic": gather_traffic(token, repo_rows),
             "billing": gather_billing(token, login),
+            "coupling": build_coupling(repo_rows, chist, subs),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 
@@ -607,6 +826,7 @@ def build_public(priv):
         "throughput": priv.get("throughput", {}),
         "traffic": _public_traffic(priv.get("traffic") or {}),
         "billing": _public_billing(priv.get("billing") or {}),
+        "coupling": _public_coupling(priv.get("coupling") or {}, priv.get("repos", [])),
         "public_repos": pub_rows,
         "subprojects": [s for s in priv.get("subprojects", []) if s.get("repo") in pub_names],
         "note": "私有仓明细仅登录 /admin/github 可见",
@@ -644,6 +864,7 @@ def run_deep(token):
                  "capability": deep["capability"], "account": deep["account"],
                  "actions": deep["actions"], "throughput": deep["throughput"],
                  "traffic": deep["traffic"], "billing": deep["billing"],
+                 "coupling": deep["coupling"],
                  "deep_at": _fmt(now), "collected_at": _fmt(now),
                  "collected_epoch": int(time.time())})
     write_all(priv)
@@ -690,13 +911,40 @@ def run_fast(token):
     return True
 
 
+def run_traffic(token):
+    """中层(cron 每 15 分钟):只打 traffic 两个端点 + 逐日提交 GraphQL。
+
+    为什么单独一层:GitHub 的 traffic **一天只发布一次、且滞后约 2 天**,
+    小时级的 deep 层最坏会让新数据晚 1 小时才出现在页面上。这一层把「新数据一发布
+    就被抓到」压到 15 分钟内,页面就能在到达当刻高亮提示——**这已经是上游允许的极限**,
+    再密也不会让 GitHub 提前发布。开销:REST 18 请求 + GraphQL cost 1。
+    """
+    priv = load_json(PRIVATE_OUT, None)
+    if not priv or not priv.get("repos"):
+        return run_deep(token)
+    rows = priv["repos"]
+    before = ((priv.get("traffic") or {}).get("freshness") or {}).get("upstream_through")
+    priv["traffic"] = gather_traffic(token, rows)
+    chist = gather_commit_days(token, [r["name"] for r in rows])
+    priv["coupling"] = build_coupling(rows, chist, priv.get("subprojects") or [])
+    priv["collected_at"] = _fmt(datetime.now(CN))
+    priv["collected_epoch"] = int(time.time())
+    write_all(priv)
+    f = priv["traffic"].get("freshness") or {}
+    print("traffic ok: through=%s lag=%sd%s edges=%d" % (
+        f.get("upstream_through"), f.get("lag_days"),
+        "  <-- NEW DAY ARRIVED" if before and f.get("upstream_through") != before else "",
+        len((priv["coupling"] or {}).get("edges") or [])))
+    return True
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "fast"
     token = read_token()
     if not token:
         print("no github token")
         return
-    run_deep(token) if mode == "deep" else run_fast(token)
+    {"deep": run_deep, "traffic": run_traffic}.get(mode, run_fast)(token)
 
 
 if __name__ == "__main__":

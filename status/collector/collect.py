@@ -847,6 +847,145 @@ def deploy_calendar():
             "since": first, "label": "每日部署次数"}
 
 
+# ---------- 本站真实时访问(读容器 access log,只读、零成本、零 token)----------
+LIVE_PATH = lambda: os.path.join(DATA_DIR, "live_traffic.json")
+_LOG_RE = re.compile(
+    r'\[(\d{2})/(\w{3})/(\d{4}):(\d{2}):(\d{2}):\d{2}\s+([+-]\d{4})\]\s+'
+    r'"([A-Z]+)\s+(\S+)[^"]*"\s+(\d{3})\s+\S+\s+"[^"]*"\s+"([^"]*)"')
+_MON = {m: i + 1 for i, m in enumerate(
+    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
+# 三类流量分开数,不混为一谈:
+#   probe = Gatus 存活探测 / 自愈脚本的 curl(它本身在动 = 监控活着,有价值)
+#   self  = 页面自己每 15 秒拉 /data/*(是本站自转,不是访客)
+#   human = 其余真实浏览
+_PROBE_UA = re.compile(r"Gatus|curl|wget|python-requests|Go-http|monitor|healthcheck", re.I)
+_SELF_PATH = re.compile(r"^/(healthz|health|data/|favicon\.ico|robots\.txt)")
+
+
+def live_traffic(raw=None):
+    """逐分钟统计本站各站点的真实访问量。`raw` 仅供测试注入合成日志。
+
+    ★ 为什么要有这个:GitHub 的仓库浏览/克隆**上游一天才发布一次且滞后约 2 天**,
+      物理上做不到实时。而本站自己的访问日志是**当下就有**的——所以「实时」这件事
+      放在这里做才成立。数据来源 = `docker logs --since`(只读,不落盘、不占磁盘、
+      不调任何外部接口),站点域名从 Traefik 标签自动发现,**换容器不用改代码**。
+
+    只统计「请求数」,不统计访客身份:日志里最后一段是 Cloudflare 边缘 IP 而非真实访客 IP,
+    拿它算 UV 就是编造,所以不做。
+    """
+    raw = raw if raw is not None else run(
+        "for c in $(docker ps --format '{{.Names}}'); do "
+        "h=$(docker inspect \"$c\" --format '{{json .Config.Labels}}' 2>/dev/null "
+        "| tr ',' '\\n' | grep -oE 'Host\\(`[^`]+`\\)' | head -1 | sed 's/.*`\\(.*\\)`.*/\\1/'); "
+        "[ -z \"$h\" ] && continue; "
+        "docker logs --since 3m \"$c\" 2>&1 | grep -E '\\\"(GET|POST|HEAD|PUT|DELETE) [^\\\"]*\\\" [0-9]{3} ' "
+        "| sed \"s|^|$h\\t|\"; done", timeout=45)
+
+    store = load_json(LIVE_PATH(), {}) or {}
+    minutes = {int(k): v for k, v in (store.get("min") or {}).items()}
+    hours = {int(k): v for k, v in (store.get("hour") or {}).items()}
+    # 本轮重新数到的分钟要整桶覆盖:上一轮读到的可能是**还没走完的那一分钟**,
+    # 累加会重复计数,覆盖才是对的(同一分钟第二次读必然更完整)。
+    rebuilt = {}
+    for line in raw.splitlines():
+        if "\t" not in line:
+            continue
+        site, rest = line.split("\t", 1)
+        m = _LOG_RE.search(rest)
+        if not m:
+            continue
+        dd, mon, yy, hh, mi, tz, meth, path, code, ua = m.groups()
+        try:
+            t = datetime(int(yy), _MON[mon], int(dd), int(hh), int(mi),
+                         tzinfo=timezone(timedelta(hours=int(tz[:3]), minutes=int(tz[0] + tz[3:]))))
+        except (KeyError, ValueError):
+            continue
+        kind = ("p" if _PROBE_UA.search(ua) else
+                "s" if _SELF_PATH.match(path) else "h")
+        bucket = rebuilt.setdefault(int(t.timestamp()), {})
+        cell = bucket.setdefault(site, {"h": 0, "p": 0, "s": 0, "e": 0})
+        cell[kind] += 1
+        if code[0] == "5" or (code[0] == "4" and code not in ("401", "403")):
+            cell["e"] += 1                          # 401/403 是 CF Access 正常拦截,不算错误
+
+    now_ep = int(time.time())
+    cur_min = now_ep - now_ep % 60
+    for t, b in rebuilt.items():
+        minutes[t] = b
+    for t in list(minutes):
+        if t < now_ep - 86400:                     # 分钟级留 24h
+            minutes.pop(t)
+    # 小时桶由分钟桶**重算**(幂等):补采或重跑都不会把同一分钟算两遍。
+    # 分钟档只留 24h,更早的小时桶是唯一副本,原样保留。
+    rebuilt_hours = {}
+    for t, b in minutes.items():
+        hb = rebuilt_hours.setdefault(t - t % 3600, {})
+        for s, cell in b.items():
+            acc = hb.setdefault(s, {"h": 0, "p": 0, "s": 0, "e": 0})
+            for k in acc:
+                acc[k] += cell.get(k, 0)
+    floor = min(rebuilt_hours, default=cur_min)
+    hours = {t: v for t, v in hours.items() if t < floor and t >= now_ep - 30 * 86400}
+    hours.update(rebuilt_hours)
+
+    try:
+        with open(LIVE_PATH(), "w") as f:
+            json.dump({"min": {str(k): v for k, v in minutes.items()},
+                       "hour": {str(k): v for k, v in hours.items()}}, f)
+    except OSError:
+        pass
+
+    KINDS = ("h", "p", "s", "e")
+
+    def roll(buckets, ts):
+        acc = {k: 0 for k in KINDS}
+        for t in ts:
+            for cell in buckets[t].values():
+                for k in KINDS:
+                    acc[k] += cell.get(k, 0)
+        return acc
+
+    def flatten(buckets, keep):
+        out = []
+        for t in sorted(buckets):
+            if t < keep:
+                continue
+            acc = {k: 0 for k in KINDS}
+            for cell in buckets[t].values():
+                for k in KINDS:
+                    acc[k] += cell.get(k, 0)
+            out.append({"t": t, **acc})
+        return out
+
+    sites = sorted({s for b in minutes.values() for s in b})
+    span60 = [t for t in minutes if t >= now_ep - 3600]
+    per_site = sorted(
+        ({"site": s,
+          "h60": sum(minutes[t].get(s, {}).get("h", 0) for t in span60),
+          "all60": sum(sum(minutes[t].get(s, {}).values()) for t in span60),
+          "h24": sum(minutes[t].get(s, {}).get("h", 0) for t in minutes),
+          "all24": sum(sum(minutes[t].get(s, {}).values()) for t in minutes),
+          "err24": sum(minutes[t].get(s, {}).get("e", 0) for t in minutes)} for s in sites),
+        key=lambda x: (-x["h24"], -x["all24"]))
+    series = flatten(minutes, now_ep - 10800)
+    last5 = [x for x in series if x["t"] >= cur_min - 300]
+    r60, r24 = roll(minutes, span60), roll(minutes, list(minutes))
+    return {
+        "available": bool(sites),
+        "sites": per_site,
+        "minutes": series[-180:],                  # 3 小时逐分钟
+        "hours": flatten(hours, 0)[-720:],         # 30 天逐小时
+        "r60": r60, "r24": r24,
+        "rpm": round(sum(x["h"] + x["p"] + x["s"] for x in last5) / max(len(last5), 1), 1),
+        "peak_min": max((x["h"] + x["p"] + x["s"] for x in series), default=0),
+        "at": now_ep,
+        "legend": {"h": "真实浏览", "p": "存活探测", "s": "页面自轮询", "e": "错误响应"},
+        "note": "本站容器 access log 逐分钟统计(docker logs 只读,不落盘不占磁盘)。"
+                "访客/探测/自轮询分开计数;只数请求数不数访客——日志里只有 Cloudflare "
+                "边缘 IP,拿它算 UV 就是编造。401/403 是 Access 正常拦截,不计入错误。",
+    }
+
+
 # ---------- GitHub Engineering Plane(读 github 采集器产出的公开安全聚合)----------
 def github_public_block():
     gp = load_json(os.path.join(DATA_DIR, "github_public.json"), None)
@@ -904,9 +1043,15 @@ def project_graph(projects, gh):
 
     # 代码仓层(公开仓出名字;私有仓只出一个匿名聚合节点)
     if gh and gh.get("available"):
+        coup = gh.get("coupling") or {}
+        degree = coup.get("degree") or {}
         for r in gh.get("public_repos", []) or []:
             rid = node("r:" + r["name"], r["name"], "repo",
                        lang=r.get("top_lang") or "", commits30=r.get("commits_30d") or 0,
+                       commits7=r.get("commits_7d") or 0, pushed_at=r.get("pushed_at") or "",
+                       branches=r.get("branches") or 0, open_pr=r.get("open_pr") or 0,
+                       ci_ok=bool(r.get("ci_ok", True)),
+                       coupling=round(degree.get(r["name"], 0), 3),
                        url=r.get("url") or "", size_kb=r.get("size_kb") or 0)
             edge(rid, v_gh, "托管在")
         npriv = gh.get("private") or 0
@@ -917,6 +1062,16 @@ def project_graph(projects, gh):
             sid = node("sp:%s/%s" % (sp["repo"], sp["project"]), sp["project"], "subproject",
                        path=sp.get("path") or "", commits30=sp.get("commits_30d") or 0)
             edge(sid, "r:" + sp["repo"], "属于")
+        # 仓与仓的耦合边(共变 / 同栈),由 collect_github 从逐日提交推导,已做公开安全过滤
+        for e in coup.get("edges", []) or []:
+            if e.get("rel") == "contains":
+                continue                       # 归属关系上面已经画过,别重复
+            a = e["s"] if e["s"].startswith("sp:") else "r:" + e["s"]
+            b = e["t"] if e["t"].startswith("sp:") else "r:" + e["t"]
+            if a in nodes and b in nodes:
+                edges.append({"s": a, "t": b, "rel": e["rel"], "w": e.get("w"),
+                              "trend": e.get("trend"), "days": e.get("days"),
+                              "why": e.get("why")})
     # 备份链
     edge(v_ovh, v_gh, "每日备份")
     edge(v_ovh, v_oci, "每周备份")
@@ -1049,6 +1204,7 @@ def main():
         "selfheal": selfheal_state(ch, cert, backup, seats),
         "github": github_public_block(),
         "deploy_calendar": deploy_calendar(),
+        "live": live_traffic(),
     }
     snap["graph"] = project_graph(projects, snap["github"])
 
