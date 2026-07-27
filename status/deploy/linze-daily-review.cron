@@ -1,0 +1,7 @@
+# 装到 /etc/cron.d/linze-daily-review —— 每日只读复审,08:00 悉尼时间。
+# 以 ubuntu 跑(要读 .secrets/github_pat、写 private/)。纯脚本,无 agent、无 token、无授权弹窗。
+# CRON_TZ 让它跟着悉尼夏令时走,不必每年手工挪一小时。
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CRON_TZ=Australia/Sydney
+0 8 * * * ubuntu flock -n /tmp/linze-daily-review.lock /usr/local/bin/linze-daily-review.sh >/dev/null 2>&1
