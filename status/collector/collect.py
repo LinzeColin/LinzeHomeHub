@@ -1888,6 +1888,59 @@ def _owner_of(unit, registry):
     return best
 
 
+def _unit_ledger(units):
+    """单元增减流水 —— **消失必须留痕**。
+
+    ★ 这是今天那个母题的第四种形状,而且是**不对称**的那一种:
+      新增的单元会被登记核对标成治理违规,有人看;
+      被删掉的单元只是列表里少一行 —— 没有任何东西会因此变红,没人会注意。
+      「少一行」恰恰是最容易被当成正常的形态。KMFA 线程的提醒:
+      新增有人看、删除没人看,这个不对称会随时间放大。
+
+    ★ 噪音控制不能一刀切:Coolify 的构建辅助容器名是随机串、`restart=no`、跑完即退,
+      逐个记流水会把真正的变更淹掉。所以按 ephemeral 标记**折叠**而不是丢弃 ——
+      折叠的东西仍然在账上,只是默认不展开。丢弃就又变成「没有去向账」了。
+
+    ★ 首轮不得刷出全量「新增」:没有上一轮基线时只落盘、不产事件。
+      仅在**确实没有任何历史**时如此,不能拿它当消音开关。
+    """
+    path = os.path.join(DATA_DIR, "unit_ledger.json")
+    store = load_json(path, None)
+    now = int(time.time())
+    cur = {u["id"]: {"kind": u["kind"], "owner": u.get("owner") or "",
+                     "eph": (u.get("policy") == "no")} for u in units}
+    seeded = not isinstance(store, dict) or not store.get("seen")
+    prev = (store or {}).get("seen") or {}
+    events = list((store or {}).get("events") or [])
+    fresh = []
+    if not seeded:
+        for uid, u in cur.items():
+            if uid not in prev:
+                fresh.append({"t": now, "op": "added", "id": uid, "kind": u["kind"],
+                              "owner": u["owner"], "eph": u["eph"]})
+        for uid, u in prev.items():
+            if uid not in cur:
+                fresh.append({"t": now, "op": "removed", "id": uid, "kind": u["kind"],
+                              "owner": u.get("owner") or "", "eph": u.get("eph", False)})
+    events = fresh + events
+    cutoff = now - 90 * 86400
+    events = [e for e in events if e["t"] >= cutoff][:300]
+    try:
+        with open(path, "w") as f:
+            json.dump({"seen": cur, "events": events, "at": now}, f)
+    except OSError:
+        pass
+    # 「常驻单元消失」是这里唯一必须被人看见的一类:它不会让任何指标变红
+    gone = [e for e in events if e["op"] == "removed" and not e["eph"]]
+    return {"events": events[:60], "seeded": seeded,
+            "added_n": sum(1 for e in events if e["op"] == "added" and not e["eph"]),
+            "removed_n": len(gone),
+            "ephemeral_n": sum(1 for e in events if e["eph"]),
+            "recent_removed": gone[:8],
+            "note": "逐轮比对探测到的单元集合。**新增会被登记核对标红,消失不会** —— "
+                    "所以消失单独列出来。临时构建容器(restart=no)来去频繁,已折叠但仍在账上。"}
+
+
 def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
     """业务基线纵向切片 + 登记合规。全部由**本轮实测数据**推导,不调模型、不新增外部请求。"""
     units = discover_units()
@@ -2044,6 +2097,7 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
                     key=lambda x: -x["n"])
 
     covered = len([u for u in units if u["owner"]])
+    ledger = _unit_ledger(units)
     # ★ 同一条分层自洽:探测到的单元必须 = 已认领 + 未认领,一个不多一个不少。
     #   只看「合规率 100%」是查不出「有单元既没被认领也没进违规表」的。
     sw_integrity = []
@@ -2065,6 +2119,7 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
                                        % (units_in_lines, covered)})
     return {
         "integrity": sw_integrity,
+        "ledger": ledger,
         "stages": [{"k": k, "n": n} for k, n in STAGES],
         "lines": lines,
         "units_total": len(units),

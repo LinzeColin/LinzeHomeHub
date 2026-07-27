@@ -1550,6 +1550,7 @@ function segBase(){
   return `<div class="grid k5" id="swKpi"></div>
   <h2>治理登记合规 <span class="hint">凡部署到 OVH / Cloudflare 的软件必须登记并接入监控与自愈</span></h2>
   <div id="swIntegrity"></div>
+  <div id="swChurn"></div>
   <div class="card" id="swGov"></div>
   <h2>业务基线纵向切片 <span class="hint">一条业务线从代码到自愈,每一段都要有实测证据;点行看端到端链路</span></h2>
   <div class="card p0 scroll"><table class="mx"><thead><tr>
@@ -1621,6 +1622,7 @@ function syncBase(){
 
   q('#swGov').insertAdjacentHTML('beforebegin','');
   const swInt=q('#swIntegrity'); if(swInt)swInt.innerHTML=integrityHTML(w.integrity||[],'运行');
+  const swCh=q('#swChurn'); if(swCh)swCh.innerHTML=churnHTML(w.ledger||null);
   q('#swGov').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;
       gap:12px;flex-wrap:wrap"><b style="font-size:14px">登记治理</b>
       ${viol?`<span class="pill bad">${viol} 个单元未登记</span>`
@@ -1748,6 +1750,47 @@ function vFlow(){
    本站同样有「总数对得上就算通过」的地方:格子只按 stage_model 建,基线若声明了
    stage_model 里没有的阶段,那一格连同它的状态/证据/缺陷会被整个丢掉,而各级总数依然自洽。
    查出来就如实挂在页面最上面,不静默取整、不四舍五入掩盖。 */
+/* ---------- 单元增减流水:**消失必须留痕** ----------
+   ★ 这是「被丢掉的东西不参与任何总量校验」的第四种形状,而且是不对称的那一种:
+     新增的单元会被登记核对标成治理违规,有人看;被删掉的单元只是列表里少一行 ——
+     没有任何指标会因此变红,没人会注意。「少一行」恰恰最容易被当成正常。
+   所以这里把「消失」单独提到前面,而不是和新增混在一条时间线里按时间排。 */
+function churnHTML(L){
+  if(!L)return '';
+  if(L.seeded)return `<div class="card" style="margin-bottom:13px">
+    <b style="font-size:14px">单元增减流水</b>
+    <div class="muted" style="font-size:12.5px;margin-top:7px">
+      刚建立基线,本轮不产事件 —— 从下一轮起,单元的新增与**消失**都会记在这里。</div></div>`;
+  const gone=L.recent_removed||[];
+  const rows=(L.events||[]).filter(e=>!e.eph).slice(0,14);
+  const t=e=>new Date(e.t*1000).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit'});
+  return `<div class="card" style="margin-bottom:13px${gone.length?';border-left:4px solid var(--danger)':''}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <b style="font-size:14px">单元增减流水</b>
+      <span>${gone.length?`<span class="pill bad">${gone.length} 个常驻单元消失过</span>`
+        :'<span class="pill ok">近 90 天无常驻单元消失</span>'}</span></div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.85">
+      ${esc(L.note||'')}
+      ${gone.length?`<div class="card p0" style="margin-top:10px;box-shadow:none">
+        <table><thead><tr><th>消失时间</th><th>类型</th><th>单元</th><th>原归属</th></tr></thead><tbody>
+        ${gone.map(e=>`<tr><td class="muted">${esc(t(e))}</td>
+          <td class="muted">${esc(e.kind)}</td>
+          <td style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(e.id)}</td>
+          <td>${e.owner?`<b>${esc(e.owner)}</b>`:'<span class="muted">此前也没有归属</span>'}</td>
+          </tr>`).join('')}</tbody></table></div>`:''}
+      ${rows.length?`<div style="margin-top:10px"><span class="muted">近期变更(已折叠 ${
+        L.ephemeral_n||0} 条临时构建容器的来去 —— 折叠不是丢弃,它们仍在账上)</span>
+        <div class="card p0" style="margin-top:7px;box-shadow:none"><table><tbody>
+        ${rows.map(e=>`<tr><td class="muted" style="width:112px">${esc(t(e))}</td>
+          <td style="width:56px"><span class="chip ${e.op==='removed'?'danger':''}">${
+            e.op==='removed'?'消失':'新增'}</span></td>
+          <td style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(e.id)}</td>
+          <td class="muted">${esc(e.owner||'未认领')}</td></tr>`).join('')}
+        </tbody></table></div></div>`:''}
+    </div></div>`;
+}
+
 function integrityHTML(list,scope){
   if(!list||!list.length)return '';
   return `<div class="card" style="border-left:4px solid var(--danger);margin-bottom:13px">
