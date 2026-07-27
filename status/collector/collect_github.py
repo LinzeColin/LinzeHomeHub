@@ -562,6 +562,19 @@ def gather_commit_days(token, names, back=14):
     return hist
 
 
+def _recent_days(hist, back=14):
+    """把逐日提交归档压成「最近 back 天」的定长序列,给画像画柱子用。
+    缺的那天补 0 是对的 —— 这里的 0 是**实测的「那天没提交」**,
+    与 traffic 那边「上游还没发布」完全不同,后者补 0 就是编造。"""
+    today = datetime.now(timezone.utc).date()
+    out = {}
+    for name, bucket in (hist or {}).items():
+        out[name] = [{"d": str(today - timedelta(days=k)),
+                      "c": int((bucket or {}).get(str(today - timedelta(days=k))) or 0)}
+                     for k in range(back - 1, -1, -1)]
+    return out
+
+
 def _jaccard(a, b):
     u = len(a | b)
     return (len(a & b) / u) if u else 0.0
@@ -1037,6 +1050,7 @@ def gather_deep(token):
             "traffic": gather_traffic(token, repo_rows),
             "billing": gather_billing(token, login),
             "coupling": build_coupling(repo_rows, chist, subs),
+            "commit_days": _recent_days(chist),
             "features": gather_features(token),
             "flows": gather_flows(token),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
@@ -1143,6 +1157,10 @@ def build_public(priv):
         # 功能基线全部来自**公开仓**的治理文件,不含私有仓;仍走一次防御性过滤
         "features": priv.get("features") or {},
         "public_repos": pub_rows,
+        # 仓库画像用:每个**公开**仓的近 14 天逐日提交数。
+        # ★ 私有仓不出现在这里,连键都不出现 —— 公开面永不出现私有仓名这条不变量不放松。
+        "commit_days": {k: v for k, v in (priv.get("commit_days") or {}).items()
+                        if k in pub_names},
         "subprojects": [s for s in priv.get("subprojects", []) if s.get("repo") in pub_names],
         "note": "私有仓明细仅登录 /admin/github 可见",
     }
@@ -1245,6 +1263,7 @@ def run_traffic(token):
     priv["traffic"] = gather_traffic(token, rows)
     chist = gather_commit_days(token, [r["name"] for r in rows])
     priv["coupling"] = build_coupling(rows, chist, priv.get("subprojects") or [])
+    priv["commit_days"] = _recent_days(chist)
     priv["collected_at"] = _fmt(datetime.now(CN))
     priv["collected_epoch"] = int(time.time())
     write_all(priv)

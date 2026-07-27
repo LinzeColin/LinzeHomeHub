@@ -269,6 +269,34 @@ tbody tr:last-child td{border-bottom:none}
   background:color-mix(in srgb,var(--card) 62%,transparent);padding:4px 10px;border-radius:999px;
   backdrop-filter:blur(6px);pointer-events:none}
 .ulegend{display:flex;gap:15px;flex-wrap:wrap;font-size:11.5px;color:var(--t3);margin-top:9px}
+/* ---- 仓库画像 ---- */
+.portrait{margin-top:13px}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.psec{font-size:12.5px;font-weight:650;color:var(--t1);margin:17px 0 9px;
+  padding-top:13px;border-top:.5px solid var(--line)}
+.psec:first-of-type{border-top:0;padding-top:0}
+.psec .muted{font-weight:400;font-size:11.5px;margin-left:6px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:9px}
+.pstat{background:var(--soft);border-radius:9px;padding:9px 11px}
+.pstat .k{font-size:11px;color:var(--t3)}
+.pstat .v{font-size:19px;font-weight:640;margin-top:2px;letter-spacing:-.02em}
+.pstat .v .u{font-size:12px;font-weight:400;color:var(--t3)}
+.pstat .s{font-size:11px;color:var(--t3);margin-top:1px}
+.pbars{display:flex;align-items:flex-end;gap:3px;height:46px;margin-top:11px}
+.pbars i{flex:1;background:var(--accent);border-radius:2px 2px 0 0;opacity:.82;min-height:2px}
+.plang{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--soft)}
+.plang i{display:block;height:100%}
+.plegend{display:flex;gap:13px;flex-wrap:wrap;font-size:11.5px;color:var(--t3);margin-top:7px}
+.plegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}
+.pcoup{display:flex;flex-direction:column;gap:7px}
+.crow{display:grid;grid-template-columns:minmax(88px,auto) 1fr auto auto minmax(0,1.4fr);
+  gap:9px;align-items:center;font-size:12.5px}
+.crow .nm{font-weight:560}
+.crow .bar{height:5px;background:var(--soft);border-radius:3px;overflow:hidden}
+.crow .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.crow .muted{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.psubs{display:flex;gap:7px;flex-wrap:wrap}
+@media(max-width:640px){.crow{grid-template-columns:1fr auto auto}.crow .bar,.crow .muted{display:none}}
 .ulegend i{display:inline-block;width:15px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
 /* ---------- 「更多」气泡:三个整页出口收成一个 ---------- */
 .more{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:550;
@@ -1057,9 +1085,21 @@ function uniDraw(now){
   }
 
   // ——— 卫星轨道(先画轨道线,再画卫星,才有层次) ———
+  /* ★ 锁定某个仓时,它的子项目要能**看清名字**。轨道上随机相位的四个卫星
+     经常挤在同一侧,标签直接叠成一坨(实测 KMOS 的 KMFA/KMIDS/KMDatabase/whkmSalary
+     就是这样)。锁定即停转并按序号均分一圈 —— 锁定的目的本来就是看细节。 */
+  const focusHost=(U.focus&&(U.focus.kind==='repo'||U.focus.kind==='repo_private'))?U.focus.id:null;
+  const sibIdx=new Map();
+  if(focusHost){
+    const sibs=[...idx.values()].filter(x=>x.kind==='subproject'&&x.host&&x.host.id===focusHost)
+      .sort((a,b)=>a.id<b.id?-1:1);
+    sibs.forEach((x,i)=>sibIdx.set(x.id,[i,sibs.length]));
+  }
   for(const n of idx.values()){
     if(n.kind!=='subproject'||!n.host||!uniVisible(n))continue;
-    n.orbit+=n.orbSpeed*16;
+    const pin=sibIdx.get(n.id);
+    if(pin){n.orbit=-Math.PI/2+pin[0]*2*Math.PI/Math.max(1,pin[1]);}
+    else n.orbit+=n.orbSpeed*16;
     const [hx,hy]=uT(n.host), R=n.orbR*U.cam.z;
     if(R>6&&(!active||near.has(n.host.id))){
       cx.save(); cx.globalAlpha=active?0.30:0.13; cx.strokeStyle=KINDC.subproject;
@@ -1134,7 +1174,11 @@ function uniDraw(now){
     const dimmed=active&&!near.has(n.id);
     cx.font=(n.kind==='vendor'?'600 12.5px':'560 11.5px')+' -apple-system,"PingFang SC",sans-serif';
     const tw=lab?lab.tw:cx.measureText(n.label).width;
-    const ox=lab?lab.ox:0, oy=lab?lab.oy:(n.r*U.cam.z+6);
+    let ox=lab?lab.ox:0, oy=lab?lab.oy:(n.r*U.cam.z+6);
+    if(!lab&&n.kind==='subproject'&&n.host){        // 卫星:相对母星朝外,避免与兄弟重叠
+      const vx=n.x-n.host.x, vy=n.y-n.host.y, d=Math.hypot(vx,vy)||1;
+      ox=vx/d*(n.r*U.cam.z+9+tw/2); oy=vy/d*(n.r*U.cam.z+9)+(vy>=0?9:-19);
+    }
     cx.globalAlpha=dimmed?0.18:(lab&&lab.crowded&&!near_?0.55:1);
     cx.fillStyle=dark?'rgba(8,10,16,.62)':'rgba(255,255,255,.80)';
     cx.beginPath();
@@ -1213,6 +1257,80 @@ function uniTip(n,mx,my){
   tip.style.top=Math.max(8,Math.min(U.box.h-r.height-8,my+15))+'px';
 }
 
+/* ---------- 仓库画像:点一个星体,把这个仓的全部已采数据摊开 ----------
+   全部来自 graph.json 里已有的字段,不新增任何请求 —— 0 Agent / 0 Token 约束不变。
+   ★ 两类「0」必须分开讲:
+     提交序列里的 0 = 实测「那天没提交」,是事实;
+     traffic 里未发布的日子**不补 0**,因为 GitHub 一天只发布一次且恒定滞后约 2 天,
+     补 0 就是编造。所以动能那块一律带着滞后天数一起显示。 */
+function uniPortrait(n){
+  const box=q('#uniPortrait'); if(!box)return;
+  if(!n||(n.kind!=='repo')){box.innerHTML='';return}
+  const m=n.meta||{}, g=U.g||{};
+  const fr=g.traffic_freshness||{};
+  const d14=m.days14||[];
+  const mx=Math.max(1,...d14.map(x=>x.c));
+  const sum14=d14.reduce((a,x)=>a+x.c,0);
+  const co=U.e.filter(e=>e.rel==='co_change'&&(e.s===n.id||e.t===n.id))
+    .sort((a,b)=>(b.w||0)-(a.w||0));
+  const subs=[...U.n.values()].filter(x=>x.kind==='subproject'&&x.host&&x.host.id===n.id)
+    .sort((a,b)=>(b.meta.commits30||0)-(a.meta.commits30||0));
+  const stat=(k,v,s)=>`<div class="pstat"><div class="k">${k}</div><div class="v">${v}</div>
+    ${s?`<div class="s">${s}</div>`:''}</div>`;
+  box.innerHTML=`<div class="card portrait">
+    <div class="phead">
+      <div><b style="font-size:16px">${esc(n.label)}</b>
+        <span class="chip" style="margin-left:7px">${esc(m.lang||'—')}</span>
+        ${m.ci_ok===false?'<span class="chip danger">CI 失败</span>':''}
+        <div class="muted" style="margin-top:3px;font-size:12px">
+          默认分支 ${esc(m.default_branch||'—')} · 最近推送 ${esc(m.pushed_at||'—')} ·
+          ${m.size_kb?fmtKB(m.size_kb):'—'}${m.release_bytes?' · Release '+fmtBytes(m.release_bytes):''}</div></div>
+      ${m.url?`<a class="chip" href="${esc(m.url)}" target="_blank" rel="noopener">在 GitHub 打开 ↗</a>`:''}
+    </div>
+
+    <div class="psec">提交频率 <span class="muted">近 14 天逐日,0 = 那天确实没提交</span></div>
+    <div class="pgrid">
+      ${stat('近 7 天',num(m.commits7??0),'次提交')}
+      ${stat('近 30 天',num(m.commits30??0),'次提交')}
+      ${stat('日均',(sum14/Math.max(1,d14.length)).toFixed(1),'近 14 天')}
+      ${stat('活跃天数',`${m.active_days14??0}<span class="u">/${d14.length||14}</span>`,'有提交的日子')}
+    </div>
+    <div class="pbars">${d14.map(x=>`<i style="height:${Math.max(2,x.c/mx*100)}%"
+      title="${esc(x.d)} · ${x.c} 次提交"></i>`).join('')}</div>
+
+    <div class="psec">克隆 / 浏览动能
+      <span class="muted">GitHub 只给 14 天窗口,且**恒定滞后约 ${fr.lag_days??2} 天**${
+        fr.upstream_through?` —— 上游只发布到 ${esc(fr.upstream_through)}`:''};未发布的日子不补 0</span></div>
+    <div class="pgrid">
+      ${stat('克隆',num(m.clones14??0),`独立来源 ${num(m.clones_uniq14??0)}`)}
+      ${stat('浏览',num(m.views14??0),`独立访客 ${num(m.views_uniq14??0)}`)}
+      ${stat('待处理 PR',m.open_pr??0,`issue ${m.open_issue??0}`)}
+      ${stat('分支',m.branches??0,'含默认分支')}
+    </div>
+
+    ${(m.lang_mix||[]).length?`<div class="psec">语言构成</div>
+    <div class="plang">${m.lang_mix.map(l=>`<i style="width:${l.p}%;background:${
+      LANGC[l.n]||'#8E8D85'}" title="${esc(l.n)} ${l.p}%"></i>`).join('')}</div>
+    <div class="plegend">${m.lang_mix.map(l=>`<span><i style="background:${
+      LANGC[l.n]||'#8E8D85'}"></i>${esc(l.n)} ${l.p}%</span>`).join('')}</div>`:''}
+
+    <div class="psec">耦合画像 <span class="muted">同日改动越多引力越强;↑↓ 是近 7 天与前 7 天相比</span></div>
+    ${co.length?`<div class="pcoup">${co.map(e=>{
+      const o=(e.s===n.id?e.t:e.s), on=U.n.get(o);
+      const tr=e.trend>0.08?['↑','var(--ok)']:(e.trend<-0.08?['↓','var(--warn)']:['·','var(--t3)']);
+      return `<div class="crow"><span class="nm">${esc(on?on.label:o.replace(/^r:/,''))}</span>
+        <span class="bar"><i style="width:${Math.min(100,(e.w||0)*100)}%"></i></span>
+        <b>${((e.w||0)*100).toFixed(0)}%</b>
+        <span style="color:${tr[1]};font-weight:700">${tr[0]}</span>
+        <span class="muted">${esc(e.why||'')}</span></div>`}).join('')}</div>`
+      :'<div class="muted" style="font-size:12.5px">近 14 天没有和其它仓同日改动过 —— 这个仓目前是独立演进的</div>'}
+
+    ${subs.length?`<div class="psec">子项目 <span class="muted">${subs.length} 个</span></div>
+    <div class="psubs">${subs.map(x=>`<span class="chip">${esc(x.label)}
+      <b style="margin-left:5px">${num(x.meta.commits30||0)}</b></span>`).join('')}</div>`:''}
+  </div>`;
+}
+
 function uniUnmount(){
   if(U.raf){cancelAnimationFrame(U.raf);U.raf=0}
   if(U.ro){U.ro.disconnect();U.ro=null}     // v1 每次挂载都新建 observer 且从不断开
@@ -1274,6 +1392,7 @@ function uniMount(id){
     U.drag=null;
     if(!moved){
       U.focus=(U.focus&&n&&U.focus.id===n.id)?null:n;
+      uniPortrait(U.focus);
       if(U.focus){                              // 聚焦:相机平滑推到该星体
         U.camT.z=Math.min(2.0,Math.max(1.15,U.camT.z));
         U.camT.x=-U.focus.x*U.camT.z; U.camT.y=-U.focus.y*U.camT.z;
@@ -1284,7 +1403,7 @@ function uniMount(id){
   };
   U.cv.onpointerup=endDrag;
   U.cv.onpointercancel=()=>{U.drag=null};
-  U.cv.ondblclick=()=>{U.focus=null;uniTip(null);uniFit();uniPlaceLabels();uniKick()};
+  U.cv.ondblclick=()=>{U.focus=null;uniTip(null);uniPortrait(null);uniFit();uniPlaceLabels();uniKick()};
   U.cv.onpointerleave=()=>{if(!U.drag){U.hover=null;if(!U.focus)uniTip(null);uniKick()}};
   U.cv.onwheel=ev=>{ev.preventDefault();
     const [x,y]=pos(ev), k=Math.exp(-ev.deltaY*0.0016);
@@ -1298,12 +1417,12 @@ function uniMount(id){
     else if(ev.key==='ArrowUp')U.camT.y+=step; else if(ev.key==='ArrowDown')U.camT.y-=step;
     else if(ev.key==='+'||ev.key==='=')U.camT.z=Math.min(3.2,U.camT.z*1.2);
     else if(ev.key==='-')U.camT.z=Math.max(0.35,U.camT.z/1.2);
-    else if(ev.key==='0'){U.focus=null;uniFit()}
+    else if(ev.key==='0'){U.focus=null;uniPortrait(null);uniFit()}
     else return;
     ev.preventDefault(); uniKick();};
   box.querySelectorAll('.uchip').forEach(b=>b.onclick=()=>{
     const t=b.dataset.t;
-    if(t==='reset'){U.focus=null;uniTip(null);uniFit();uniPlaceLabels();uniKick();return}
+    if(t==='reset'){U.focus=null;uniTip(null);uniPortrait(null);uniFit();uniPlaceLabels();uniKick();return}
     U.show[t]=U.show[t]?0:1;
     b.classList.toggle('on',!!U.show[t]); b.setAttribute('aria-pressed',String(!!U.show[t]));
     U.sig=''; U.frozen=false;                   // 显隐改变了参与布局的集合,重新收敛一次
@@ -2047,6 +2166,7 @@ function vGithub(){
   return `<div class="grid k5" id="gKpis"></div>
   <h2>仓库宇宙 <span class="hint">仓与仓的动态耦合:同日改动越多,引力越强</span></h2>
   ${uniHTML('uni')}
+  <div id="uniPortrait"></div>
   <h2>Actions 收费风险 <span class="hint">以 GitHub 账单口径为准,不做任何估算</span></h2>
   <div class="grid k2" id="gBill"></div>
   <h2>贡献网格</h2>

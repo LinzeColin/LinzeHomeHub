@@ -2239,14 +2239,33 @@ def project_graph(projects, gh):
     if gh and gh.get("available"):
         coup = gh.get("coupling") or {}
         degree = coup.get("degree") or {}
+        cdays = gh.get("commit_days") or {}
+        # 每仓访问/克隆动能。★ 只取公开仓那几条 —— 私有仓在公开快照里根本不存在,
+        #   这里也绝不按名字去补,不变量不放松。
+        traf = {t["name"]: t for t in ((gh.get("traffic") or {}).get("per_repo") or [])
+                if not t.get("private")}
         for r in gh.get("public_repos", []) or []:
+            tr = traf.get(r["name"]) or {}
+            langs = r.get("languages") or {}
+            tot = sum(langs.values()) or 1
+            mix = [{"n": k, "p": round(v / tot * 100, 1)}
+                   for k, v in sorted(langs.items(), key=lambda x: -x[1])[:5]]
+            d14 = cdays.get(r["name"]) or []
             rid = node("r:" + r["name"], r["name"], "repo",
                        lang=r.get("top_lang") or "", commits30=r.get("commits_30d") or 0,
                        commits7=r.get("commits_7d") or 0, pushed_at=r.get("pushed_at") or "",
                        branches=r.get("branches") or 0, open_pr=r.get("open_pr") or 0,
+                       open_issue=r.get("open_issue") or 0,
                        ci_ok=bool(r.get("ci_ok", True)),
+                       ci_conclusion=r.get("ci_conclusion") or "",
                        coupling=round(degree.get(r["name"], 0), 3),
-                       url=r.get("url") or "", size_kb=r.get("size_kb") or 0)
+                       url=r.get("url") or "", size_kb=r.get("size_kb") or 0,
+                       release_bytes=r.get("release_bytes") or 0,
+                       default_branch=r.get("default_branch") or "",
+                       lang_mix=mix, days14=d14,
+                       active_days14=sum(1 for x in d14 if x["c"]),
+                       views14=tr.get("views_14d"), views_uniq14=tr.get("views_uniq_14d"),
+                       clones14=tr.get("clones_14d"), clones_uniq14=tr.get("clones_uniq_14d"))
             edge(rid, v_gh, "托管在")
         npriv = gh.get("private") or 0
         if npriv:
@@ -2314,6 +2333,9 @@ def project_graph(projects, gh):
         "nodes": list(nodes.values()), "edges": edges,
         "counts": {"nodes": len(nodes), "edges": len(edges), "by_kind": kinds},
         "changes": list(reversed(changes))[:20],
+        # ★ 画像里的浏览/克隆必须带上游滞后一起显示:GitHub 的 traffic 接口一天只发布一次
+        #   且恒定滞后约 2 天,任何采集频率都改不了。不标出来,读者会把两天前的数当成此刻。
+        "traffic_freshness": ((gh or {}).get("traffic") or {}).get("freshness") or {},
         "provenance": "由服务器 cron 从既有采集数据纯派生;不调用任何模型、不新增任何外部请求",
     }
 
