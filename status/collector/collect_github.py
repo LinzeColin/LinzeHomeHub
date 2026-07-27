@@ -1009,6 +1009,73 @@ def discover_ungoverned(token, repos, governed):
                        for k, v in sorted(NOT_PROJECT.items())]}
 
 
+# 各仓自己维护的项目登记。**这是判定「还算不算项目」的权威**,不是 status 的名单。
+PROJECT_REGISTRY_PATH = "governance/projects.yaml"
+# 登记里表示「这条已经不是在跑的项目」的分段,以及给人看的原因
+_RETIRED_SECTIONS = {"retired_projects": "已退役", "migrated_projects": "已迁走"}
+
+
+def _retired_paths(token, registry_keys):
+    """读各仓的 governance/projects.yaml,取出已退役 / 已迁走的项目路径。
+
+    ★ 为什么必须读它:status 原本只看 `docs/governance/project.yaml` 存不存在,
+      于是**退役项目照样被当成在跑的项目**,被要求登记业务流。
+      实测踩到:CodexProject/WDA 早在 2026-07-13 就被 owner 判定退役
+      (retirement_reason: OWNER_DECISION_PROJECT_ABANDONED_...,
+      且 reactivation_requires_owner_authorization: true),
+      status 却一直把它列进「有治理文件但没登记业务流」的红名单。
+      我按那条红去给它补登记,被 CodexProject 的治理 CI 当场拦下
+      (RETIRED_PROJECT_CHANGE)—— **假红会把人推着去做错的事**,
+      这比假绿更隐蔽:假绿让人不动,假红让人动错。
+
+    ★ 权威在各仓自己手里。status 不另维护一份退役名单 ——
+      两份名单必然漂移,漂移之后没人知道该信哪份。
+
+    ★ 取不到 / 解析失败一律**当作没有退役登记**(即项目照常纳入)。
+      宁可多列一个待办,也不能因为读不到登记就静默地把项目从看板上抹掉:
+      **看不见必须表现为看不见,不能表现为没问题。**
+    """
+    out, why = {}, []
+    if not registry_keys:
+        return out, why
+    texts = _blobs(token, registry_keys, "text", chunk=8)
+    for repo, path in registry_keys:
+        raw = texts.get((repo, path))
+        if not raw:
+            why.append({"repo": repo, "how": "读不到 %s,本轮不按退役处理" % path})
+            continue
+        # ★ 这里**不能用 _yaml_load** —— 它对「空文件」和「解析失败」都返回 {},
+        #   调用方分辨不出来,于是一份坏掉的登记会被静默当成「没有任何退役项目」。
+        #   需要区分失败时,就不能用会丢信息的助手函数。
+        try:
+            import yaml
+            doc = yaml.safe_load(raw)
+        except Exception as e:
+            why.append({"repo": repo,
+                        "how": "%s 解析失败(%s),本轮不按退役处理" % (path, str(e)[:60])})
+            continue
+        if not isinstance(doc, dict):
+            why.append({"repo": repo, "how": "%s 顶层不是映射,解析失败,本轮不按退役处理" % path})
+            continue
+        for section, label in _RETIRED_SECTIONS.items():
+            for item in (doc.get(section) or []):
+                if not isinstance(item, dict):
+                    continue
+                sub = str(item.get("path") or item.get("project_id") or "").strip("/")
+                # 只认单层目录名 —— 本站的项目粒度就是「仓 + 一层目录」。
+                # ★ 如实说明:这一条是**输入归一化,不是安全守卫**。
+                #   多层路径生成的键本来就匹配不上任何已发现的项目,
+                #   去掉它行为不变 —— 我写不出能因它变红的用例,所以不给它配测试。
+                #   (给防不住东西的代码配测试 = 装饰品,比没有测试更坏。)
+                if not sub or "/" in sub:
+                    continue
+                out[(repo, sub)] = label
+                why.append({"repo": repo, "project": sub, "state": label,
+                            "why": str(item.get("retirement_reason")
+                                       or item.get("migrated_to") or "")[:80]})
+    return out, why
+
+
 def discover_projects(token, repos):
     """扫全部仓,找出所有带治理文件的项目 —— **新项目自动纳入,不用改代码**。
 
@@ -1034,6 +1101,7 @@ def discover_projects(token, repos):
     """
     found, scanned, failed = set(), 0, []
     archived_skipped, exempt_skipped = [], []
+    registry_keys = []                      # 仓自己的项目登记,后面批量取
     for r in repos or []:
         name = r.get("name") if isinstance(r, dict) else str(r)
         branch = (r.get("default_branch") if isinstance(r, dict) else None) or "main"
@@ -1050,6 +1118,9 @@ def discover_projects(token, repos):
         scanned += 1
         for node in tree["tree"]:
             path = node.get("path") or ""
+            if path == PROJECT_REGISTRY_PATH:
+                registry_keys.append((name, path))
+                continue
             if not path.endswith("docs/governance/project.yaml"):
                 continue
             head = path[:-len("docs/governance/project.yaml")].strip("/")
@@ -1060,19 +1131,28 @@ def discover_projects(token, repos):
                     exempt_skipped.append("%s/%s" % (name, head))
                     continue
                 found.add((name, head))                 # 单仓多项目
+
+    # ★ 以**各仓自己的登记**为准,判掉已退役/已迁走的项目。
+    retired, retired_why = _retired_paths(token, registry_keys)
+    for k in sorted(found & set(retired)):
+        found.discard(k)
+        exempt_skipped.append("%s/%s(%s)" % (k[0], k[1], retired[k]))
     if not found:
         # 一个都没扫到 = 发现机制本身坏了,不是「真的没有项目」
         # ★ 兜底分支同样要带上跳过记录 —— 否则「全被豁免跳过」这种情形下,
         #   跳了什么会连同原因一起消失,只剩一句「没扫到」。
-        return list(FLOW_PROJECTS_FALLBACK), {
+        return [k for k in FLOW_PROJECTS_FALLBACK if k not in retired], {
             "mode": "fallback", "scanned": scanned, "failed": failed,
             "archived_skipped": sorted(archived_skipped),
             "exempt_skipped": sorted(exempt_skipped),
+            "retired_registry": retired_why,
             "why": "自动发现一个项目都没扫到,已回落到兜底清单"}
     # ★ 豁免必须**在并入兜底清单之后**再滤一次。
     #   否则:扫描时跳过了 → 又被 `found | FALLBACK` 原样塞回来,豁免等于没写。
     #   这是同一个形状踩过很多次的坑 —— 守卫生效了,但下游有条路把它撤销了。
-    merged = sorted((found | set(FLOW_PROJECTS_FALLBACK)) - set(NOT_PROJECT))
+    #   退役登记同理:兜底清单是人写死的,它不知道谁退役了。
+    drop = set(NOT_PROJECT) | set(retired)
+    merged = sorted((found | set(FLOW_PROJECTS_FALLBACK)) - drop)
     new = sorted(found - set(FLOW_PROJECTS_FALLBACK))
     gone = sorted(set(FLOW_PROJECTS_FALLBACK) - found)
     return merged, {"mode": "discovered", "scanned": scanned, "failed": failed,
@@ -1081,7 +1161,9 @@ def discover_projects(token, repos):
                     "in_fallback_but_not_found": ["%s/%s" % x for x in gone],
                     # ★ 豁免同样留痕:跳过了什么、为什么跳过,都要可复核
                     "archived_skipped": sorted(archived_skipped),
-                    "exempt_skipped": sorted(exempt_skipped)}
+                    "exempt_skipped": sorted(exempt_skipped),
+                    # ★ 退役判定的来源与理由,同样要能复核到「是谁说它退役的」
+                    "retired_registry": retired_why}
 
 
 # KMFA 已有机器可读事实档,**不要求它再多维护一份 flow.yaml** —— 两份登记必然漂移。
