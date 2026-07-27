@@ -1400,6 +1400,12 @@ def run_deep(token):
                  "actions": deep["actions"], "throughput": deep["throughput"],
                  "traffic": deep["traffic"], "billing": deep["billing"],
                  "coupling": deep["coupling"], "features": deep["features"],
+                 # ★ 检出结果必须落盘。第一版加进了 gather_deep() 的返回值,
+                 #   但这里的白名单没带上它 —— 于是每轮都算了、每轮都丢掉,
+                 #   页面永远拿不到,而且**没有任何报错**。
+                 #   典型的「算了但没人接」:上游有产出、下游不取,中间静默蒸发。
+                 "ungoverned": deep.get("ungoverned") or {"count": 0, "items": [],
+                                                          "exempt": [], "scanned": 0},
                  "deep_at": _fmt(now), "collected_at": _fmt(now),
                  "collected_epoch": int(time.time())})
     write_all(priv)

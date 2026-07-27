@@ -96,9 +96,22 @@ class WiringTest(unittest.TestCase):
     def test_published_in_snapshot(self):
         import inspect
         src = inspect.getsource(G)
-        self.assertIn('"ungoverned": ungov', src, "检出结果没有进快照，页面拿不到")
+        self.assertIn('"ungoverned": ungov', src, "检出结果没有进 gather_deep 的返回值")
         self.assertIn("discover_ungoverned(token, repo_rows, disc_list)", src,
                       "检出没有被真正调用")
+
+    def test_actually_written_to_disk(self):
+        """★ 算出来 ≠ 存下来。
+
+        第一版把 ungoverned 加进了 `gather_deep()` 的返回值，
+        但落盘那段是**白名单式**的 `priv.update({...})`，没带上它 ——
+        每轮都算、每轮都丢，页面永远拿不到，而且**没有任何报错**。
+        典型的「算了但没人接」：上游有产出、下游不取，中间静默蒸发。
+        """
+        import inspect
+        src = inspect.getsource(G.run_deep)
+        self.assertIn('"ungoverned"', src,
+                      "落盘的字段白名单里没有 ungoverned —— 算了也白算")
 
 
 if __name__ == "__main__":
