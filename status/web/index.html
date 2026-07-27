@@ -401,11 +401,18 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 <script src="vendor/chart.umd.min.js"></script>
 <script>
 const D=document, C=Chart;
-C.defaults.animation={duration:420,easing:'easeOutCubic'};
+/* ★★ 图表一律**同步画**,不走动画。
+   实测(2026-07-27):带动画时全站每一张 Chart 都是**纯空白** —— canvas 有实例、
+   尺寸正常、数据正确,但 173,280 个像素里 alpha 全为 0。根因是 Chart.js 的动画
+   只在 requestAnimationFrame 回调里推进,而实测这个渲染环境 600ms 内**一帧 rAF 都没触发**,
+   于是永远停在「柱高为 0」的第一帧。同一 canvas 换成 animation:false 立刻画出 54,557 个像素。
+   这已经是本项目第四次栽在「rAF 不触发」上(隐藏页数值滚动冻结、后台标签页星图位图
+   停在 300×150、切页首帧、以及这次)。**凡是画到屏幕上的东西都不能只依赖 rAF**,
+   要么同步画一次,要么在没拿到帧时仍能给出终值。 */
+C.defaults.animation=false;
 C.defaults.font.family='-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif';
 const dark=matchMedia('(prefers-color-scheme:dark)').matches;
 const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
-if(reduced)C.defaults.animation=false;
 const ink='#8b8a83', grid=dark?'rgba(139,138,131,.16)':'rgba(139,138,131,.14)';
 const PAL=['#2a78d6','#0f8a4d','#eda100','#4a3aa7','#e87ba4','#e34948','#1baf7a','#eb6834','#5a9bea','#9085e9'];
 const REFRESH=15000;
@@ -1837,9 +1844,11 @@ SYNC['flow']=function(){
     const c=(b.cells||{})[st]||{s:'unknown',v:''}, cs=CS[c.s]||CS.unknown;
     /* ★ 必须先要求 c.defect 为真值。以前直接 d.id===c.defect,两边都是 ""
        就全都相等 —— KMFA 54 格全挂上了同一条缺陷。空值不是可比较的值。 */
-    const def=c.defect?(p.defects||[]).find(d=>d.id&&d.id===c.defect):null;
-    // 被测方只把缺陷挂到基线上(没给 stage)时,如实按**基线级**呈现,不假装它属于这一格
-    const blDefs=def?[]:(p.defects||[]).filter(d=>d.baseline&&d.baseline===(b.id||b.name)&&!d.stage);
+    let def=c.defect?(p.defects||[]).find(d=>d.id&&d.id===c.defect):null;
+    // 被测方给了 stage 就按「基线 × 阶段」精确挂到这一格(KMFA 2026-07-27 起补了 stage 字段)
+    if(!def)def=(p.defects||[]).find(d=>d.stage===st&&d.baseline&&d.baseline===(b.id||b.name))||null;
+    // 只挂到基线、没给 stage 的,如实按**基线级**呈现,不假装它属于这一格
+    const blDefs=(p.defects||[]).filter(d=>d.baseline&&d.baseline===(b.id||b.name)&&!d.stage);
     el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;
         gap:12px;flex-wrap:wrap">
         <b style="font-size:15px">${esc(b.name)} · ${esc(st)}</b>
