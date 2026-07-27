@@ -1837,8 +1837,14 @@ function integrityHTML(list,scope){
 /* 未纳入治理的目录：长得像项目、却连治理文件都没有 —— 本站对它彻底看不见。
    ★ 这一层必须存在:自动纳入找的是「已经有 project.yaml 的」，
      新项目在写出治理文件之前是隐形的，而隐形不会让任何指标变红。 */
+/* ★ 公开面只拿得到计数（条目里是仓名/目录名，而多数仓是私有的，不能出公开快照）。
+   登录后的 owner 页才有明细。两种情况都要能读。 */
 function ungovHTML(u){
-  if(!u||!u.count)return '';
+  const g=S.github||{};
+  if((!u||!u.count) && !g.ungoverned_count) return '';
+  u = u || {count:g.ungoverned_count, scanned:g.ungoverned_scanned,
+            items:null, exempt:new Array(g.ungoverned_exempt||0)};
+  if(!u.count)return '';
   return `<div class="card" style="border-left:4px solid var(--danger)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
       <b style="font-size:14px">未纳入治理</b>
@@ -1847,7 +1853,8 @@ function ungovHTML(u){
       下面这些目录<b>长得像项目，却一个治理文件都没有</b> —— 本站看不到它们的任何业务状态。<br>
       <b>要么补 <code>docs/governance/project.yaml</code>，要么在白名单里写明它为什么不是项目。
       沉默不是选项</b>——沉默正是它们过去能隐形的原因。<br><br>
-      ${u.items.map(x=>`· <b>${esc(x.repo)}/${esc(x.dir)}</b>　<span class="muted">${esc(x.why)}</span>`).join('<br>')}
+      ${u.items ? u.items.map(x=>`· <b>${esc(x.repo)}/${esc(x.dir)}</b>　<span class="muted">${esc(x.why)}</span>`).join('<br>')
+        : '<span class="muted">具体是哪几个目录涉及私有仓名，只在登录后的 GitHub 页显示。</span>'}
       ${(u.exempt||[]).length?`<br><br><span class="muted">已显式豁免 ${u.exempt.length} 个（各自写明了理由）：
         ${u.exempt.map(e=>esc(e.repo)+'/'+esc(e.dir)).join('、')}</span>`:''}
     </div></div>`;

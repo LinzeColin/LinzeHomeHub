@@ -82,5 +82,33 @@ class PublicPrivacyTest(unittest.TestCase):
             self.assertNotIn(name, blob, "落盘的公开文件里出现了私有仓名 %s" % name)
 
 
+
+class UngovernedPrivacyTest(unittest.TestCase):
+    """★ 未纳入治理的检出**只能出计数,绝不能出名字**。
+
+    条目里带的是仓名/目录名，而 MetaDatabase / KMOS / AgentDatabase 都是私有仓。
+    整份搬到公开面 = 把私有仓名泄到公网 —— 本站已经修过一次同类漏
+    （traffic_history.json 曾经公网暴露私有仓名）。
+    """
+
+    def test_public_gets_count_only_never_names(self):
+        priv = {"repos": [{"name": "PubRepo", "private": False},
+                          {"name": "SecretRepo", "private": True}],
+                "totals": {}, "ungoverned": {
+                    "count": 2, "scanned": 9,
+                    "items": [{"repo": "SecretRepo", "dir": "HushHush", "why": "x"},
+                              {"repo": "PubRepo", "dir": "Thing", "why": "y"}],
+                    "exempt": [{"repo": "SecretRepo", "dir": "Skip", "why": "z"}]}}
+        pub = G.build_public(priv)
+        blob = json.dumps(pub, ensure_ascii=False)
+        self.assertNotIn("SecretRepo", blob, "私有仓名出现在公开面 —— 又泄了一次")
+        self.assertNotIn("HushHush", blob, "私有仓里的目录名出现在公开面")
+        self.assertNotIn("ungoverned", [k for k in pub if k == "ungoverned"],
+                         "整份 ungoverned 被搬进公开面")
+        self.assertEqual(pub.get("ungoverned_count"), 2, "计数必须出，否则公开面看不到有问题")
+        self.assertEqual(pub.get("ungoverned_scanned"), 9)
+        self.assertEqual(pub.get("ungoverned_exempt"), 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
