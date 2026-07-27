@@ -1019,12 +1019,28 @@ def discover_projects(token, repos):
     ★ 只增不减:发现失败(限流/接口变更/网络)时**回落到写死清单**,
       绝不返回空 —— 返回空会让「未登记」瞬间归零、看板一片绿,
       而真相是「这一轮没看见」。看不见必须表现为看不见,不能表现为没问题。
+
+    ★★ 与 discover_ungoverned 用**同一份豁免**(ARCHIVE_REPOS + NOT_PROJECT)。
+      实测踩到的口径分裂 —— 两份豁免名单都只在两个扫描器中的一个里生效:
+
+        · ARCHIVE_REPOS 只在 discover_ungoverned 生效 ⇒ 同一个 Archive 仓,
+          「没纳入治理」那条赦免它,「有治理文件就必须登记业务流」那条照样
+          追它,Archive/EVA_OS 长期挂红。**退役项目不该被要求登记在跑的业务流。**
+        · NOT_PROJECT 同理 ⇒ MetaDatabase/LinzeDatabase 早就写明「数据目录,
+          不是软件项目」,却仍被要求发布 flow.yaml。
+
+      豁免写了不生效,比没写更糟:看板上是红的,名单上是赦免的,两边都无法
+      据以行动。两条检查共用一份名单,才不会一边赦免一边追责。
     """
     found, scanned, failed = set(), 0, []
+    archived_skipped, exempt_skipped = [], []
     for r in repos or []:
         name = r.get("name") if isinstance(r, dict) else str(r)
         branch = (r.get("default_branch") if isinstance(r, dict) else None) or "main"
         if not name:
+            continue
+        if (isinstance(r, dict) and r.get("archived")) or name in ARCHIVE_REPOS:
+            archived_skipped.append(name)
             continue
         tree, _ = _get("%s/repos/%s/%s/git/trees/%s?recursive=1"
                        % (API, "LinzeColin", name, branch), token)
@@ -1040,19 +1056,32 @@ def discover_projects(token, repos):
             if not head:
                 found.add((name, "."))                  # 整仓一个项目
             elif "/" not in head and head not in _NOT_A_PROJECT:
+                if (name, head) in NOT_PROJECT:         # 已写明「不是软件项目」
+                    exempt_skipped.append("%s/%s" % (name, head))
+                    continue
                 found.add((name, head))                 # 单仓多项目
     if not found:
         # 一个都没扫到 = 发现机制本身坏了,不是「真的没有项目」
-        return list(FLOW_PROJECTS_FALLBACK), {"mode": "fallback", "scanned": scanned,
-                                              "failed": failed,
-                                              "why": "自动发现一个项目都没扫到,已回落到兜底清单"}
-    merged = sorted(found | set(FLOW_PROJECTS_FALLBACK))
+        # ★ 兜底分支同样要带上跳过记录 —— 否则「全被豁免跳过」这种情形下,
+        #   跳了什么会连同原因一起消失,只剩一句「没扫到」。
+        return list(FLOW_PROJECTS_FALLBACK), {
+            "mode": "fallback", "scanned": scanned, "failed": failed,
+            "archived_skipped": sorted(archived_skipped),
+            "exempt_skipped": sorted(exempt_skipped),
+            "why": "自动发现一个项目都没扫到,已回落到兜底清单"}
+    # ★ 豁免必须**在并入兜底清单之后**再滤一次。
+    #   否则:扫描时跳过了 → 又被 `found | FALLBACK` 原样塞回来,豁免等于没写。
+    #   这是同一个形状踩过很多次的坑 —— 守卫生效了,但下游有条路把它撤销了。
+    merged = sorted((found | set(FLOW_PROJECTS_FALLBACK)) - set(NOT_PROJECT))
     new = sorted(found - set(FLOW_PROJECTS_FALLBACK))
     gone = sorted(set(FLOW_PROJECTS_FALLBACK) - found)
     return merged, {"mode": "discovered", "scanned": scanned, "failed": failed,
                     "found": len(found), "newly_discovered": ["%s/%s" % x for x in new],
                     # ★ 兜底清单里有、这轮没扫到的,**单独留去向账**,不静默吞掉
-                    "in_fallback_but_not_found": ["%s/%s" % x for x in gone]}
+                    "in_fallback_but_not_found": ["%s/%s" % x for x in gone],
+                    # ★ 豁免同样留痕:跳过了什么、为什么跳过,都要可复核
+                    "archived_skipped": sorted(archived_skipped),
+                    "exempt_skipped": sorted(exempt_skipped)}
 
 
 # KMFA 已有机器可读事实档,**不要求它再多维护一份 flow.yaml** —— 两份登记必然漂移。
