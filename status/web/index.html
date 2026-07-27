@@ -1509,6 +1509,7 @@ function vFlow(){
   <div id="flUnreg"></div>
   <h2>业务基线矩阵 <span class="hint" id="flWho"></span></h2>
   <div class="seg" id="flTabs" style="margin-bottom:12px"></div>
+  <div id="flVerify" style="margin-bottom:12px"></div>
   <div class="card p0 scroll"><table class="mx" id="flTable"></table></div>
   <div class="ulegend" style="margin-top:9px">
     ${Object.entries(CS).map(([k,v])=>`<span><i style="background:${v.c};border-radius:50%;width:9px;height:9px"></i>${v.t}</span>`).join('')}
@@ -1552,8 +1553,11 @@ SYNC['flow']=function(){
     {lab:'要催人',val:t.blocked_by_input+t.blocked,unit:'',
       sub:`缺输入 ${t.blocked_by_input} · 未细分 ${t.blocked} · 另 ${t.degraded} 格有缺陷`,
       tone:(t.blocked_by_input+t.blocked)?'bad':'ok'},
+    {lab:'实测覆盖',val:t.cells?(f.verified_total||0)/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
+      sub:`${f.verified_total||0} / ${t.cells} 格有机器实测,其余仅自报`,
+      tone:(f.verified_total||0)*2<t.cells?'warn':'ok'},
     {lab:'可疑格',val:t.mismatch+t.coupling_violation,unit:'',
-      sub:`自报≠实测 ${t.mismatch} · 违反耦合 ${t.coupling_violation} · 已实测 ${t.probed}`,
+      sub:`自报≠实测 ${t.mismatch} · 违反耦合 ${t.coupling_violation}`,
       tone:(t.mismatch+t.coupling_violation)?'warn':'ok'},
     {lab:'未登记',val:(f.unregistered||[]).length,unit:'',sub:'有治理文件却没登记',
       tone:(f.unregistered||[]).length?'bad':'ok'},
@@ -1565,12 +1569,29 @@ SYNC['flow']=function(){
   const tk=f.projects.map(p=>p.project).join('|')+FLPROJ;
   if(tabs&&tabs.dataset.k!==tk){
     tabs.innerHTML=f.projects.map(p=>`<button data-p="${esc(p.project)}"
-      class="${p.project===FLPROJ?'on':''}">${esc(p.project)}${p.bad?` <span style="color:var(--danger)">${p.bad}</span>`:''}</button>`).join('');
+      class="${p.project===FLPROJ?'on':''}">${esc(p.project)}${p.bad?` <span style="color:var(--danger)">${p.bad}</span>`:''}${
+      p.self_report_only?' <span style="color:var(--warn)" title="全部为自报,无机器实测">◐</span>':''}</button>`).join('');
     tabs.dataset.k=tk;
     qa('#flTabs button').forEach(b=>b.onclick=()=>{FLPROJ=b.dataset.p;FLCELL=null;SYNC['flow']()});
   }
   const p=f.projects.find(x=>x.project===FLPROJ)||f.projects[0];
-  setText(q('#flWho'),`${p.project} · ${p.baselines.length} 条基线 × ${p.stages.length} 段 · 阶段由该项目自己定义`);
+  setText(q('#flWho'),`${p.project} · ${p.baselines.length} 条基线 × ${p.stages.length} 段 · `
+    +`实测覆盖 ${p.verified}/${p.cells_n} 格 · 阶段由该项目自己定义`);
+  const vb=q('#flVerify');
+  if(vb)vb.innerHTML=p.self_report_only
+    ? `<div class="card" style="border-left:4px solid var(--warn)">
+        <b style="font-size:14px">这张表全部是自报,本站没有任何机器实测</b>
+        <div style="font-size:13px;color:var(--t2);margin-top:8px;line-height:1.8">
+        下面的绿只代表 <b>${esc(p.project)} 说它通</b>,**不代表本站测出来通**。
+        被测方目前没有可探的产出物(Coolify exec 不支持、logs 为空、健康接口在 Access 后面、
+        私有归档从未成功过),所以连它自己也拿不到证据 —— 这种状态下
+        「自报与实测不符」根本无从比对。<br>
+        <span class="muted">等被测方落出公开安全的健康摘要并填上 probe_hint,
+        这里会自动转为实测,覆盖率也会跟着涨。在那之前,**不给它编一个绿**。</span></div></div>`
+    : (p.verified<p.cells_n
+       ? `<div class="muted" style="font-size:12px;margin-bottom:9px">
+          实测覆盖 <b>${p.verified}/${p.cells_n}</b> 格;其余格子仅为自报,未经本站验证。</div>`
+       : '');
 
   const tb=q('#flTable');
   const key=FLPROJ+String(f.at);
@@ -1613,7 +1634,8 @@ SYNC['flow']=function(){
       <div style="font-size:13px;color:var(--t2);margin-top:10px;line-height:1.85">
         <b>证据</b>:${esc(c.v)||'—'}<br>
         <b>自报</b>:${c.declared?esc(CS[c.declared]?CS[c.declared].t:c.declared):'未声明'}
-        · <b>本机实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured):'该格未配探针'}
+        · <b>本机实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured)
+          :'<span style="color:var(--warn)">未配探针 —— 本格结论完全来自自报</span>'}
         ${c.mismatch?'<br><b style="color:var(--warn)">⚠ 自报与实测不符</b> —— 登记表可能已经和现实脱节,这比单纯的红更值得看':''}
         ${c.coupling_violation?`<br><b style="color:var(--danger)">⚠ 违反耦合规则</b> —— 上游 ${c.coupling_violation.map(esc).join('、')} 已断,这一格不该是健康`:''}
         ${c.weak?'<br><b style="color:var(--warn)">⚠ 只有弱证据</b> —— 日志新鲜只证明进程在动,不证明有产出;请改用产出物条数或业务时间戳':''}

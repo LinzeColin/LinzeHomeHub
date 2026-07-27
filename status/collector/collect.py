@@ -908,7 +908,11 @@ SAFE_COL = re.compile(r"^[A-Za-z0-9_]+$")
 #   `blocked` 是尚未细分的过渡值,如实显示为「阻断(未细分)」,不替被测方猜。
 FLOW_STATES = ("healthy", "degraded", "blocked", "blocked_by_policy", "blocked_by_input",
                "not_built", "unknown")
-FLOW_BAD = ("blocked", "blocked_by_input", "not_built")     # 会阻断下游的态
+FLOW_BAD = ("blocked", "blocked_by_input", "not_built")     # 计数意义上的「坏」
+# ★ 阻断下游 ≠ 需要处置。KMFA 的耦合规则明确把 blocked_by_policy 也算作阻断上游:
+#   按规定不通的东西,下游同样拿不到数,不该自称健康 —— 但它不需要任何人去修。
+#   两种语义必须分开,否则要么漏判耦合、要么把「不用管」排进待办。
+FLOW_BLOCKS_DOWNSTREAM = ("blocked", "blocked_by_policy", "blocked_by_input", "not_built")
 _SEV = {"blocked_by_input": 0, "blocked": 1, "degraded": 2, "not_built": 3,
         "unknown": 4, "blocked_by_policy": 5, "healthy": 6}
 # 旧词汇兼容(第一版用的是 ok/warn/bad/not_implemented)
@@ -1217,7 +1221,9 @@ def flow_state():
                     tot["mismatch"] += 1
                 if _SEV.get(final, 9) < _SEV.get(worst, 9):
                     worst = final
-            row = {"id": b.get("id") or "", "name": b.get("name") or "",
+            probed_n = sum(1 for c in cells.values() if c["measured"])
+            row = {"verified": probed_n, "cells_n": len(cells),
+                   "id": b.get("id") or "", "name": b.get("name") or "",
                    "priority": (b.get("priority") or "P3").upper(),
                    "note": b.get("note") or "",
                    "upstream": b.get("upstream") or [], "downstream": b.get("downstream") or [],
@@ -1231,7 +1237,7 @@ def flow_state():
         # 跨基线耦合校验
         for b in bl_out:
             ups = [by_id[u] for u in b["upstream"] if u in by_id]
-            bad_up = [u for u in ups if u["state"] in FLOW_BAD]
+            bad_up = [u for u in ups if u["state"] in FLOW_BLOCKS_DOWNSTREAM]
             if not bad_up:
                 continue
             for st, c in b["cells"].items():
@@ -1247,7 +1253,12 @@ def flow_state():
             for u in b["upstream"]:
                 if str(u).startswith("SRC-"):
                     srcs.setdefault(u, []).append(b["name"] or b["id"])
-        out.append({"project": p.get("project") or "", "repo": p.get("repo") or "",
+        pv = sum(b["verified"] for b in bl_out)
+        pc = sum(b["cells_n"] for b in bl_out)
+        out.append({"verified": pv, "cells_n": pc,
+                    "verified_pct": round(pv / pc * 100) if pc else 0,
+                    "self_report_only": pv == 0,
+                    "project": p.get("project") or "", "repo": p.get("repo") or "",
                     "stages": stages, "stage_names": names,
                     "stage_meaning": p.get("stage_meaning") or {},
                     "baselines": bl_out, "defects": p.get("defects") or [],
@@ -1307,7 +1318,11 @@ def flow_state():
                        "degraded": sum(1 for v in store[d].values() if v == "degraded"),
                        "bad": sum(1 for v in store[d].values() if v in FLOW_BAD)}
                       for d in days[-90:]],
-            "note": "阶段由各项目自己定义,本站只统一接口与呈现。格子状态 = 自报与本机只读实测的"
+            "verified_total": sum(p["verified"] for p in out),
+            "cells_total": sum(p["cells_n"] for p in out),
+            "note": "★**自报的绿 ≠ 实测的绿**:未配探针的格子只代表被测方「说它通」,"
+                    "不代表本站测出来通。每个项目标了实测覆盖率,0% 的项目会整体标注为「仅自报」。"
+                    "阶段由各项目自己定义,本站只统一接口与呈现。格子状态 = 自报与本机只读实测的"
                     "合并结果,不符单独标出。★日志新鲜度是**弱证据**,不得单独判健康 —— "
                     "实测过 cron 跑了、退出码 0、日志新鲜,却一个产出都没有的假绿;"
                     "健康判定请用产出物条数与业务时间戳。探针只看元信息,绝不读业务数据内容。"
