@@ -888,6 +888,47 @@ def gather_features(token):
             "at": int(time.time())}
 
 
+FLOW_DOCS = os.path.join(PRIVATE_DIR, "flow_docs.json")
+# 业务流登记范围 = 有治理事实的项目 + status 自己(自己也必须被同一套规则管住)
+FLOW_PROJECTS = FEATURE_PROJECTS + [("LinzeHomeHub", "status")]
+
+
+def gather_flows(token):
+    """抓各项目登记的业务流 `flow.yaml`,并检出**有治理文件却没登记**的项目。
+
+    ★ 登记覆盖不靠自觉:凡是有 `docs/governance/project.yaml` 的项目就必须发布 flow.yaml,
+      没发布的直接列进 unregistered,和「部署即登记」是同一套执行逻辑。
+    ★ **以 main 的 HEAD 为准**:还在 PR 或本地 worktree 里的登记看不到,如实算未登记 ——
+      数据源必须可复核,不能把未合并的东西当成事实。
+    """
+    keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow.yaml")
+            for r, d in FLOW_PROJECTS]
+    texts = _blobs(token, keys, "text", chunk=8)
+    projects, missing = [], []
+    for i, (repo, d) in enumerate(FLOW_PROJECTS):
+        name = d if d != "." else repo
+        t = texts.get(keys[i])
+        if not t:
+            missing.append({"project": name, "repo": repo,
+                            "expect": keys[i][1],
+                            "why": "有治理文件但未发布 flow.yaml(以 main 为准;"
+                                   "若已在 PR/worktree,合并后即自动纳入)"})
+            continue
+        doc = _yaml_load(t)
+        if not isinstance(doc, dict) or not doc.get("baselines"):
+            missing.append({"project": name, "repo": repo, "expect": keys[i][1],
+                            "why": "flow.yaml 存在但缺 baselines 段,无法解析"})
+            continue
+        doc["project"] = doc.get("project") or name
+        doc["repo"] = repo
+        doc["source"] = "%s/%s" % (repo, keys[i][1])
+        projects.append(doc)
+    return {"projects": projects, "unregistered": missing,
+            "registered": len(projects), "expected": len(FLOW_PROJECTS),
+            "at": int(time.time()),
+            "note": "业务流登记以各仓 main 的 docs/governance/flow.yaml 为准"}
+
+
 def gather_deep(token):
     """REST 深采:仓库清单(权威,含 GraphQL 看不到的仓)+ release/CI/子项目。"""
     me, _ = _get(f"{API}/user", token)
@@ -926,6 +967,7 @@ def gather_deep(token):
             "billing": gather_billing(token, login),
             "coupling": build_coupling(repo_rows, chist, subs),
             "features": gather_features(token),
+            "flows": gather_flows(token),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 
@@ -1062,6 +1104,9 @@ def run_deep(token):
         row.pop("stale", None)
         merged.append(row)
     now = datetime.now(CN)
+    # 业务流登记写**私有档**:里面有主机路径、容器名、库表名这类基础设施细节,不该上公开面
+    if deep.get("flows"):
+        _atomic_write(FLOW_DOCS, deep["flows"], 0o640)
     priv.update({"repos": merged, "subprojects": deep["subprojects"],
                  "capability": deep["capability"], "account": deep["account"],
                  "actions": deep["actions"], "throughput": deep["throughput"],

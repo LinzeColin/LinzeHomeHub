@@ -888,6 +888,312 @@ def deploy_calendar():
             "since": first, "label": "每日部署次数"}
 
 
+# ---------- 业务流:软件**内部**功能实现程度监控 ----------
+# 统一的是**接口**,不是内容:阶段有几段、叫什么、什么顺序,由每个项目自己定
+# (KMFA 六段「源接入→解析→计算→校验→输出→投递」,Alpha 是交易执行八段,各画各的矩阵)。
+# 统一的只有:schema 字段名、探针类型库、状态语义、呈现语言。
+#
+# ★★ 安全前提:`flow.yaml` 来自代码仓,对这台主机而言是**不可信输入**。
+#    因此探针一律「按类型由采集器自行构造命令」,**绝不执行 YAML 里的自由字符串**——
+#    不接受自由 SQL、不接受自由 shell、路径必须落在允许的根下、单元名/容器名必须过白名单正则。
+#    否则任何能改仓库文件的人就等于拿到了这台机器的 shell。
+FLOW_ROOTS = ("/srv/linze", "/etc/cron.d", "/var/log")
+SAFE_NAME = re.compile(r"^[A-Za-z0-9._@:-]+$")
+SAFE_COL = re.compile(r"^[A-Za-z0-9_]+$")
+FLOW_STATES = ("ok", "warn", "bad", "blocked_by_policy", "not_implemented", "unknown")
+
+
+def _safe_path(p):
+    """路径必须是绝对路径、无 .. 、且落在允许的根下。"""
+    if not isinstance(p, str) or not p.startswith("/") or ".." in p:
+        return None
+    rp = os.path.normpath(p)
+    return rp if any(rp == r or rp.startswith(r + "/") for r in FLOW_ROOTS) else None
+
+
+def _age_h(path):
+    try:
+        return (time.time() - os.path.getmtime(path)) / 3600.0
+    except OSError:
+        return None
+
+
+def _pr_file_fresh(a):
+    p = _safe_path(a.get("path") or "")
+    if not p:
+        return "unknown", "路径不在允许范围内,拒绝探测"
+    if not os.path.exists(p):
+        return "bad", "产物不存在:%s" % p
+    age, mx = _age_h(p), float(a.get("max_age_h") or 26)
+    return (("ok" if age <= mx else "warn"),
+            "%s · %.1f 小时前更新(阈值 %.0fh)" % (os.path.basename(p), age, mx))
+
+
+def _pr_glob_count(a):
+    p = _safe_path(a.get("dir") or "")
+    if not p or not os.path.isdir(p):
+        return "unknown", "目录不可达"
+    suf = a.get("suffix") or ""
+    if suf and not SAFE_NAME.match(suf.lstrip(".")):
+        return "unknown", "后缀名非法"
+    n = len([f for f in os.listdir(p) if f.endswith(suf)])
+    lo = int(a.get("min") or 1)
+    return ("ok" if n >= lo else "warn"), "%d 个产物(要求 ≥%d)" % (n, lo)
+
+
+def _pr_systemd(a):
+    u = a.get("unit") or ""
+    if not SAFE_NAME.match(u):
+        return "unknown", "单元名非法"
+    kv = dict(l.split("=", 1) for l in run(
+        "systemctl show '%s' --property=ActiveState --property=Result --property=Type "
+        "--property=TriggeredBy --property=ExecMainExitTimestamp 2>/dev/null" % u
+    ).splitlines() if "=" in l)
+    if not kv:
+        return "unknown", "查不到该单元"
+    st = _systemd_state({"Id": u, **kv})
+    ts = kv.get("ExecMainExitTimestamp") or ""
+    txt = {"active": "常驻运行中", "scheduled": "定时/事件触发 · 待命",
+           "failed": "上次执行失败(%s)" % kv.get("Result"), "inactive": "未运行"}.get(st, st)
+    return ({"active": "ok", "scheduled": "ok", "failed": "bad"}.get(st, "warn"),
+            "%s%s" % (txt, (" · 上次结束 " + ts[:19]) if ts else ""))
+
+
+def _pr_container(a):
+    c = a.get("name") or ""
+    if not SAFE_NAME.match(c):
+        return "unknown", "容器名非法"
+    out = run("docker inspect '%s' --format '{{.State.Status}}|{{if .State.Health}}"
+              "{{.State.Health.Status}}{{else}}-{{end}}' 2>/dev/null" % c)
+    if not out:
+        return "bad", "容器不存在"
+    st, hl = (out.split("|") + ["-"])[:2]
+    if st != "running":
+        return "bad", "容器状态 %s" % st
+    return ("warn" if hl == "starting" else "ok"), "运行中%s" % ("" if hl == "-" else " · 健康 " + hl)
+
+
+def _pr_http(a):
+    u = a.get("url") or ""
+    if not re.match(r"^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/-]*)?$", u):
+        return "unknown", "URL 不合法或非 https,拒绝探测"
+    code = http_code(u)
+    okset = [str(x) for x in (a.get("expect") or [200, 301, 302, 308])]
+    return ("ok" if code in okset else "bad"), "HTTP %s(期望 %s)" % (code or "无响应", "/".join(okset))
+
+
+def _pr_db_rows(a):
+    """SQL **由采集器构造**,YAML 只能给容器/库/表/时间列名,且都过白名单正则。
+    这样仓库文件里塞不进任何可执行语句。"""
+    c, db, tb = a.get("container") or "", a.get("db") or "", a.get("table") or ""
+    col = a.get("time_column") or ""
+    if not (SAFE_NAME.match(c) and SAFE_COL.match(db) and SAFE_COL.match(tb)):
+        return "unknown", "容器/库/表名非法,拒绝探测"
+    if col and not SAFE_COL.match(col):
+        return "unknown", "时间列名非法"
+    sql = "select count(*) from %s" % tb
+    if col:
+        sql = ("select count(*), coalesce(max(%s)::text,'-') from %s" % (col, tb))
+    out = run("docker exec %s psql -U %s -d %s -t -A -F'|' -c \"%s\" 2>/dev/null"
+              % (c, db, db, sql))
+    if not out:
+        return "unknown", "库不可达或表不存在"
+    parts = out.strip().split("|")
+    n = int(parts[0]) if parts[0].strip().isdigit() else 0
+    lo = int(a.get("min_rows") or 1)
+    latest = parts[1] if len(parts) > 1 else ""
+    ev = "%d 行" % n + (" · 最新 %s" % latest[:19] if latest and latest != "-" else "")
+    if n < lo:
+        return "warn", ev + "(要求 ≥%d)" % lo
+    if col and a.get("max_age_h") and latest and latest != "-":
+        try:
+            age = (time.time() - datetime.strptime(latest[:19], "%Y-%m-%d %H:%M:%S")
+                   .replace(tzinfo=timezone.utc).timestamp()) / 3600
+            if age > float(a["max_age_h"]):
+                return "warn", ev + " · 已 %.0f 小时没有新数据" % age
+        except ValueError:
+            pass
+    return "ok", ev
+
+
+def _pr_log_recent(a):
+    """日志尾部是否有近期的匹配行。pattern 只允许字面量,不允许正则元字符 —— 防 ReDoS 与注入。"""
+    p = _safe_path(a.get("path") or "")
+    pat = a.get("contains") or ""
+    if not p or not os.path.exists(p):
+        return "unknown", "日志不可达"
+    if not re.match(r"^[\w一-龥 .:/=-]{1,60}$", pat or "x"):
+        return "unknown", "匹配串含非法字符"
+    age = _age_h(p)
+    mx = float(a.get("max_age_h") or 26)
+    if pat:
+        hit = run("tail -n %d %s 2>/dev/null | grep -c -F -- %s"
+                  % (int(a.get("tail") or 200), p, json.dumps(pat)))
+        n = int(hit) if hit.isdigit() else 0
+        if not n:
+            return "warn", "近 %s 行日志里没有「%s」" % (a.get("tail") or 200, pat)
+    return (("ok" if age is not None and age <= mx else "warn"),
+            "日志 %.1f 小时前有写入(阈值 %.0fh)" % (age or 0, mx))
+
+
+PROBES = {"file_fresh": _pr_file_fresh, "glob_count": _pr_glob_count, "systemd": _pr_systemd,
+          "container": _pr_container, "http": _pr_http, "db_rows": _pr_db_rows,
+          "log_recent": _pr_log_recent}
+
+
+def _run_probe(spec):
+    """执行一格的探针。没有探针就是纯自报,如实标 unknown 而不是当成通过。"""
+    if not isinstance(spec, dict):
+        return None, "格子定义不合法"
+    kind = spec.get("probe")
+    if not kind:
+        return None, ""
+    fn = PROBES.get(kind)
+    if not fn:
+        return "unknown", "未知探针类型 %s" % kind
+    try:
+        return fn(spec.get("args") or {})
+    except Exception as e:                       # 单格出错不能拖垮整张表
+        return "unknown", "探测异常:%s" % str(e)[:60]
+
+
+def flow_state():
+    """把各项目登记的业务流跑一遍探针,并与自报状态**交叉校验**。
+
+    ★ 双向:`state` 是项目自报,`probe` 是本机只读实测。
+      两者不符时单独标出来 —— 人手维护的矩阵最终就是从这里开始和现实脱节的。
+    """
+    docs = load_json(os.path.join(APP_DIR, "private", "flow_docs.json"), None)
+    if not isinstance(docs, dict) or not docs.get("projects"):
+        return {"available": False,
+                "note": (docs or {}).get("note") or "业务流登记尚未采集(每小时深采一次)",
+                "unregistered": (docs or {}).get("unregistered") or []}
+    out, tot = [], {"baselines": 0, "cells": 0, "ok": 0, "warn": 0, "bad": 0,
+                    "policy": 0, "todo": 0, "unknown": 0, "probed": 0, "mismatch": 0}
+    for p in docs["projects"]:
+        stages = [s for s in (p.get("stages") or []) if isinstance(s, str)][:12]
+        bl_out = []
+        for b in (p.get("baselines") or []):
+            cells, bad, warn = {}, 0, 0
+            for st in stages:
+                spec = (b.get("cells") or {}).get(st)
+                declared = (spec or {}).get("state") if isinstance(spec, dict) else None
+                measured, ev = _run_probe(spec) if isinstance(spec, dict) else (None, "")
+                if measured:
+                    tot["probed"] += 1
+                # 自报优先级:policy/todo 是人的决定,机器测不出来,必须尊重
+                if declared in ("blocked_by_policy", "not_implemented"):
+                    final = declared
+                elif measured:
+                    final = measured
+                elif declared in FLOW_STATES:
+                    final = declared
+                else:
+                    final = "unknown"
+                mism = bool(measured and declared in ("ok", "warn", "bad")
+                            and measured != declared)
+                cells[st] = {"s": final, "v": ev or (spec or {}).get("evidence") or "",
+                             "declared": declared, "measured": measured, "mismatch": mism,
+                             "defect": (spec or {}).get("defect") or ""}
+                tot["cells"] += 1
+                tot[{"ok": "ok", "warn": "warn", "bad": "bad", "blocked_by_policy": "policy",
+                     "not_implemented": "todo"}.get(final, "unknown")] += 1
+                if mism:
+                    tot["mismatch"] += 1
+                if final == "bad":
+                    bad += 1
+                elif final == "warn":
+                    warn += 1
+            # 传导:上游断了,下游的绿是没意义的 —— 标出来,别让人以为后面都好
+            broken = None
+            for st in stages:
+                if cells.get(st, {}).get("s") in ("bad",):
+                    broken = st
+                    break
+            if broken:
+                seen = False
+                for st in stages:
+                    if st == broken:
+                        seen = True
+                        continue
+                    if seen and cells[st]["s"] == "ok":
+                        cells[st]["downstream_of_break"] = broken
+            bl_out.append({
+                "id": b.get("id") or "", "name": b.get("name") or "",
+                "priority": (b.get("priority") or "P3").upper(),
+                "cells": cells, "bad": bad, "warn": warn,
+                "state": "bad" if bad else ("warn" if warn else "ok"),
+                "broken_at": broken,
+            })
+            tot["baselines"] += 1
+        rank = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+        bl_out.sort(key=lambda x: (rank.get(x["priority"], 9),
+                                   0 if x["state"] == "bad" else 1 if x["state"] == "warn" else 2))
+        out.append({"project": p.get("project") or "", "repo": p.get("repo") or "",
+                    "stages": stages, "baselines": bl_out,
+                    "defects": p.get("defects") or [],
+                    "source": p.get("source") or "", "schema": p.get("schema") or "",
+                    "bad": sum(b["bad"] for b in bl_out),
+                    "warn": sum(b["warn"] for b in bl_out)})
+    out.sort(key=lambda x: (-x["bad"], -x["warn"], x["project"]))
+    # 逐日归档:只有存了历史,才答得出「P0 项目成本的计算是从哪天开始黄的」
+    hp = os.path.join(DATA_DIR, "flow_history.json")
+    store = load_json(hp, {}) or {}
+    day = now_cn().strftime("%Y-%m-%d")
+    slot = store.setdefault(day, {})
+    for p in out:
+        for b in p["baselines"]:
+            for st, c in b["cells"].items():
+                # 同一天取**最差**的一次:一天里坏过就不该被后面的好覆盖掉
+                key = "%s|%s|%s" % (p["project"], b["id"] or b["name"], st)
+                rank = {"bad": 0, "warn": 1, "unknown": 2, "not_implemented": 3,
+                        "blocked_by_policy": 4, "ok": 5}
+                prev = slot.get(key)
+                if prev is None or rank.get(c["s"], 9) < rank.get(prev, 9):
+                    slot[key] = c["s"]
+    cutoff = (now_cn() - timedelta(days=400)).strftime("%Y-%m-%d")
+    store = {k: v for k, v in store.items() if k >= cutoff}
+    try:
+        with open(hp, "w") as f:
+            json.dump(store, f)
+    except OSError:
+        pass
+    days = sorted(store)
+    # 每条基线的「从哪天开始不对」:往回找连续非 ok 的起点
+    for p in out:
+        for b in p["baselines"]:
+            if b["state"] == "ok":
+                continue
+            since = None
+            for st in p["stages"]:
+                if b["cells"][st]["s"] not in ("bad", "warn"):
+                    continue
+                key = "%s|%s|%s" % (p["project"], b["id"] or b["name"], st)
+                d0 = None
+                for d in reversed(days):
+                    if store[d].get(key) in ("bad", "warn"):
+                        d0 = d
+                    else:
+                        break
+                if d0 and (since is None or d0 < since):
+                    since = d0
+            b["since"] = since
+    return {"available": True, "projects": out, "totals": tot,
+            "history_days": len(days), "history_since": days[0] if days else None,
+            "trend": [{"d": d,
+                       "bad": sum(1 for v in store[d].values() if v == "bad"),
+                       "warn": sum(1 for v in store[d].values() if v == "warn"),
+                       "ok": sum(1 for v in store[d].values() if v == "ok")}
+                      for d in days[-90:]],
+            "unregistered": docs.get("unregistered") or [],
+            "fetched_at": docs.get("at"),
+            "note": "阶段由各项目自己定义,本站只统一接口与呈现。"
+                    "格子状态 = 自报 state 与本机只读实测 probe 的合并结果;"
+                    "两者不符会单独标出。探针只看元信息(存在性/新鲜度/退出码/条数/时间戳),"
+                    "**绝不读业务数据内容**。",
+            "at": int(time.time())}
+
+
 # ---------- 容量判定:该不该升级 VPS / 还能再部署多少 ----------
 # 阈值全部写死在这里,页面上原样展示 —— 结论必须能被复核,不能是"我觉得"。
 THRESH = {
@@ -1818,6 +2124,7 @@ def main():
                                         snap["live"], snap["selfheal"], dep)
     snap["baseline"] = baseline_history(snap["software"])
     snap["capacity"] = capacity_advice(host, hist, prices, snap["software"])
+    snap["flow"] = flow_state()
     snap["graph"] = project_graph(projects, snap["github"])
 
     # 关系图单独出一份小文件,供 home 站跨域拉取(比整份 80KB 快照轻得多)

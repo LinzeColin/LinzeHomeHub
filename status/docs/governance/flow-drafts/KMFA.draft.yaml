@@ -1,0 +1,137 @@
+# ⚠️ 这是**草案**,不是生效登记。
+#
+# 生效登记必须放在 `KMOS/KMFA/docs/governance/flow.yaml` 并合入 main,
+# 由 **KMFA 线程**提交 —— status 线程不写 KMOS 仓的任何文件,避免和它的 PR / worktree 冲突。
+#
+# 内容来源:owner 展示的 KMFA 业务基线矩阵(9 条基线 × 6 段)。
+# 每格的 `state` 是**照抄那张矩阵**的自报值,尚未经 KMFA 线程确认。
+# 每格的 `probe` 我只给出**建议的探针类型**,`args` 留空 ——
+# 产物路径/容器名/表名只有 KMFA 线程知道,我不猜;猜出来的路径会直接变成假红。
+#
+# 填完 args 后,status 会自动做**双向校验**:自报 state vs 本机只读实测 probe,
+# 两者不符会单独标出来。这正是人手维护的矩阵最终和现实脱节的地方。
+
+schema: linze.flow.v1
+project: KMFA
+stages: [源接入, 解析, 计算, 校验, 输出, 投递]
+
+baselines:
+  - id: BL-KMFA-COST
+    name: 项目成本
+    priority: P0
+    cells:
+      源接入: {state: ok,   probe: file_fresh, evidence: "上游归档落盘"}
+      解析:   {state: ok,   probe: file_fresh, evidence: "报表解析产物"}
+      计算:   {state: warn, defect: DEF-KMFA-COST-01, evidence: "3 份报表毛利算不出"}
+      校验:   {state: ok,   probe: log_recent, evidence: "校验通过"}
+      输出:   {state: not_implemented, evidence: "尚未实现"}
+      投递:   {state: not_implemented, evidence: "尚未实现"}
+
+  - id: BL-KMFA-UPSTREAM
+    name: 上游归档
+    priority: P0
+    cells:
+      源接入: {state: warn, probe: file_fresh, evidence: "上游到货不稳定"}
+      解析:   {state: ok,   probe: file_fresh}
+      计算:   {state: ok}
+      校验:   {state: warn, evidence: "校验存在缺口"}
+      输出:   {state: ok,   probe: glob_count}
+      投递:   {state: warn, evidence: "投递不稳定"}
+
+  - id: BL-KMFA-ATTENDANCE
+    name: 钉钉考勤
+    priority: P1
+    cells:
+      源接入: {state: ok, probe: log_recent, evidence: "钉钉开放 API 拉取"}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: ok}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: blocked_by_policy, evidence: "合规禁群 —— 按规定就不该投递到群,不是故障"}
+
+  - id: BL-KMFA-DAILY-CHECK
+    name: 每日工作检查
+    priority: P1
+    cells:
+      源接入: {state: warn, probe: log_recent}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: ok}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: blocked_by_policy, evidence: "合规禁群"}
+
+  - id: BL-KMFA-FUND-WEEKLY
+    name: 资金周报
+    priority: P1
+    cells:
+      源接入: {state: warn, probe: file_fresh}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: warn}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: blocked_by_policy, evidence: "合规禁群"}
+
+  - id: BL-KMFA-MONTHLY
+    name: 经营月报
+    priority: P2
+    cells:
+      源接入: {state: warn}
+      解析:   {state: ok}
+      计算:   {state: bad, defect: DEF-KMFA-MONTHLY-01, evidence: "计算阻断"}
+      校验:   {state: not_implemented}
+      输出:   {state: warn}
+      投递:   {state: bad, evidence: "计算未通,下游无从投递"}
+
+  - id: BL-KMFA-SALARY-STD
+    name: 工资标准
+    priority: P2
+    cells:
+      源接入: {state: ok}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: ok}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: blocked_by_policy, evidence: "合规禁群"}
+
+  - id: BL-KMFA-HQ-CONTRACT
+    name: 红圈主合同
+    priority: P2
+    cells:
+      源接入: {state: ok, probe: log_recent, evidence: "红圈只读导出"}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: ok}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: ok}
+
+  - id: BL-KMFA-INFO-FEE
+    name: 信息费更新
+    priority: P3
+    cells:
+      源接入: {state: ok}
+      解析:   {state: ok}
+      计算:   {state: ok}
+      校验:   {state: ok}
+      输出:   {state: ok, probe: file_fresh}
+      投递:   {state: ok}
+
+defects:
+  - id: DEF-KMFA-COST-01
+    baseline: BL-KMFA-COST
+    stage: 计算
+    desc: 3 份报表毛利算不出
+    since: "TODO(KMFA 线程补起始日期)"
+  - id: DEF-KMFA-MONTHLY-01
+    baseline: BL-KMFA-MONTHLY
+    stage: 计算
+    desc: 经营月报计算阻断
+    since: "TODO(KMFA 线程补起始日期)"
+
+# 给 KMFA 线程的三条落地提示:
+# 1. `probe.args` 必须填,否则该格只有自报值、没有实测,双向校验形同虚设。
+#    可用探针:file_fresh / glob_count / systemd / container / http / db_rows / log_recent
+#    参数一律是**结构化字段**(路径/容器名/表名/时间列名),采集器据此自行构造命令 ——
+#    YAML 里放不进自由 SQL 或自由 shell,这是防止仓库文件变成主机 shell 的硬约束。
+# 2. 路径必须落在 /srv/linze、/etc/cron.d、/var/log 之下,否则采集器会拒绝探测。
+# 3. 探针只看元信息(存在性/新鲜度/退出码/条数/时间戳),**绝不读业务数据内容** ——
+#    KMFA 经营数据在 Private-Database,status 不碰。

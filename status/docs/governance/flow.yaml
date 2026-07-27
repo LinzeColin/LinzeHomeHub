@@ -1,0 +1,154 @@
+# 业务流登记 —— status.linzezhang.com 自身
+#
+# 这份文件同时是**接口样板**:阶段名与段数由每个项目按自己的业务语义定义,
+# status 只统一 schema 字段、探针类型、状态语义与呈现方式。
+# KMFA 是「源接入→解析→计算→校验→输出→投递」六段;Alpha 是交易执行八段;
+# status 自己是采集型五段。各画各的矩阵,不强求一致。
+#
+# 状态四态(少了第三态会造出一堆假红):
+#   ok                 通
+#   warn               有缺陷但没断
+#   bad                断了
+#   blocked_by_policy  按规定就不该通(例:KMFA 的「禁群」),不是故障
+#   not_implemented    还没做
+#
+# 双向:`state` 是本项目自报,`probe` 是 status 在主机上做的只读实测。
+# 两者不符时页面会单独标「自报与实测不符」—— 人手维护的矩阵就是从这里开始和现实脱节的。
+#
+# ★ 探针只看元信息(存在性/新鲜度/退出码/条数/时间戳),**绝不读业务数据内容**。
+# ★ 探针参数一律由采集器按类型构造命令,YAML 里放不进任何可执行语句。
+
+schema: linze.flow.v1
+project: Status
+stages: [采集, 派生, 落盘, 发布, 自愈]
+
+baselines:
+  - id: BL-STATUS-INFRA
+    name: 主机与项目状态
+    priority: P0
+    cells:
+      采集:
+        probe: log_recent
+        args: {path: /srv/linze/apps/status/collect.log, max_age_h: 1}
+        evidence: cron 每 1 分钟跑 collect.py
+      派生:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/history.json, max_age_h: 1}
+        evidence: 内存/磁盘/负载三层历史逐分钟累积
+      落盘:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/snapshot.json, max_age_h: 1}
+        evidence: 快照原子写,读者永远看到完整文件
+      发布:
+        probe: http
+        args: {url: "https://status.linzezhang.com/data/snapshot.json"}
+        evidence: nginx 直挂 data 目录,页面 15 秒增量拉取
+      自愈:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/selfheal.json, max_age_h: 1}
+        evidence: 自愈引擎每 5 分钟心跳;>15 分钟无心跳由元自愈判失效
+
+  - id: BL-STATUS-GITHUB
+    name: GitHub 工程面
+    priority: P0
+    cells:
+      采集:
+        probe: log_recent
+        args: {path: /srv/linze/apps/status/github.log, contains: "fast ok", max_age_h: 1}
+        evidence: fast 每 1 分钟 / traffic 每 15 分钟 / deep 每小时,三层
+      派生:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/private/github.json, max_age_h: 1}
+        evidence: canonical 私有档 last-known-good,看不到的字段保留旧值不清零
+      落盘:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/github_public.json, max_age_h: 1}
+        evidence: 公开面由私有档派生,永不含私有仓名
+      发布:
+        probe: http
+        args: {url: "https://status.linzezhang.com/data/github_public.json"}
+        evidence: 公开安全聚合对外可取
+      自愈:
+        state: ok
+        evidence: 采集失败保留 last-known-good 并标 stale,不清零、不编造
+
+  - id: BL-STATUS-LIVE
+    name: 本站实时访问
+    priority: P1
+    cells:
+      采集:
+        probe: container
+        args: {name: linze-status}
+        evidence: 读容器 access log(docker logs 只读,不落盘不占磁盘)
+      派生:
+        state: ok
+        evidence: 访客/存活探测/页面自轮询/错误四类分开计数
+      落盘:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/live_traffic.json, max_age_h: 1}
+        evidence: 分钟桶留 24h,小时桶留 30 天
+      发布:
+        probe: http
+        args: {url: "https://status.linzezhang.com/data/live_traffic.json"}
+        evidence: 逐分钟曲线对外可取
+      自愈:
+        state: ok
+        evidence: 同一分钟重复采集覆盖而非累加,补采/重跑不会算重
+
+  - id: BL-STATUS-COST
+    name: 成本与账单
+    priority: P1
+    cells:
+      采集:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/prices.json, max_age_h: 8760}
+        evidence: 价格库唯一人工维护项,经 /admin 编辑
+      派生:
+        state: ok
+        evidence: 按 open.er-api.com 实时汇率折算;拉不到沿用上次,不编造
+      落盘:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/usage_history.json, max_age_h: 2}
+        evidence: 用量与额度逐时归档
+      发布:
+        probe: http
+        args: {url: "https://status.linzezhang.com/"}
+        evidence: 成本页对外可见
+      自愈:
+        state: warn
+        evidence: GitHub 账单以 billing/usage 的 netAmount 为准;取不到如实标 UNAVAILABLE 而非估算
+
+  - id: BL-STATUS-FLOW
+    name: 业务流登记本身
+    priority: P2
+    cells:
+      采集:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/private/flow_docs.json, max_age_h: 2}
+        evidence: 每小时从各仓 main 拉 flow.yaml
+      派生:
+        state: ok
+        evidence: 自报 state 与只读实测 probe 交叉校验,不符单独标出
+      落盘:
+        probe: file_fresh
+        args: {path: /srv/linze/apps/status/data/flow_history.json, max_age_h: 2}
+        evidence: 每格逐日归档,能看出是从哪天开始黄的
+      发布:
+        probe: http
+        args: {url: "https://status.linzezhang.com/data/snapshot.json"}
+        evidence: 业务流矩阵进公开快照(仅状态与证据文案,不含主机路径)
+      自愈:
+        state: warn
+        evidence: 未登记项目会被自动列出;但登记内容本身的准确性仍依赖各项目自觉,只能靠交叉校验兜底
+
+defects:
+  - id: DEF-STATUS-001
+    baseline: BL-STATUS-COST
+    stage: 自愈
+    desc: 私有仓 Actions 明细读不到时整段标 UNAVAILABLE,颗粒度偏粗
+    since: "2026-07-26"
+  - id: DEF-STATUS-002
+    baseline: BL-STATUS-FLOW
+    stage: 自愈
+    desc: 只能检出「没登记」,检不出「登记了但写得不实」——只能靠自报与实测的交叉校验兜底
+    since: "2026-07-27"

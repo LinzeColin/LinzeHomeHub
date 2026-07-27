@@ -308,6 +308,12 @@ tbody tr:last-child td{border-bottom:none}
   font-size:12.5px;margin-top:11px}
 .cap .sig .lv{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
 .cap .rule{color:var(--t3);font-size:11.5px}
+/* ---------- 业务流矩阵 ---------- */
+table.mx td.fc{cursor:pointer;position:relative}
+table.mx td.fc:hover{background:var(--soft)}
+table.mx td.fc.on{background:var(--accent-bg);box-shadow:inset 0 0 0 1px var(--accent)}
+table.mx td.fc .mm{color:var(--warn);font-weight:700;font-size:11px;margin-left:3px}
+table.mx td.fc .ds{color:var(--danger);font-weight:700;font-size:11px;margin-left:2px}
 /* ---------- 业务基线矩阵 ---------- */
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
 table.mx th{white-space:nowrap;font-size:11.5px}
@@ -380,7 +386,7 @@ let S=null, PREV=null, CAN_EDIT=false, PROBED=false, MOUNTED=null, lastAt=0;  //
 /* ========== 4 个入口:总览 + 3 个二级 ========== */
 const PAGES=[
   {id:'',       name:'总览'},
-  {id:'feature',name:'功能'},     // 软件**内部**的功能纵向切片(运维纵向切片在「运行」页)
+  {id:'flow',   name:'业务流'},   // 软件**内部**功能实现程度:业务基线 × 各项目自定义阶段
   {id:'runtime',name:'运行'},
   {id:'cost',   name:'成本'},
   {id:'github', name:'GitHub'},
@@ -587,9 +593,11 @@ setInterval(tickAgo,1000);
 function renderTabs(){
   const g=S&&S.github||{};
   const sw=S&&S.software||null;
-  const ft=S&&S.github&&S.github.features||null;
+  const fl=S&&S.flow||null;
   const badge={'':S?S.summary.services_online:'',
-    'feature':ft&&ft.totals?(ft.totals.bad?ft.totals.bad+' 断链':ft.totals.features+' 功能'):'',
+    'flow':fl&&fl.available?((fl.totals.bad?fl.totals.bad+' 断':'')||
+      (fl.unregistered.length?fl.unregistered.length+' 未登记':fl.totals.baselines+' 基线')):
+      (fl&&fl.unregistered&&fl.unregistered.length?fl.unregistered.length+' 未登记':''),
     'runtime':sw?(sw.unregistered.length?sw.unregistered.length+' 未登记':sw.score+'分'):
               (S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:''),
     'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'', 'github':g.available?g.repos_total+'仓':''};
@@ -607,7 +615,7 @@ function mount(){
   MOUNTED=ROUTE();
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
-  const V={'':vOverview,'feature':vFeature,'runtime':vRuntime,'cost':vCost,
+  const V={'':vOverview,'flow':vFlow,'runtime':vRuntime,'cost':vCost,
            'github':vGithub}[MOUNTED]||vOverview;
   paint(V);
 }
@@ -1475,85 +1483,156 @@ function syncBase(){
   setText(q('#swNote'),w.note+' 归档自 '+(b.since?new Date(b.since*1000).toLocaleDateString('zh-CN'):'—'));
 }
 
-/* ============ 功能基线:软件**内部**的功能纵向切片 ============
-   「运行」页看的是运维纵向切片(代码→CI→部署→…→自愈);这一页看的是每个项目
-   声明了哪些功能、处于什么状态、有没有实据、以及**实据是不是还成立**。
-   数据源是各项目 docs/governance/project.yaml 的 canonical facts,不是猜的。 */
-const FV={ok:{t:'达标',c:'var(--ok)'},warn:{t:'存疑',c:'var(--warn)'},
-          bad:{t:'证据链断裂',c:'var(--danger)'},plan:{t:'计划中',c:'var(--t3)'}};
-let FPROJ=null;
-function vFeature(){
-  const f=(S.github||{}).features;
-  if(!f||!f.projects)return `<div class="warnbox">功能基线尚未产出(每小时深采一次)</div>`;
-  return `<div class="grid k5" id="ftKpi"></div>
-  <h2>项目功能健康 <span class="hint">点项目看它的完整功能清单与逐条判据</span></h2>
+/* ============ 业务流:软件**内部**功能实现程度 ============
+   和「运行」页的区别:那边是**运维**纵向切片(代码→CI→部署→…→自愈,看软件跑没跑起来);
+   这边是**业务**纵向切片(一份数据从进来到送出去,中间哪一段断了)。
+   ★ 阶段由每个项目自己定义,长度不限 —— KMFA 六段、Alpha 交易执行八段、status 采集五段,
+     各画各的矩阵。统一的只有 schema、探针、状态语义和这套呈现语言。 */
+const CS={ok:{t:'通',c:'var(--ok)',i:'✓'},warn:{t:'有缺陷',c:'var(--warn)',i:'!'},
+  bad:{t:'断',c:'var(--danger)',i:'✕'},
+  blocked_by_policy:{t:'按规定不通',c:'var(--pro)',i:'⊘'},
+  not_implemented:{t:'未实现',c:'var(--t3)',i:'·'},
+  unknown:{t:'无法判定',c:'var(--t3)',i:'?'}};
+const PRC={P0:'var(--danger)',P1:'var(--warn)',P2:'var(--accent)',P3:'var(--t3)'};
+let FLPROJ=null, FLCELL=null;
+
+function vFlow(){
+  const f=S.flow;
+  if(!f)return `<div class="warnbox">业务流采集尚未产出</div>`;
+  if(!f.available)return `<div class="warnbox" style="margin-bottom:16px">${esc(f.note||'')}</div>
+    ${unregHTML(f.unregistered||[])}`;
+  return `<div class="grid k5" id="flKpi"></div>
+  <div id="flUnreg"></div>
+  <h2>业务基线矩阵 <span class="hint" id="flWho"></span></h2>
+  <div class="seg" id="flTabs" style="margin-bottom:12px"></div>
+  <div class="card p0 scroll"><table class="mx" id="flTable"></table></div>
+  <div class="ulegend" style="margin-top:9px">
+    ${Object.entries(CS).map(([k,v])=>`<span><i style="background:${v.c};border-radius:50%;width:9px;height:9px"></i>${v.t}</span>`).join('')}
+    <span>点任意格看证据与探测结果</span></div>
+  <div class="card" id="flCell" style="margin-top:13px"></div>
+  <h2>已知缺陷 <span class="hint">逐条挂在 基线 × 阶段 上,不是空标</span></h2>
   <div class="card p0 scroll"><table><thead><tr>
-    <th class="s">项目</th><th class="s">仓</th><th class="s">健康</th>
-    <th class="s">达标</th><th class="s">存疑</th><th class="s">断链</th><th class="s">计划</th>
-    <th class="s">仅本地</th><th class="s">保障维度</th><th>当前状态</th>
-  </tr></thead><tbody id="ftRows"></tbody></table></div>
-  <h2>功能清单 <span class="hint" id="ftWho"></span></h2>
-  <div class="card p0 scroll"><table><thead><tr>
-    <th class="s">判定</th><th class="s">功能</th><th class="s">声明状态</th>
-    <th class="s">证据等级</th><th class="s">证据</th><th>说明</th>
-  </tr></thead><tbody id="ftFeat"></tbody></table></div>
-  <div class="card" id="ftNote" style="margin-top:14px"></div>`;
+    <th class="s">缺陷</th><th class="s">基线</th><th class="s">阶段</th><th>说明</th><th class="s">起始</th>
+  </tr></thead><tbody id="flDefect"></tbody></table></div>
+  <h2>健康趋势 <span class="hint">每格逐日归档,看得出是从哪天开始黄的</span></h2>
+  <div class="card hov"><div class="chartbox"><canvas id="flTrend"></canvas></div></div>
+  <div class="card" id="flNote" style="margin-top:14px"></div>`;
 }
-SYNC['feature']=function(){
-  const f=(S.github||{}).features; if(!f||!f.projects)return;
-  const t=f.totals||{};
-  kpiRow('#ftKpi',[
-    {lab:'纳管功能',val:t.features||0,unit:'',sub:`${t.projects} 个项目`},
-    {lab:'跑得通',val:t.features?t.ok/t.features*100:0,unit:'%',fmt:v=>v.toFixed(0),
-      sub:`${t.ok} 条达标`,tone:'ok'},
-    {lab:'证据链断裂',val:t.bad||0,unit:'',sub:`已核验 ${num(t.evidence_checked)} 个证据路径`,
-      tone:t.bad?'bad':'ok'},
-    {lab:'仅本地验证',val:t.local_only||0,unit:'',sub:'本地跑得通 ≠ 云端跑得通',
-      tone:t.local_only?'warn':'ok'},
-    {lab:'存疑 / 计划',val:(t.warn||0)+(t.plan||0),unit:'',sub:`存疑 ${t.warn} · 计划 ${t.plan}`},
+
+function unregHTML(list){
+  if(!list.length)return '';
+  return `<div class="card" style="border-left:4px solid var(--danger)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <b style="font-size:14px">未登记业务流</b>
+      <span class="pill bad">${list.length} 个项目</span></div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.8">
+      治理规则:<b>凡是有治理文件的项目,都必须发布 <code>docs/governance/flow.yaml</code> 并落到 main。</b>
+      下列项目有治理事实但没有业务流登记 —— 和「部署即登记」同一套执行逻辑,不靠自觉。
+      <div class="card p0" style="margin-top:10px;box-shadow:none"><table><thead><tr>
+        <th>项目</th><th>仓</th><th>应放位置</th><th>原因</th></tr></thead><tbody>
+        ${list.map(u=>`<tr><td><b>${esc(u.project)}</b></td><td class="muted">${esc(u.repo)}</td>
+          <td class="muted" style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(u.expect)}</td>
+          <td class="muted">${esc(u.why)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
+}
+
+SYNC['flow']=function(){
+  const f=S.flow; if(!f)return;
+  if(!f.available){const u=q('#view');return}
+  const t=f.totals;
+  kpiRow('#flKpi',[
+    {lab:'业务基线',val:t.baselines,unit:'',sub:`${f.projects.length} 个系统 · ${t.cells} 格`},
+    {lab:'通畅率',val:t.cells?t.ok/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
+      sub:`${t.ok} 格通`,tone:'ok'},
+    {lab:'断点',val:t.bad,unit:'',sub:`另有 ${t.warn} 格有缺陷`,tone:t.bad?'bad':'ok'},
+    {lab:'自报与实测不符',val:t.mismatch,unit:'',sub:`已实测 ${t.probed} 格`,
+      tone:t.mismatch?'warn':'ok'},
+    {lab:'未登记',val:(f.unregistered||[]).length,unit:'',sub:'有治理文件却没登记',
+      tone:(f.unregistered||[]).length?'bad':'ok'},
   ]);
-  if(!FPROJ||!f.projects.some(p=>p.project===FPROJ))FPROJ=f.projects[0].project;
-  const rows=f.projects.map(p=>`<tr class="mxr${FPROJ===p.project?' on':''}" data-p="${esc(p.project)}">
-    <td data-v="${esc(p.project)}"><b>${esc(p.project)}</b></td>
-    <td class="muted" data-v="${esc(p.repo)}">${esc(p.repo)}</td>
-    <td data-v="${p.health??0}" style="color:${FV[p.state].c};font-weight:650">${p.health??'—'}%</td>
-    <td data-v="${p.counts.ok}">${p.counts.ok}</td>
-    <td data-v="${p.counts.warn}" style="color:${p.counts.warn?'var(--warn)':'var(--t3)'}">${p.counts.warn}</td>
-    <td data-v="${p.counts.bad}" style="color:${p.counts.bad?'var(--danger)':'var(--t3)'};font-weight:${p.counts.bad?650:400}">${p.counts.bad}</td>
-    <td class="muted" data-v="${p.counts.plan}">${p.counts.plan}</td>
-    <td data-v="${p.local_only}" style="color:${p.local_only?'var(--warn)':'var(--t3)'}">${p.local_only}</td>
-    <td class="muted" data-v="${p.verified_dims}">${p.verified_dims}/${p.total_dims}</td>
-    <td class="muted" style="max-width:250px">${esc(p.status||'—')}</td></tr>`).join('');
-  const tb=q('#ftRows');
-  if(tb&&tb.dataset.k!==rows.length+String(f.at)+FPROJ){
-    tb.innerHTML=rows; tb.dataset.k=rows.length+String(f.at)+FPROJ;
-    qa('#ftRows tr').forEach(tr=>tr.onclick=()=>{FPROJ=tr.dataset.p;SYNC['feature']()});
+  q('#flUnreg').innerHTML=unregHTML(f.unregistered||[]);
+
+  if(!FLPROJ||!f.projects.some(p=>p.project===FLPROJ))FLPROJ=f.projects[0].project;
+  const tabs=q('#flTabs');
+  const tk=f.projects.map(p=>p.project).join('|')+FLPROJ;
+  if(tabs&&tabs.dataset.k!==tk){
+    tabs.innerHTML=f.projects.map(p=>`<button data-p="${esc(p.project)}"
+      class="${p.project===FLPROJ?'on':''}">${esc(p.project)}${p.bad?` <span style="color:var(--danger)">${p.bad}</span>`:''}</button>`).join('');
+    tabs.dataset.k=tk;
+    qa('#flTabs button').forEach(b=>b.onclick=()=>{FLPROJ=b.dataset.p;FLCELL=null;SYNC['flow']()});
   }
-  const p=f.projects.find(x=>x.project===FPROJ)||f.projects[0];
-  setText(q('#ftWho'),`${p.project} · ${p.features.length} 条 · ${esc(p.version||'')}`);
-  const fr=[...p.features].sort((a,b)=>({bad:0,warn:1,plan:2,ok:3}[a.v]-{bad:0,warn:1,plan:2,ok:3}[b.v]))
-   .map(x=>`<tr>
-    <td data-v="${x.v}"><span class="dot" style="background:${FV[x.v].c}"></span>${FV[x.v].t}</td>
-    <td data-v="${esc(x.name)}"><b>${esc(x.name)}</b>
-      ${x.local?'<span class="chip warn" style="margin-left:6px">仅本地</span>':''}
-      <div class="muted" style="font-size:11px">${esc(x.id)}</div></td>
-    <td class="muted" data-v="${esc(x.status)}" style="max-width:190px">${esc(x.status||'—')}</td>
-    <td data-v="${esc(x.fact)}"><span class="chip ${x.fact==='VERIFIED'?'ok':(x.fact==='EXTRACTED'?'':'warn')}">${esc(x.fact||'—')}</span></td>
-    <td class="muted" data-v="${(x.paths||[]).length}">${(x.paths||[]).length} 条路径${x.unres&&x.unres.length?` · ${x.unres.length} 条不可机器核验`:''}</td>
-    <td class="muted" style="max-width:330px;font-size:11.5px">${
-      x.miss&&x.miss.length?`<b style="color:var(--danger)">证据文件已不存在:</b> ${x.miss.map(esc).join('、')}`
-      :(x.local?'已在本地验证通过,但尚未进入 GitHub —— 云端是否跑得通未经证实'
-        :(x.v==='plan'?'尚未实现,只是登记的计划'
-        :(x.v==='warn'?'状态或证据等级不足以判定"跑得通"':'状态已完成 + 证据等级充分 + 证据文件全部在位')))}</td>
-   </tr>`).join('');
-  const fb=q('#ftFeat'); if(fb&&fb.dataset.k!==FPROJ+String(f.at)){fb.innerHTML=fr;fb.dataset.k=FPROJ+String(f.at)}
-  q('#ftNote').innerHTML=`<div class="vsec" style="margin-bottom:7px">判据说明</div>
-    <div style="font-size:12.5px;color:var(--t2);line-height:1.8">${esc(f.note)}<br>
-    <b>达标</b> = 声明状态已完成 + 证据等级 VERIFIED/EXTRACTED + 声明的证据文件全部在位;
-    <b>存疑</b> = 进行中/受阻,或证据等级只到 RECONSTRUCTED/INFERRED;
-    <b>断链</b> = 声明的证据文件此刻已不存在;<b>计划中</b> = 只是登记的计划。<br>
-    <span class="muted">证据在本项目仓或原仓 CodexProject 任一处存在即算成立 —— 项目是迁移过来的,
-    不该把迁移算成断链。</span></div>`;
+  const p=f.projects.find(x=>x.project===FLPROJ)||f.projects[0];
+  setText(q('#flWho'),`${p.project} · ${p.baselines.length} 条基线 × ${p.stages.length} 段 · 阶段由该项目自己定义`);
+
+  const tb=q('#flTable');
+  const key=FLPROJ+String(f.at);
+  if(tb&&tb.dataset.k!==key){
+    tb.innerHTML=`<thead><tr><th class="s">业务基线</th><th class="s">优先级</th>
+      ${p.stages.map(x=>`<th>${esc(x)}</th>`).join('')}<th class="s">起始</th></tr></thead><tbody>
+      ${p.baselines.map(b=>`<tr data-b="${esc(b.id||b.name)}">
+        <td data-v="${esc(b.name)}"><b>${esc(b.name)}</b>
+          ${b.broken_at?`<div class="muted" style="font-size:11px">断在「${esc(b.broken_at)}」</div>`:''}</td>
+        <td data-v="${b.priority}"><span class="chip" style="color:${PRC[b.priority]};
+          background:transparent;border:1px solid ${PRC[b.priority]}">${b.priority}</span></td>
+        ${p.stages.map(st=>{const c=b.cells[st]||{s:'unknown',v:''};const cs=CS[c.s]||CS.unknown;
+          return `<td class="mxc fc" data-st="${esc(st)}" data-b="${esc(b.id||b.name)}"
+            title="${esc(st)}:${esc(c.v||cs.t)}">
+            <span class="dot" style="background:${cs.c}"></span>
+            ${c.mismatch?'<span class="mm" title="自报与实测不符">≠</span>':''}
+            ${c.downstream_of_break?'<span class="ds" title="上游已断,这一格的绿没有意义">↑</span>':''}
+          </td>`}).join('')}
+        <td class="muted" data-v="${b.since||''}">${b.since||'—'}</td></tr>`).join('')}</tbody>`;
+    tb.dataset.k=key;
+    qa('#flTable td.fc').forEach(td=>td.onclick=()=>{
+      FLCELL={b:td.dataset.b,st:td.dataset.st}; drawCell();
+      qa('#flTable td.fc').forEach(x=>x.classList.remove('on')); td.classList.add('on');
+    });
+    wire();
+  }
+  drawCell();
+
+  function drawCell(){
+    const el=q('#flCell'); if(!el)return;
+    const b=p.baselines.find(x=>(x.id||x.name)===(FLCELL&&FLCELL.b))||p.baselines[0];
+    const st=(FLCELL&&FLCELL.st)||p.stages[0];
+    const c=(b.cells||{})[st]||{s:'unknown',v:''}, cs=CS[c.s]||CS.unknown;
+    const def=(p.defects||[]).find(d=>d.id===c.defect);
+    el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;
+        gap:12px;flex-wrap:wrap">
+        <b style="font-size:15px">${esc(b.name)} · ${esc(st)}</b>
+        <span class="pill" style="color:${cs.c};background:color-mix(in srgb,${cs.c} 14%,transparent)">${cs.t}</span></div>
+      <div style="font-size:13px;color:var(--t2);margin-top:10px;line-height:1.85">
+        <b>证据</b>:${esc(c.v)||'—'}<br>
+        <b>自报</b>:${c.declared?esc(CS[c.declared]?CS[c.declared].t:c.declared):'未声明'}
+        · <b>本机实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured):'该格未配探针'}
+        ${c.mismatch?'<br><b style="color:var(--warn)">⚠ 自报与实测不符</b> —— 登记表可能已经和现实脱节,这比单纯的红更值得看':''}
+        ${c.downstream_of_break?`<br><b style="color:var(--danger)">⚠ 上游「${esc(c.downstream_of_break)}」已断</b>,这一格的绿没有意义`:''}
+        ${def?`<br><b style="color:var(--danger)">已知缺陷 ${esc(def.id)}</b>:${esc(def.desc)}(自 ${esc(def.since||'—')})`:''}
+      </div>`;
+  }
+
+  const defs=(p.defects||[]).map(d=>`<tr>
+    <td data-v="${esc(d.id)}" style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(d.id)}</td>
+    <td data-v="${esc(d.baseline)}">${esc((p.baselines.find(b=>b.id===d.baseline)||{}).name||d.baseline)}</td>
+    <td data-v="${esc(d.stage)}">${esc(d.stage)}</td>
+    <td>${esc(d.desc)}</td><td class="muted" data-v="${esc(d.since||'')}">${esc(d.since||'—')}</td></tr>`).join('');
+  const db=q('#flDefect');
+  if(db&&db.dataset.k!==FLPROJ+defs.length){db.innerHTML=defs||'<tr><td colspan="5" class="muted">该项目未登记已知缺陷</td></tr>';db.dataset.k=FLPROJ+defs.length}
+
+  const tr=f.trend||[];
+  chart('flTrend',{type:'line',data:{labels:tr.map(x=>x.d.slice(5)),datasets:[
+    {label:'通',data:tr.map(x=>x.ok),borderColor:'#0f8a4d',backgroundColor:'rgba(15,138,77,.14)',
+      borderWidth:2,pointRadius:0,tension:.3,fill:true},
+    {label:'有缺陷',data:tr.map(x=>x.warn),borderColor:'#c98500',borderWidth:2,pointRadius:0,tension:.3},
+    {label:'断',data:tr.map(x=>x.bad),borderColor:'#cf3a3a',borderWidth:2,pointRadius:0,tension:.3}]},
+    options:baseOpt({plugins:{legend:{display:true,labels:{color:ink,boxWidth:9,font:{size:10}}},tooltip:{}},
+      scales:{x:{ticks:{color:ink,maxTicksLimit:7},grid:{display:false}},
+        y:{ticks:{color:ink},grid:{color:grid},beginAtZero:true}}})});
+
+  q('#flNote').innerHTML=`<div class="vsec" style="margin-bottom:7px">这张表怎么读</div>
+    <div style="font-size:12.5px;color:var(--t2);line-height:1.85">${esc(f.note)}<br>
+    <b>登记来源</b>:<code>${esc(p.source||'—')}</code>(以各仓 <b>main</b> 为准;还在 PR 或本地 worktree 里的登记不计入)<br>
+    <b>归档</b>:${f.history_days||0} 天${f.history_since?`,自 ${f.history_since}`:''};
+    同一天取最差的一次 —— 一天里坏过就不该被后面的好覆盖掉。</div>`;
 };
 
 /* ============ 运行(项目 + 主机 + 自愈)============ */
