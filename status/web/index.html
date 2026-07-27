@@ -589,7 +589,17 @@ function insights(s){
     if(p>=80)push('bad',`${u.label} 接近额度`,`${p.toFixed(1)}% 已用`);
     else if(p>=50)push('warn',`${u.label} 过半`,`${p.toFixed(1)}% 已用${u.eta_date?' · 预计触顶 '+u.eta_date:''}`);});
   if(o.cert&&o.cert.days!=null&&o.cert.days<=14)push('warn','证书临近到期',`${o.cert.date} · 剩 ${o.cert.days} 天(自动续期)`);
-  if(o.ovh_renew&&o.ovh_renew.days!=null&&o.ovh_renew.days<=7)push('warn','OVH 即将续费',`${o.ovh_renew.date} · 剩 ${o.ovh_renew.days} 天`);
+  /* ★ 订阅到期:**全部订阅**,提前 7 天变红。
+     老口径只看 OVH 一条 —— 7 条订阅覆盖 1 条,实测 ChatGPT Pro20x 剩 7 天时页面一点提示都没有。
+     又一次「口径只覆盖子集却当成全局」。 */
+  const sb=o.subs||{};
+  (sb.items||[]).filter(x=>x.level!=='ok').forEach(x=>
+    push(x.level, `${x.name} ${x.days<=0?'已到期':'即将扣费'}`,
+      `${x.date} · 剩 ${x.days} 天${x.auto_renew?' · 自动续费开着':' · 自动续费没开'}`));
+  /* ★ 算不出到期日的**必须单独报**。算不出不等于没事 —— 这类最容易漏。 */
+  if((sb.blind||[]).length)
+    push('warn', `${sb.blind.length} 条订阅盯不住`,
+      sb.blind.map(x=>x.name).join('、')+' —— 没登记购买日期，到期前不会有任何提醒');
   if(o.backup&&!o.backup.ok)push('bad','备份异常',`上次备份 ${o.backup.at||'无记录'}`);
   if(g.available&&g.ci_fail>0)push('warn',`${g.ci_fail} 个仓 CI 失败`,'默认分支最近一次运行未通过');
   (s.selfheal&&s.selfheal.rules||[]).filter(r=>!r.armed).forEach(r=>
