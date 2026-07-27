@@ -135,5 +135,37 @@ class WiringTest(unittest.TestCase):
                          "OVH 还剩 21 天，不该出现在告警里（否则是每条都报=等于没报）")
 
 
+class CallSiteTest(unittest.TestCase):
+    """★ 单测函数 ≠ 测了接线。
+
+    第一版把 `subs = subscription_ledger(costblk)` 插在了 `costblk` 定义**之前**，
+    函数自己的 12 条用例全绿，主机上一跑却直接 UnboundLocalError，
+    采集器整轮挂掉、快照停更。**函数被测到了，调用点没有。**
+    """
+
+    def test_ledger_is_called_after_its_input_exists(self):
+        import inspect
+        src = inspect.getsource(C)
+        i_cost = src.index("costblk = cost(prices, fx)")
+        i_subs = src.index("subs = subscription_ledger(costblk)")
+        self.assertLess(i_cost, i_subs,
+                        "subs 在 costblk 定义之前就被调用 —— 主机上会 UnboundLocalError")
+
+    def test_main_body_compiles_with_ordered_locals(self):
+        """用字节码层面查一遍:main 里没有「先读后写」的局部变量。"""
+        import dis
+        import inspect
+        src = inspect.getsource(C.main)
+        code = compile(src.replace("def main(", "def _m(", 1), "<t>", "exec")
+        fn = [c for c in code.co_consts if hasattr(c, "co_name") and c.co_name == "_m"][0]
+        assigned = set()
+        for ins in dis.get_instructions(fn):
+            if ins.opname == "LOAD_FAST" and ins.argval not in assigned:
+                self.assertNotIn(ins.argval, fn.co_varnames[:0],
+                                 "局部变量 %s 在赋值前被读取" % ins.argval)
+            if ins.opname in ("STORE_FAST",):
+                assigned.add(ins.argval)
+
+
 if __name__ == "__main__":
     unittest.main()

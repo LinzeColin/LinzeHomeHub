@@ -2598,10 +2598,12 @@ def main():
     usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
     ovh_renew = {"date": ovh_date, "days": ovh_days}
-    subs = subscription_ledger(costblk)
     ch = container_health()
     backup = backup_status()
     costblk = cost(prices, fx)
+    # ★ 必须放在 costblk 之后 —— 第一版插在它前面,主机上直接 UnboundLocalError,
+    #   采集器整轮挂掉、快照停更。单测测了函数本身,却没测调用点,漏在了接线上。
+    subs = subscription_ledger(costblk)
     seats = next((u for u in usage if u.get("key") == "cf_access"), None)
 
     snap = {
