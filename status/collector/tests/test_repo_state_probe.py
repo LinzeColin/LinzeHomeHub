@@ -151,6 +151,31 @@ class IsolationTest(unittest.TestCase):
         self.assertIn(b.get("measured"), (None, "unknown"))
 
 
+class NativeFactsTest(unittest.TestCase):
+    """★ 走「自有事实档」适配层的项目(KMFA)同样要带回流。
+
+    第一版把回流解析放在那条分支**之后**,而那条分支会提前 continue ——
+    于是 KMFA 自己吐了状态、CI 也提交了,status 这边一条都没收,
+    而且 live_why 是 None:**连「为什么没有」都没有**。
+    这是本轮同一个形状的第 7 次:分支绕过 = 静默丢。
+    """
+
+    def test_live_meta_computed_before_any_branch(self):
+        import inspect
+        src = inspect.getsource(cg.gather_flows)
+        i_live = src.index("live, live_why = _parse_flow_state")
+        i_nat = src.index("if name in nat:")
+        self.assertLess(i_live, i_nat,
+                        "回流解析在分支之后 —— 走适配层的项目会读不到自己的回流")
+
+    def test_adapter_path_attaches_live(self):
+        import inspect
+        src = inspect.getsource(cg.gather_flows)
+        head = src[src.index("if name in nat:"):src.index("t = texts.get(keys[i])")]
+        self.assertIn("doc.update(live_meta)", head,
+                      "适配层分支没有把回流挂上去")
+
+
 class RegistryTest(unittest.TestCase):
     def test_probe_is_registered(self):
         self.assertIn("repo_state", collect.PROBES)
