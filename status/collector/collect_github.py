@@ -1185,18 +1185,28 @@ def gather_flows(token, projects_list=None, discovery=None):
     for i, (repo, d) in enumerate(projects_list):
         name = d if d != "." else repo
         # 有自有事实档的项目优先走适配层,不要求它再维护一份 flow.yaml
+        # ★ 回流状态**必须先算**,再走分支 —— 第一版把它放在自有事实档那条分支之后,
+        #   于是 KMFA(走适配层,提前 continue)的回流**永远读不到**:
+        #   它自己吐了状态、CI 也提交了,status 这边却一条都没收,而且 live_why 是 None
+        #   (连"为什么没有"都没有)。这是同一个形状的第 7 次:**分支绕过 = 静默丢**。
+        live, live_why = _parse_flow_state(texts.get(live_keys[i]), name)
+        live_meta = {"live": live, "live_why": live_why,
+                     "live_expect": live_keys[i][1],
+                     "live_at": max([v["at"].isoformat() for v in live.values() if v["at"]]
+                                    or [""]) or None}
         if name in nat:
             nr, np_ = nat[name]
             raw = texts.get((nr, np_))
             if raw:
                 try:
-                    projects.append(_adapt_business_baselines(json.loads(raw), name, nr, np_))
+                    doc = _adapt_business_baselines(json.loads(raw), name, nr, np_)
+                    doc.update(live_meta)      # ★ 适配层的项目同样要带上回流
+                    projects.append(doc)
                     continue
                 except Exception as e:
                     missing.append({"project": name, "repo": nr, "expect": np_,
                                     "why": "自有事实档解析失败:%s" % str(e)[:60]})
                     continue
-        live, live_why = _parse_flow_state(texts.get(live_keys[i]), name)
         t = texts.get(keys[i])
         if not t:
             missing.append({"project": name, "repo": repo,
@@ -1215,10 +1225,7 @@ def gather_flows(token, projects_list=None, discovery=None):
         doc["source"] = "%s/%s" % (repo, keys[i][1])
         # 项目自报的实时步骤状态(双向的回流那一半)。为空就是为空,如实标原因,
         # **不静默丢弃** —— 丢掉的东西不进任何总量校验,总量就永远是对的(假绿)。
-        doc["live"] = live
-        doc["live_at"] = max([v["at"].isoformat() for v in live.values() if v["at"]] or [""]) or None
-        doc["live_why"] = live_why
-        doc["live_expect"] = live_keys[i][1]
+        doc.update(live_meta)          # 与适配层同一份,不写第二遍口径
         projects.append(doc)
     return {"projects": projects, "unregistered": missing,
             "registered": len(projects), "expected": len(projects_list),
