@@ -270,6 +270,27 @@ tbody tr:last-child td{border-bottom:none}
   backdrop-filter:blur(6px);pointer-events:none}
 .ulegend{display:flex;gap:15px;flex-wrap:wrap;font-size:11.5px;color:var(--t3);margin-top:9px}
 .ulegend i{display:inline-block;width:15px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+/* ---------- 业务基线矩阵 ---------- */
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
+table.mx th{white-space:nowrap;font-size:11.5px}
+table.mx td.mxc{text-align:center;padding-left:0;padding-right:0;cursor:help}
+table.mx td.mxc .dot{margin:0;transition:transform .16s var(--ease)}
+table.mx td.mxc:hover .dot{transform:scale(1.55)}
+tr.mxr{cursor:pointer;transition:background .16s var(--ease)}
+tr.mxr:hover{background:var(--soft)}
+tr.mxr.on{background:var(--accent-bg)}
+tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+/* 端到端链路 */
+.chain{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding-bottom:5px}
+.chain .seg{flex:1 0 116px;border:1px solid var(--line);border-left-width:3px;border-left-color:var(--sc);
+  border-radius:9px;padding:9px 11px;background:var(--soft);transition:transform .18s var(--ease),box-shadow .18s var(--ease)}
+.chain .seg:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.chain .segh{font-size:12px;font-weight:650;color:var(--t1);display:flex;align-items:center;gap:6px}
+.chain .segh i{width:8px;height:8px;border-radius:50%;background:var(--sc);flex:0 0 auto}
+.chain .segv{font-size:11.5px;color:var(--t2);margin-top:5px;line-height:1.55}
+.chain .arw{flex:0 0 14px;align-self:center;height:2px;background:var(--line2);position:relative}
+.chain .arw::after{content:'';position:absolute;right:0;top:-3px;border:4px solid transparent;
+  border-left-color:var(--line2)}
 /* 逐日图上的「上游还没发布」占位 */
 .pend{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--warn);
   background:var(--warn-bg);padding:4px 10px;border-radius:999px;font-weight:550}
@@ -317,10 +338,11 @@ let S=null, PREV=null, CAN_EDIT=false, PROBED=false, MOUNTED=null, lastAt=0;  //
 
 /* ========== 4 个入口:总览 + 3 个二级 ========== */
 const PAGES=[
-  {id:'',       name:'总览'},
-  {id:'runtime',name:'运行'},
-  {id:'cost',   name:'成本'},
-  {id:'github', name:'GitHub'},
+  {id:'',        name:'总览'},
+  {id:'software',name:'软件'},
+  {id:'runtime', name:'运行'},
+  {id:'cost',    name:'成本'},
+  {id:'github',  name:'GitHub'},
 ];
 const ROUTE=()=> (location.hash||'#/').replace(/^#\/?/,'').split('?')[0];
 
@@ -468,7 +490,10 @@ setInterval(tickAgo,1000);
 /* 顶栏 */
 function renderTabs(){
   const g=S&&S.github||{};
-  const badge={'':S?S.summary.services_online:'', 'runtime':S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:'',
+  const sw=S&&S.software||null;
+  const badge={'':S?S.summary.services_online:'',
+    'software':sw?(sw.unregistered.length?sw.unregistered.length+' 未登记':sw.score+'分'):'',
+    'runtime':S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:'',
     'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'', 'github':g.available?g.repos_total+'仓':''};
   const nav=q('#tabs');
   nav.innerHTML='<span class="tabink" id="tabink"></span>'+PAGES.map(p=>
@@ -484,7 +509,8 @@ function mount(){
   MOUNTED=ROUTE();
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
-  const V={'':vOverview,'runtime':vRuntime,'cost':vCost,'github':vGithub}[MOUNTED]||vOverview;
+  const V={'':vOverview,'software':vSoftware,'runtime':vRuntime,'cost':vCost,
+           'github':vGithub}[MOUNTED]||vOverview;
   const el=q('#view'); el.innerHTML=V(); el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
   for(const k in _ch){ if(!D.getElementById(k)){ _ch[k].destroy(); delete _ch[k]; } }  // 清掉已脱离 DOM 的图表
   renderTabs(); wire(); sync(); scrollHM();
@@ -1028,6 +1054,157 @@ function kpiRow(sel,items){
     if(i.tone)el.className='kpi tone-'+i.tone;
   });
 }
+
+/* ============ 软件运行状态(业务基线纵向切片 + 登记合规)============
+   治理规则:凡是部署到 OVH / Cloudflare 的软件,都必须在这里登记、接入实时监控与自愈。
+   这一页的价值全在「不看登记表也能把东西找全」—— 单元由 Docker / systemd / cron /
+   Coolify 库四路自动探测,再和登记表比对;对不上的就是治理违规。 */
+const SST={ok:{c:'var(--ok)',t:'达标'},warn:{c:'var(--warn)',t:'需关注'},
+            bad:{c:'var(--danger)',t:'不达标'},na:{c:'var(--t3)',t:'不适用'}};
+let SWFOCUS=null;
+
+function vSoftware(){
+  const w=S.software;
+  if(!w)return `<div class="warnbox">软件运行状态尚未产出(采集器每分钟一次)</div>`;
+  return `<div class="grid k5" id="swKpi"></div>
+  <h2>治理登记合规 <span class="hint">凡部署到 OVH / Cloudflare 的软件必须登记并接入监控与自愈</span></h2>
+  <div class="card" id="swGov"></div>
+  <h2>业务基线纵向切片 <span class="hint">一条业务线从代码到自愈,每一段都要有实测证据;点行看端到端链路</span></h2>
+  <div class="card p0 scroll"><table class="mx"><thead><tr>
+    <th class="s">业务线</th><th class="s">分</th>
+    ${w.stages.map(x=>`<th title="${esc(x.n)}">${esc(x.n)}</th>`).join('')}
+    <th class="s">单元</th><th class="s">主机</th>
+  </tr></thead><tbody id="swRows"></tbody></table></div>
+  <div class="muted" style="font-size:11.5px;margin-top:7px">
+    <span class="dot" style="background:var(--ok)"></span>达标
+    <span class="dot" style="background:var(--warn)"></span>需关注
+    <span class="dot" style="background:var(--danger)"></span>不达标
+    <span class="dot" style="background:var(--t3)"></span>不适用 · 悬停任意格看实测证据</div>
+  <h2>端到端链路 <span class="hint">选中的业务线,从代码一路走到自愈</span></h2>
+  <div class="card" id="swChain"></div>
+  <h2>端到端健康历史 <span class="hint">逐小时归档,保留 400 天</span></h2>
+  <div class="grid k2">
+    <div class="card hov"><div class="muted" style="margin-bottom:7px">整体健康分</div>
+      <div class="chartbox"><canvas id="swHist"></canvas></div></div>
+    <div class="card hov"><div class="muted" style="margin-bottom:7px">耦合治理 · 爆炸半径
+      <span class="hint">共享资源一旦出事会连累几条线</span></div>
+      <div id="swBlast"></div></div>
+  </div>
+  <h2>自动探测到的运行单元 <span class="hint">不看登记表,直接从主机上找出来的</span></h2>
+  <div class="card p0 scroll"><table><thead><tr>
+    <th class="s">类型</th><th class="s">单元</th><th class="s">状态</th><th class="s">归属业务线</th><th>说明</th>
+  </tr></thead><tbody id="swUnits"></tbody></table></div>
+  <div class="card" id="swNote" style="margin-top:14px"></div>`;
+}
+
+function chainHTML(ln,stages){
+  return `<div style="display:flex;justify-content:space-between;align-items:baseline;
+      flex-wrap:wrap;gap:9px;margin-bottom:11px">
+      <b style="font-size:15px">${esc(ln.name)}</b>
+      <span class="muted">${esc(ln.role||ln.host)}${ln.repo?' · 源码 '+esc(ln.repo):''}
+      ${ln.url?' · <a href="'+esc(ln.url)+'" target="_blank" rel="noopener">'+esc(ln.url.replace('https://',''))+'</a>':''}</span>
+      <span class="pill ${ln.state==='ok'?'ok':(ln.state==='bad'?'bad':'warn')}">${ln.score} 分</span></div>
+    <div class="chain">${stages.map((st,i)=>{
+      const c=ln.cells[st.k], sc=SST[c.s];
+      return `<div class="seg" style="--sc:${sc.c}">
+        <div class="segh"><i></i>${esc(st.n)}</div>
+        <div class="segv">${esc(c.v)}</div></div>${i<stages.length-1?'<div class="arw"></div>':''}`;
+    }).join('')}</div>`;
+}
+
+SYNC['software']=function(){
+  const w=S.software, b=S.baseline||{};
+  if(!w)return;
+  const viol=w.unregistered.length;
+  kpiRow('#swKpi',[
+    {lab:'端到端健康',val:w.score,unit:' 分',sub:`${w.lines.length} 条线(业务+底座)`,
+      tone:w.score>=95?'ok':(w.score>=80?'warn':'bad')},
+    {lab:'探测到单元',val:w.units_total,unit:'',
+      sub:`容器 ${w.by_kind.container} · 服务 ${w.by_kind.systemd} · 定时 ${w.by_kind.cron}`},
+    {lab:'登记合规',val:w.units_total?w.units_registered/w.units_total*100:100,unit:'%',
+      fmt:v=>v.toFixed(0),sub:`${w.units_registered} / ${w.units_total} 已认领`,
+      tone:viol?'bad':'ok'},
+    {lab:'未登记违规',val:viol,unit:'',sub:viol?'必须补登记':'全部有归属',tone:viol?'bad':'ok'},
+    {lab:'不达标段',val:w.lines.reduce((n,l)=>n+Object.values(l.cells).filter(c=>c.s==='bad').length,0),
+      unit:'',sub:'九段切片中',tone:'ok'},
+  ]);
+
+  q('#swGov').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;
+      gap:12px;flex-wrap:wrap"><b style="font-size:14px">登记治理</b>
+      ${viol?`<span class="pill bad">${viol} 个单元未登记</span>`
+            :'<span class="pill ok">全部单元均已登记归属</span>'}</div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.85">
+    规则:<b>任何部署到 OVH 或 Cloudflare 的软件,都必须在本页登记归属、接入实时监控与动态自愈。</b>
+    执行方式不是靠人自觉——采集器每分钟从 <b>Docker / systemd / cron / Coolify 库</b> 四路
+    自动把主机上真在跑的东西找出来,再和登记表比对;<b>对不上的就是治理违规</b>。
+    ${viol?`<div class="card p0" style="margin-top:10px;box-shadow:none"><table><thead><tr>
+      <th>类型</th><th>单元</th><th>状态</th><th>说明</th></tr></thead><tbody>${
+      w.unregistered.map(u=>`<tr><td class="muted">${esc(u.kind)}</td><td>${esc(u.id)}</td>
+      <td style="color:var(--danger)">${esc(u.state)}</td><td class="muted">${esc(u.detail)}</td></tr>`).join('')
+      }</tbody></table></div>`:''}
+    <div class="muted" style="margin-top:9px">${esc(w.cloudflare_note)}</div></div>`;
+
+  // 矩阵
+  const rows=w.lines.map(ln=>`<tr class="mxr${SWFOCUS===ln.name?' on':''}" data-l="${esc(ln.name)}">
+    <td data-v="${esc(ln.name)}"><b>${esc(ln.name)}</b>
+      ${ln.kind==='platform'?'<span class="chip" style="margin-left:5px">底座</span>':''}</td>
+    <td data-v="${ln.score}" style="color:${SST[ln.state].c};font-weight:650">${ln.score}</td>
+    ${w.stages.map(st=>{const c=ln.cells[st.k];
+      return `<td class="mxc" title="${esc(st.n)}:${esc(c.v)}">
+        <span class="dot" style="background:${SST[c.s].c}"></span></td>`}).join('')}
+    <td class="muted" data-v="${ln.units}">${ln.units}</td>
+    <td class="muted" data-v="${esc(ln.host)}">${esc(ln.host)}</td></tr>`).join('');
+  const tb=q('#swRows');
+  if(tb&&tb.dataset.k!==rows.length+String(w.at)){
+    tb.innerHTML=rows; tb.dataset.k=rows.length+String(w.at);
+    qa('#swRows tr').forEach(tr=>tr.onclick=()=>{
+      SWFOCUS=tr.dataset.l; qa('#swRows tr').forEach(x=>x.classList.remove('on'));
+      tr.classList.add('on'); drawChain();
+    });
+  }
+  drawChain();
+
+  function drawChain(){
+    const ln=w.lines.find(x=>x.name===SWFOCUS)||w.lines[0];
+    const el=q('#swChain');
+    if(el&&el.dataset.k!==ln.name+w.at){el.innerHTML=chainHTML(ln,w.stages);el.dataset.k=ln.name+w.at}
+  }
+
+  // 健康历史
+  const hs=(b.hours||[]), p2=x=>('0'+x).slice(-2);
+  chart('swHist',{type:'line',data:{labels:hs.map(t=>{const d=new Date(t*1000);
+      return (d.getMonth()+1)+'/'+d.getDate()+' '+p2(d.getHours())}),
+    datasets:[{data:b.overall||[],borderColor:'#0f8a4d',backgroundColor:'rgba(15,138,77,.14)',
+      borderWidth:2,pointRadius:0,tension:.3,fill:true}]},
+    options:baseOpt({scales:{x:{ticks:{color:ink,maxTicksLimit:6},grid:{display:false}},
+      y:{min:0,max:100,ticks:{color:ink,stepSize:25},grid:{color:grid}}}})});
+
+  q('#swBlast').innerHTML=(w.blast_radius||[]).map(x=>{
+    const pct=Math.round(x.n/Math.max(1,w.lines.length)*100);
+    return `<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;
+      font-size:13px"><span>${esc(x.res)}</span>
+      <b style="color:${x.n>=w.lines.length*0.6?'var(--danger)':'var(--warn)'}">${x.n} 条线</b></div>
+      <div style="height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin-top:4px">
+        <i style="display:block;height:100%;width:${pct}%;border-radius:3px;
+          background:${x.n>=w.lines.length*0.6?'var(--danger)':'var(--warn)'};
+          transition:width .6s var(--ease)"></i></div>
+      <div class="muted" style="font-size:11.5px;margin-top:3px">${x.lines.map(esc).join('、')}</div></div>`;
+  }).join('')||'<div class="muted">暂无共享资源耦合</div>';
+
+  // 单元清单
+  const KN={container:'容器',systemd:'服务',cron:'定时',coolify:'Coolify'};
+  const SC={running:'ok',active:'ok',scheduled:'na',failed:'bad',exited:'warn',inactive:'warn'};
+  const ur=(w.units||[]).map(u=>`<tr><td class="muted" data-v="${esc(u.kind)}">${esc(KN[u.kind]||u.kind)}</td>
+    <td data-v="${esc(u.id)}" style="font-family:ui-monospace,monospace;font-size:12px">${esc(u.id)}
+      ${u.domain?`<span class="muted"> · ${esc(u.domain)}</span>`:''}</td>
+    <td data-v="${esc(u.state)}"><span class="dot" style="background:${SST[SC[u.state]||'warn'].c}"></span>${esc(u.state)}</td>
+    <td data-v="${esc(u.owner||'')}">${u.owner?esc(u.owner):'<b style="color:var(--danger)">未登记</b>'}</td>
+    <td class="muted">${esc(u.detail||'')}</td></tr>`).join('');
+  const us=(w.units||[]);
+  const ub=q('#swUnits'); if(ub&&ub.dataset.k!==us.length+String(w.at)){ub.innerHTML=ur;ub.dataset.k=us.length+String(w.at)}
+
+  setText(q('#swNote'),w.note+' 归档自 '+(b.since?new Date(b.since*1000).toLocaleDateString('zh-CN'):'—'));
+};
 
 /* ============ 运行(项目 + 主机 + 自愈)============ */
 const RANGES=[['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['全部',-1]];

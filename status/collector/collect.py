@@ -29,37 +29,37 @@ HISTORY_MAX = 96                            # 24h @ 15min
 PROJECTS = [
     {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "linze-home-hub"}},
     {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "nab"}},
     {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "pfi-public"}},
     {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无"},
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "serenity-public"}},
     {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "repo": "KMOS",
      "host": "OVH VPS-1", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
-     "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉"},
+     "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉", "owns": {"container": ["app-", "skills-"], "coolify": "kmfa-kmos-p1"}},
     {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
      "host": "OVH VPS-1", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
-     "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件"},
+     "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件", "owns": {"container": ["identity-"]}},
     {"name": "EEI",      "url": "https://eei.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
-     "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无(内部服务)"},
+     "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无(内部服务)", "owns": {"container": ["eei-"]}},
     {"name": "Alpha",    "url": "https://alpha.linzezhang.com",    "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "OVH VPS-1", "db": "OVH 文件 · 交易账本 sqlite", "store": "OVH 文件",
-     "deploy": "host-direct systemd ×5", "backup": "随主机 + 账本邮件归档", "agent": "低", "notify": "邮件"},
+     "deploy": "host-direct systemd ×5", "backup": "随主机 + 账本邮件归档", "agent": "低", "notify": "邮件", "owns": {"systemd": ["alpha-"]}},
     {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "Cloudflare Workers", "db": "CF D1 · adp", "store": "CF D1 + R2",
-     "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件"},
+     "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件", "owns": {"cloudflare": ["adp"]}},
     {"name": "Uptime",   "url": "https://uptime.linzezhang.com",   "parts": ["前台"],
      "host": "OVH VPS-1", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
-     "backup": "随主机", "agent": "无", "notify": "无"},
+     "backup": "随主机", "agent": "无", "notify": "无", "owns": {"container": ["monitoring-gatus"]}},
     {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-1", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
-     "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无"},
+     "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无", "owns": {"container": ["linze-status"], "cron": ["linze-status", "linze-github", "linze-selfheal"]}},
 ]
 
 
@@ -178,7 +178,8 @@ def deploy_stats():
     for line in recs.splitlines():
         p = line.split("|")
         if len(p) == 3:
-            log.append({"at": p[0], "app": p[1], "ok": p[2].strip() == "finished"})
+            log.append({"at": p[0], "app": p[1], "ok": p[2].strip() == "finished",
+                        "status": p[2].strip()})
     return {"success": succ, "total": total, "rate": rate,
             "d7_labels": labels, "d7_data": data, "log": log}
 
@@ -847,6 +848,363 @@ def deploy_calendar():
             "since": first, "label": "每日部署次数"}
 
 
+# ---------- 软件运行状态:自动探测 + 登记核对 + 业务基线纵向切片 ----------
+# 平台底座也必须登记 —— 否则「未登记」告警会被底座组件刷屏,治理就形同虚设。
+# 这些不是业务线,但同样是跑在 OVH 上的软件,同样要有归属和自愈。
+PLATFORM = [
+    {"name": "Coolify 平台", "role": "部署编排底座",
+     "owns": {"container": ["coolify"], "cron": ["linze-coolify-backup"],
+              "image": ["coolify-helper"]},            # 临时构建容器名是随机串,只能按镜像认领
+     "heal": "容器 restart 策略 + 每日库备份"},
+    {"name": "Traefik 入口", "role": "反向代理 / TLS", "owns": {"container": ["coolify-proxy"]},
+     "heal": "restart 策略 + 证书自动续期"},
+    {"name": "邮件网关", "role": "SMTP 中继", "owns": {"container": ["linze-smtp-bridge"]},
+     "heal": "restart 策略"},
+    {"name": "备份体系", "role": "异地备份 / 身份库备份",
+     "owns": {"cron": ["linze-offsite-backup", "linze-identity-backup"]}, "heal": "cron 自运行 + 自愈看门狗"},
+    {"name": "链路巡检", "role": "外链健康 / Access 席位熔断",
+     "owns": {"cron": ["linze-link-health", "linze-cf-seat-fuse"]}, "heal": "cron 自运行"},
+    # 自动探测把它挖出来之前,这个单元没出现在任何一张视图里 —— 正是这条治理规则要防的情况
+    {"name": "Cloudflare 隧道", "role": "CF Tunnel 入站(部分域名不经公网源站)",
+     "owns": {"systemd": ["cloudflared"]}, "heal": "systemd Restart + cloudflared-update 定时更新"},
+]
+
+# 业务基线的纵向切片 —— 一条业务线从代码到自愈,每一段都必须有实测证据,
+# 任何一段是黑箱,这条线就不算「白箱受控」。
+STAGES = [
+    ("code", "代码源"), ("ci", "CI"), ("deploy", "部署"), ("run", "运行"), ("entry", "入口"),
+    ("data", "数据"), ("backup", "备份"), ("monitor", "监控"), ("heal", "自愈"),
+]
+_ORDER = {"bad": 0, "warn": 1, "na": 2, "ok": 3}
+
+
+def _cell(state, evidence):
+    return {"s": state, "v": evidence}
+
+
+def _systemd_state(kv):
+    """把 systemctl show 的字段判成一个状态,单独抽出来是为了能被测试直接打。
+
+    定时/路径触发的 oneshot 单元、以及 OnFailure 的 `xxx@yyy.service` 模板实例,
+    平时就该是 inactive —— 判成 down 会造出一整列假红。
+    """
+    act, typ = kv.get("ActiveState", ""), kv.get("Type", "")
+    trig, res = kv.get("TriggeredBy", ""), kv.get("Result", "success")
+    if act == "active":
+        return "active"
+    if res != "success":
+        return "failed"
+    if typ == "oneshot" or trig or "@" in (kv.get("Id") or ""):
+        return "scheduled"
+    return "inactive"
+
+
+def discover_units():
+    """自动探测主机上**实际在跑的**部署单元,不依赖任何登记表。
+
+    治理规则要求「凡是部署到 OVH / Cloudflare 的都必须登记」,
+    而能执行这条规则的前提,是先能不看登记表就把东西找全——否则漏登记的永远发现不了。
+    四个来源都是主机自带的事实:Coolify 库、Docker、systemd、cron。
+    Cloudflare 侧没有只读令牌(owner 明确不建),所以**不假装能枚举**,
+    只按登记表里声明的 CF 单元做对外可达性验证,并如实标注这一段是「凭 HTTP 实测,非账面枚举」。
+    """
+    units = []
+    raw = run("for c in $(docker ps -a --format '{{.Names}}'); do "
+              "docker inspect \"$c\" --format '{{.Name}}|{{.State.Status}}|"
+              "{{.HostConfig.RestartPolicy.Name}}|{{.Config.Image}}|"
+              "{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}|{{.State.StartedAt}}|"
+              "{{json .Config.Labels}}' 2>/dev/null; done",
+              timeout=60)
+    for line in raw.splitlines():
+        parts = line.split("|", 6)
+        if len(parts) < 7:
+            continue
+        name, state, policy, image, health, started, labels = parts
+        name = name.lstrip("/")
+        m = re.search(r"Host\(`([^`]+)`\)", labels or "")
+        age = None
+        try:                                            # StartedAt 是 RFC3339,只取到秒
+            age = int(time.time() - datetime.strptime(
+                started[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+        except ValueError:
+            pass
+        units.append({"kind": "container", "id": name, "state": state,
+                      "domain": m.group(1) if m else None, "policy": policy,
+                      "health": health, "age_s": age, "detail": image.split("@")[0]})
+    # systemd 必须问清楚**单元类型**,不能只看 active/inactive。
+    # ★ 实测教训:Alpha 的 13 个单元里有一半是 Type=oneshot + TriggeredBy=timer/path
+    #   (盘前自检、账本备份、净值快照)以及 alpha-alert@* 失败告警模板实例——
+    #   它们平时就该是 inactive,拿 inactive 当"挂了"会造出一整列假红。
+    #   假红比没有告警更糟:一旦习惯了红色,真出事那次也不会有人看。
+    names = [f.split()[0] for f in
+             run("systemctl list-units --type=service --all --no-pager --no-legend "
+                 "2>/dev/null").splitlines()
+             if f.split() and f.split()[0].endswith(".service")
+             and re.match(r"(alpha|eei|linze|kmfa|adp|cloudflared)[-.@]", f.split()[0])]
+    if names:
+        blob = run("systemctl show %s --property=Id --property=Type --property=ActiveState "
+                   "--property=Result --property=TriggeredBy --property=Description 2>/dev/null"
+                   % " ".join("'%s'" % n for n in names[:60]), timeout=30)
+        for chunk in blob.split("\n\n"):
+            kv = dict(l.split("=", 1) for l in chunk.splitlines() if "=" in l)
+            if not kv.get("Id"):
+                continue
+            state = _systemd_state(kv)
+            units.append({"kind": "systemd", "id": kv["Id"], "state": state,
+                          "domain": None, "policy": "systemd",
+                          "detail": (kv.get("Description") or "")[:60]})
+    for f in (run("ls /etc/cron.d/ 2>/dev/null").splitlines()):
+        if not f.startswith("linze"):
+            continue
+        n = run("grep -c '^[0-9*]' /etc/cron.d/%s 2>/dev/null" % f)
+        units.append({"kind": "cron", "id": f, "state": "scheduled",
+                      "domain": None, "policy": "cron", "detail": "%s 条计划" % (n or "?")})
+    for line in psql("select name, coalesce(fqdn,''), status from applications;").splitlines():
+        p = line.split("|")
+        if len(p) < 3:
+            continue
+        units.append({"kind": "coolify", "id": p[0], "state": p[2],
+                      "domain": (p[1] or "").replace("https://", "").rstrip("/") or None,
+                      "policy": "coolify", "detail": "Coolify 应用"})
+    return units
+
+
+def _claims(entry):
+    o = entry.get("owns") or {}
+    host = (entry.get("url") or "").replace("https://", "").rstrip("/")
+    return host, o
+
+
+def _owner_of(unit, registry):
+    """把探测到的单元认领给某条业务线。
+
+    顺序:域名精确匹配 > **最长前缀**匹配 > Coolify 应用名 > 镜像名。
+    ★ 最长前缀不能省:`coolify` 和 `coolify-proxy` 同时存在时,按登记顺序匹配会让
+      "Coolify 平台"把 coolify-proxy 抢走,"Traefik 入口"就变成一条没有单元的空线。
+    """
+    for e in registry:
+        host, o = _claims(e)
+        if unit.get("domain") and host and unit["domain"] == host:
+            return e["name"]
+        if unit["kind"] == "coolify" and o.get("coolify") == unit["id"]:
+            return e["name"]
+    best, best_len = None, -1
+    for e in registry:
+        o = (e.get("owns") or {})
+        for pre in (o.get(unit["kind"]) or []):
+            if unit["id"].startswith(pre) and len(pre) > best_len:
+                best, best_len = e["name"], len(pre)
+        for pre in (o.get("image") or []):
+            if pre in (unit.get("detail") or "") and len(pre) > best_len:
+                best, best_len = e["name"], len(pre)
+    return best
+
+
+def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
+    """业务基线纵向切片 + 登记合规。全部由**本轮实测数据**推导,不调模型、不新增外部请求。"""
+    units = discover_units()
+    registry = list(projects) + [dict(p, url="", status="run") for p in PLATFORM]
+    for u in units:
+        u["owner"] = _owner_of(u, registry)
+
+    by_owner = {}
+    for u in units:
+        by_owner.setdefault(u["owner"], []).append(u)
+    unregistered = [u for u in units if not u["owner"]]
+
+    ghrepo = {}
+    for r in ((gh or {}).get("public_repos") or []):
+        ghrepo[r["name"]] = r
+    monitored = {s["site"] for s in ((live or {}).get("sites") or [])}
+    heal_rules = (heal or {}).get("rules") or []
+    heal_ok = sum(1 for r in heal_rules if r.get("state") == "ok")
+    last_dep = {}
+    for d in ((dep or {}).get("log") or []):                 # 最近部署流水:每个应用只留最新一条
+        last_dep.setdefault((d.get("app") or "").lower(), d)
+
+    lines = []
+    for e in registry:
+        mine = by_owner.get(e["name"], [])
+        host = (e.get("url") or "").replace("https://", "").rstrip("/")
+        is_platform = "role" in e
+        cells = {}
+
+        repo = e.get("repo")
+        cells["code"] = (_cell("ok", repo) if repo else
+                         _cell("na", "平台组件·无独立仓" if is_platform else "无独立仓"))
+        r = ghrepo.get(repo) if repo else None
+        cells["ci"] = (_cell("ok" if r.get("ci_ok") else "bad",
+                             ("最近 CI %s" % (r.get("ci_conclusion") or r.get("ci_state") or "—")))
+                       if r else _cell("na", "无 CI 或私有仓"))
+
+        cool = (e.get("owns") or {}).get("coolify")
+        dp = last_dep.get((cool or e["name"]).lower())
+        how = e.get("deploy") or e.get("role") or "—"
+        # ★ in_progress 不是失败:Coolify 队列里正在跑的那条,判成红色就是冤枉它
+        st_dep = (dp or {}).get("status") or ("finished" if (dp or {}).get("ok") else "")
+        cells["deploy"] = (_cell({"finished": "ok", "in_progress": "warn"}.get(st_dep, "bad"),
+                                 "%s · 最近 %s %s" % (how, dp["at"],
+                                 {"finished": "成功", "in_progress": "进行中"}.get(st_dep, "失败")))
+                           if dp else _cell("ok", how))
+
+        run_units = [u for u in mine if u["kind"] in ("container", "systemd")]
+        cron_units = [u for u in mine if u["kind"] == "cron"]
+        alive = [u for u in run_units if u["state"] in ("running", "active")]
+        waiting = [u for u in run_units if u["state"] == "scheduled"]   # 定时/事件触发,平时就该静默
+        dead = [u for u in run_units if u["state"] in ("failed", "exited", "inactive", "dead")]
+        if run_units:
+            ev = "%d/%d 常驻存活" % (len(alive), len(run_units) - len(waiting))
+            if waiting:
+                ev += " · %d 个定时/事件触发待命" % len(waiting)
+            cells["run"] = _cell("bad" if dead else "ok",
+                                 ev + (" · %d 个异常" % len(dead) if dead else ""))
+        elif cron_units:
+            cells["run"] = _cell("na", "由 cron 触发 · 无常驻进程")
+        elif (e.get("host") or "").startswith("Cloudflare"):
+            cells["run"] = _cell("na", "跑在 Cloudflare 边缘 · 主机侧无单元")
+        else:
+            cells["run"] = _cell("warn", "未探测到任何运行单元")
+
+        st = e.get("status")
+        # ★ 刚重新部署的服务,Traefik 会先回 503 直到健康检查通过。
+        #   实测 KMFA 部署完 1 分钟内就是这个状态——把它判成"挂了",等于每次上线都误报一次。
+        booting = [u for u in mine if u["kind"] == "container"
+                   and (u.get("health") == "starting"
+                        or (u.get("age_s") is not None and u["age_s"] < 300))]
+        if not e.get("url"):
+            cells["entry"] = _cell("na", "无对外入口(内部组件)")
+        elif st in ("run", "access"):
+            cells["entry"] = _cell("ok", {"run": "对外 200", "access": "受 Access 保护"}[st])
+        elif booting:
+            cells["entry"] = _cell("warn", "刚完成部署 · 健康检查启动中(%d 秒前起)"
+                                   % min(u.get("age_s") or 0 for u in booting))
+        else:
+            cells["entry"] = _cell("bad", "对外不可达")
+        if e.get("url") and cert.get("days") is not None:
+            cells["entry"]["v"] += " · 证书剩 %s 天" % cert["days"]
+
+        db = e.get("db") or ""
+        if is_platform:
+            cells["data"] = _cell("na", "平台组件")
+        elif db.startswith("无"):
+            cells["data"] = _cell("na", db)
+        else:
+            dbu = [u for u in mine if u["kind"] == "container" and
+                   re.search(r"(postgres|db|redis)", u["id"])]
+            cells["data"] = (_cell("ok" if all(u["state"] == "running" for u in dbu) else "bad",
+                                   "%s · %d 个库容器在跑" % (db, len(dbu))) if dbu
+                             else _cell("ok", db))
+
+        cells["backup"] = (_cell("ok" if backup.get("ok") else "warn",
+                                 "%s · 最近 %s" % (e.get("backup") or e.get("heal") or "—",
+                                                   backup.get("at") or "无记录"))
+                           if not is_platform else
+                           _cell("ok" if backup.get("ok") else "warn",
+                                 "%s · 主机整体备份 %s" % (e.get("heal") or "—",
+                                                          backup.get("at") or "无记录")))
+
+        cells["monitor"] = (_cell("ok", "Gatus 存活探测 + 本站日志逐分钟") if host in monitored
+                            else _cell("ok", "Gatus 存活探测") if e.get("url")
+                            else _cell("ok", "本采集器每分钟核对单元存活") if mine
+                            else _cell("warn", "既无对外入口也无可探测单元"))
+
+        # 临时构建容器(restart=no)本来就该跑完即退,把它算进自愈覆盖率是苛责 ——
+        # container_health() 早就踩过这个坑,这里用同一套口径,别让两个视图互相打架
+        persist = [u for u in run_units if u.get("policy") != "no"]
+        pol = [u for u in persist if u.get("policy") in ("always", "unless-stopped", "systemd")]
+        eph = len(run_units) - len(persist)
+        if persist:
+            cells["heal"] = _cell("ok" if len(pol) == len(persist) else "warn",
+                                  "%d/%d 常驻单元配了自动拉起" % (len(pol), len(persist))
+                                  + (" · %d 个临时单元无需" % eph if eph else ""))
+        elif run_units:
+            cells["heal"] = _cell("na", "%d 个单元均为临时任务 · 无需常驻自愈" % len(run_units))
+        elif cron_units:
+            cells["heal"] = _cell("ok", "cron 自运行 + 采集器看门狗")
+        elif (e.get("host") or "").startswith("Cloudflare"):
+            # 无状态边缘函数由平台自身托管重启,主机侧本来就不该有自愈单元 —— 判 warn 是苛责
+            cells["heal"] = _cell("na", "CF 边缘托管 · 平台自动重启,主机侧无自愈单元")
+        else:
+            cells["heal"] = _cell("warn", "无自愈单元")
+
+        bad = sum(1 for k, _ in STAGES if cells[k]["s"] == "bad")
+        warn = sum(1 for k, _ in STAGES if cells[k]["s"] == "warn")
+        lines.append({
+            "name": e["name"], "kind": "platform" if is_platform else "business",
+            "url": e.get("url") or "", "repo": repo or "", "role": e.get("role") or "",
+            "host": e.get("host") or "OVH VPS-1", "agent": e.get("agent") or "—",
+            "cells": cells, "units": len(mine),
+            "unit_ids": [u["id"] for u in mine][:8],
+            "score": max(0, 100 - bad * 26 - warn * 8),
+            "state": "bad" if bad else ("warn" if warn else "ok"),
+        })
+    lines.sort(key=lambda x: (_ORDER[x["state"]], x["kind"] != "business", x["name"]))
+
+    # 爆炸半径:共享资源一旦出事会连累几条业务线
+    blast = {}
+    for ln in lines:
+        for key, label in (("host", "主机"), ("repo", "代码仓")):
+            v = ln.get(key)
+            if v:
+                blast.setdefault("%s:%s" % (label, v), []).append(ln["name"])
+    radius = sorted(({"res": k, "lines": v, "n": len(v)} for k, v in blast.items() if len(v) > 1),
+                    key=lambda x: -x["n"])
+
+    covered = len([u for u in units if u["owner"]])
+    return {
+        "stages": [{"k": k, "n": n} for k, n in STAGES],
+        "lines": lines,
+        "units_total": len(units),
+        "units_registered": covered,
+        "unregistered": [{"kind": u["kind"], "id": u["id"], "state": u["state"],
+                          "detail": u["detail"]} for u in unregistered],
+        # 完整单元清单(不截断):页面上的「自动探测到的运行单元」要能对齐 units_total,
+        # 否则表里少几行,合规率就无法用肉眼复核
+        "units": sorted(({"kind": u["kind"], "id": u["id"], "state": u["state"],
+                          "owner": u["owner"], "domain": u.get("domain") or "",
+                          "policy": u.get("policy") or "", "detail": u["detail"]}
+                         for u in units), key=lambda x: (x["kind"], x["id"])),
+        "by_kind": {k: len([u for u in units if u["kind"] == k])
+                    for k in ("container", "systemd", "cron", "coolify")},
+        "blast_radius": radius[:8],
+        "score": round(sum(x["score"] for x in lines) / max(1, len(lines))),
+        "heal_rules_ok": heal_ok,
+        "cloudflare_note": "Cloudflare 侧没有只读令牌(owner 明确不建),因此 CF 单元"
+                           "不做账面枚举,只按登记表做对外可达性实测——这一段如实标为实测而非枚举。",
+        "note": "单元来自 Docker / systemd / cron / Coolify 库四路自动探测,"
+                "与登记表比对得出合规状态。未登记 = 治理违规,必须补登记。",
+        "at": int(time.time()),
+    }
+
+
+def baseline_history(sw):
+    """每条业务线的端到端健康分逐小时归档,长期留存,用来看「一直白箱」还是「时好时坏」。"""
+    path = os.path.join(DATA_DIR, "baseline_history.json")
+    store = load_json(path, {}) or {}
+    ep = int(time.time())
+    hour = str(ep - ep % 3600)
+    slot = store.setdefault(hour, {})
+    for ln in sw["lines"]:
+        slot[ln["name"]] = ln["score"]                 # 同一小时内后写覆盖:取该小时最后一次观测
+    cutoff = ep - 400 * 86400
+    store = {h: v for h, v in store.items() if int(h) >= cutoff}
+    try:
+        with open(path, "w") as f:
+            json.dump(store, f)
+    except OSError:
+        pass
+    hours = sorted(store, key=int)[-720:]
+    names = [ln["name"] for ln in sw["lines"]]
+    return {
+        "hours": [int(h) for h in hours],
+        "overall": [round(sum(store[h].get(n, 0) for n in store[h]) / max(1, len(store[h])))
+                    for h in hours],
+        "series": {n: [store[h].get(n) for h in hours] for n in names},
+        "since": int(hours[0]) if hours else None,
+        "note": "逐小时归档,保留 400 天。分数 = 纵向切片九段的达标情况",
+    }
+
+
 # ---------- 本站真实时访问(读容器 access log,只读、零成本、零 token)----------
 LIVE_PATH = lambda: os.path.join(DATA_DIR, "live_traffic.json")
 _LOG_RE = re.compile(
@@ -1206,6 +1564,9 @@ def main():
         "deploy_calendar": deploy_calendar(),
         "live": live_traffic(),
     }
+    snap["software"] = software_runtime(projects, snap["github"], backup, cert, ch,
+                                        snap["live"], snap["selfheal"], dep)
+    snap["baseline"] = baseline_history(snap["software"])
     snap["graph"] = project_graph(projects, snap["github"])
 
     # 关系图单独出一份小文件,供 home 站跨域拉取(比整份 80KB 快照轻得多)
