@@ -920,15 +920,19 @@ def _adapt_business_baselines(doc, name, repo, path):
             cells[k] = {"state": v.get("status"), "evidence": v.get("evidence") or "",
                         "probe": (v.get("probe_hint") or {}).get("kind"),
                         "args": (v.get("probe_hint") or {}).get("args") or {},
-                        "defect": v.get("defect") or ""}
+                        # ★ 缺失一律 None,**绝不用 "" 当哨兵**:前端是拿 d.id == c.defect 找缺陷的,
+                        #   空串会和空串相等 —— 实测后果是 KMFA 全部 54 格都挂上了同一条
+                        #   「项目成本毛利算不出」,连钉钉考勤、工资发放、红圈合同都挂着。
+                        #   看起来完全正常,所以一直没人发现。缺失就是缺失,不能是可比较的值。
+                        "defect": v.get("defect") or None}
         for d in (b.get("known_defects") or []):
             if isinstance(d, dict):
-                defects.append({"id": d.get("id") or "", "baseline": b.get("id"),
-                                "stage": d.get("stage") or "", "desc": d.get("desc") or "",
-                                "since": d.get("since") or ""})
+                defects.append({"id": d.get("id") or None, "baseline": b.get("id"),
+                                "stage": d.get("stage") or None, "desc": d.get("desc") or "",
+                                "since": d.get("since") or None})
             elif isinstance(d, str):    # 还是裸字符串数组:如实收下,ID 留空
-                defects.append({"id": "", "baseline": b.get("id"), "stage": "",
-                                "desc": d, "since": ""})
+                defects.append({"id": None, "baseline": b.get("id"), "stage": None,
+                                "desc": d, "since": None})
         out_bl.append({"id": b.get("id") or "", "name": b.get("name") or b.get("skill") or "",
                        "priority": (b.get("priority") or "P3").upper(),
                        "note": b.get("owner_note") or "",

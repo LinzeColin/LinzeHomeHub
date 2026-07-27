@@ -395,7 +395,12 @@ const PAGES=[
 // 「运行」页内的分段:软件基线 / 主机与自愈。**分段不是二级入口**,不进 PAGES。
 const RSEGS=[{id:'base',name:'软件基线'},{id:'host',name:'主机与自愈'}];
 let RSEG=(localStorage.getItem('rseg')||'base');
-const ROUTE=()=> (location.hash||'#/').replace(/^#\/?/,'').split('?')[0];
+/* ★ 路由必须**归一到已知入口**,不能把未知 hash 原样当路由用。
+   实测 bug:访问 #/ops 时 paint() 回落画了总览的 HTML,但 MOUNTED 仍是 'ops',
+   于是 sync() 里 `MOUNTED===''` 的那些分支(drawCapacity 等)全部不执行 ——
+   页面看着是总览,「容量与升级」却整段空白。回落必须在**路由这一层**做,只做一次。 */
+const RAWROUTE=()=> (location.hash||'#/').replace(/^#\/?/,'').split('?')[0];
+const ROUTE=()=> PAGES.some(p=>p.id===RAWROUTE())?RAWROUTE():'';
 
 /* ========== 工具 ========== */
 const esc=s=>String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -556,6 +561,33 @@ function insights(s){
     push('warn',`自愈未就绪:${r.name}`,r.detail||''));
   if(s.updated_epoch&&(Date.now()/1000-s.updated_epoch)>180)
     push('bad','快照停更','采集器可能已停,元自愈会尝试自动重跑');
+  /* ★ 以下三段以前**完全没进这个函数**,所以顶栏会在「建议升级 / 8 个项目未登记 /
+     有可疑格」当屏的情况下依然显示「全部健康」—— 徽章只看基础设施,等于替另外三个
+     维度背书。健康分同理(它就是数 insights 得出的)。这类「口径只覆盖一部分却对外
+     宣称全局」的假绿,是这个站反复犯的同一个错。 */
+  const cap=s.capacity;
+  if(cap&&cap.level==='bad')push('bad','容量告急:'+cap.verdict,cap.why||'');
+  else if(cap&&cap.level==='warn')push('warn','容量紧张:'+cap.verdict,cap.why||'');
+  const sw=s.software;
+  if(sw&&(sw.unregistered||[]).length)
+    push('bad',`${sw.unregistered.length} 个运行单元未登记`,
+      '部署即登记:主机上真在跑但没有归属,属治理违规');
+  const fl=s.flow;
+  if(fl){
+    const un=(fl.unregistered||[]).length;
+    if(un)push('warn',`${un} 个项目未登记业务流`,'有治理文件却没发布 flow.yaml 到 main');
+    const ft=fl.totals||{};
+    const stuck=(ft.blocked||0)+(ft.blocked_by_input||0)+(ft.not_built||0);
+    if(stuck)push('bad',`业务流 ${stuck} 格不通`,
+      `缺输入 ${ft.blocked_by_input||0} · 未细分 ${ft.blocked||0} · 未实现 ${ft.not_built||0}`);
+    const susp=(ft.mismatch||0)+(ft.coupling_violation||0);
+    if(susp)push('warn',`业务流 ${susp} 格可疑`,
+      `自报≠实测 ${ft.mismatch||0} · 违反耦合 ${ft.coupling_violation||0}`);
+    // 「没有实测」本身就是一条待办 —— 不标出来,0% 覆盖的自报绿就会被当成已验证
+    if(ft.cells&&(fl.verified_total||0)*2<ft.cells)
+      push('warn','业务流实测覆盖不足一半',
+        `${fl.verified_total||0}/${ft.cells} 格有机器实测,其余仅被测方自报`);
+  }
   if(!out.length)push('ok','一切正常','没有需要你处理的事项');
   const rank={bad:0,warn:1,ok:2};
   return out.sort((a,b)=>rank[a.lv]-rank[b.lv]);
@@ -563,7 +595,9 @@ function insights(s){
 function healthScore(s){
   const ins=insights(s);
   const bad=ins.filter(i=>i.lv==='bad').length, warn=ins.filter(i=>i.lv==='warn').length;
-  return Math.max(0,100-bad*22-warn*7);
+  // 每档封顶:insights 现在覆盖四个维度(基础设施/容量/运行登记/业务流),
+  // 不封顶的话某一个维度多报几条就能把分数打到 0,分数就没有区分度了。
+  return Math.max(0,100-Math.min(60,bad*18)-Math.min(25,warn*6));
 }
 
 /* ========== 加载 + 就地刷新 ========== */
@@ -738,9 +772,11 @@ function uniHTML(id){
 function uhash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
   return (h>>>0)/4294967295}
 
-/* 供应商 = 星系核:钉在四角,给整张图一个稳定的骨架 */
-const VANCHOR={'v:ovh':[-360,-130],'v:cf':[360,-130],'v:github':[-360,150],'v:oci':[360,150]};
 const uniVisible=n=>(n.kind==='project'||n.kind==='store')?!!U.show.infra:true;
+
+/* 分层同心环的半径。层次是数据本身就有的:
+   供应商(东西跑在谁身上) → 存储 → 项目(在跑的东西) → 代码仓(它的源码) → 子项目(仓内的小项目)。 */
+const RING={vendor:190, store:300, project:450, repo:640};
 
 function uniRadius(n){
   if(n.kind==='vendor')return 24;
@@ -790,96 +826,125 @@ function uniStat(){
   st.textContent=`${U.g.counts.nodes} 星体 · ${co} 条共变耦合 · ${U.g.generated_at||''}`;
 }
 
-/* ---------- 布局:只在拓扑变化时跑一次,跑完冻结 ---------- */
+/* ---------- 布局:确定性分层环,一次算定 ----------
+   ★ v2 用的是力导向(340 步迭代 + 全局包围盒归一)。实测下来它有一个**结构性**问题,
+     不是调参能解决的:节点之间只有斥力、回心力又被包围盒约束抵消,平衡态必然是
+     「全部挤在外圈、中心一个大空洞」,耦合边只能横穿这个空洞 —— 也就是 owner 看到的那张图。
+     力学还有两个附带毛病:参数一动整张图重排(不可复算),以及每次收敛结果都略有不同。
+   ★ 这版改成**确定性布局**:层次本来就在数据里(供应商←项目←代码仓),直接按环摆。
+     好处不只是好看 —— 同一份数据每次刷新画出来完全一样,可复核;没有收敛过程,
+     也就没有抖动、漂移和「进页跳变」;标签靠构造分开,整套避让搜索可以删掉。 */
 function uniLayoutOnce(){
-  const list=[...U.n.values()].filter(n=>n.kind!=='subproject'&&uniVisible(n)&&!n.gone);
-  if(!list.length)return;
-  for(const n of list){
-    if(n.placed)continue;
-    const a=VANCHOR[n.id];
-    if(a){n.x=a[0];n.y=a[1];}
-    else{
-      const ring=n.kind==='vendor'?0.30:(n.kind==='repo'||n.kind==='repo_private')?0.60:
-                 n.kind==='project'?0.95:0.78;
-      const th=uhash(n.id)*Math.PI*2, rr=(0.72+uhash(n.id+'r')*0.5)*ring*400;
-      n.x=Math.cos(th)*rr; n.y=Math.sin(th)*rr*0.70;
-    }
-    n.placed=true;
+  const all=[...U.n.values()].filter(n=>!n.gone);
+  if(!all.length)return;
+  /* 环压扁多少,由画布长宽比反推:画布是 2.2:1 的扁条,布局却按 1.25:1 铺,
+     fit 就只能按高度缩,左右白掉一大片。让布局的长宽比跟着画布走。 */
+  const AR=(U.box&&U.box.w&&U.box.h)?U.box.w/U.box.h:1.9;
+  const YK=Math.max(0.42,Math.min(0.85,1/AR));
+  const by=k=>all.filter(n=>n.kind===k);
+  const vendors=by('vendor'), stores=by('store'), projects=by('project');
+  const repos=all.filter(n=>n.kind==='repo'||n.kind==='repo_private');
+
+  // 关系索引:布局要按**真实关系**摆,不能靠 id 字符串猜(旧代码切 id 前缀认母仓)
+  const rel=(r)=>{const m=new Map();
+    for(const e of U.e)if(e.rel===r)m.set(e.s,e.t);
+    return m};
+  const srcRepo=rel('源码在'), inRepo=rel('属于'), onVendor=rel('数据存于');
+
+  // ① 供应商:中心小菱形。它们是所有东西的落脚点,放中心,中心就不会是空的。
+  vendors.sort((a,b)=>a.id.localeCompare(b.id));
+  vendors.forEach((n,i)=>{
+    const th=-Math.PI/2+i*2*Math.PI/Math.max(1,vendors.length);
+    n.x=Math.cos(th)*RING.vendor; n.y=Math.sin(th)*RING.vendor*YK; n.th=th;
+  });
+
+  /* ② 代码仓排环:先做一次**贪心序列化**,把耦合强的仓排到相邻位置。
+     这样 18 条共变耦合大多是短弧,而不是横跨整张图的长弦 —— 图的可读性主要来自这一步。 */
+  const wOf=new Map();
+  for(const e of U.e){
+    if(e.rel!=='co_change')continue;
+    wOf.set(e.s+'|'+e.t,e.w||0.3); wOf.set(e.t+'|'+e.s,e.w||0.3);
   }
-  const idx=new Map(list.map(n=>[n.id,n]));
-  const AR=(U.box&&U.box.w&&U.box.h)?Math.max(1.2,Math.min(3,U.box.w/U.box.h)):2.2;
-  for(let step=0;step<340;step++){
-    for(const n of list){n.fx=-n.x*0.0020; n.fy=-n.y*0.0028;}
-    for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
-      const a=list[i],b=list[j];
-      const dx=a.x-b.x, dy=a.y-b.y, d=Math.hypot(dx,dy)||0.01;
-      const f=((a.kind==='vendor'||b.kind==='vendor')?4200:2400)/(d*d+30);
-      a.fx+=dx*f; a.fy+=dy*f; b.fx-=dx*f; b.fy-=dy*f;
-      const need=(a.r+b.r)*1.9+24;                      // 硬碰撞:不许星体套娃
-      if(d<need){const p=(need-d)*0.020; a.fx+=dx/d*p; a.fy+=dy/d*p; b.fx-=dx/d*p; b.fy-=dy/d*p;}
-    }
-    for(const e of U.e){
-      const a=idx.get(e.s), b=idx.get(e.t);
-      if(!a||!b)continue;
-      const w=e.rel==='co_change'?(e.w||0.3)*1.5:(e.rel==='stack'?0.25:0.8);
-      const rest=e.rel==='co_change'?150:(e.rel==='stack'?250:175);
-      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1;
-      const f=(d-rest)*0.0016*w;
-      a.fx+=dx/d*f; a.fy+=dy/d*f; b.fx-=dx/d*f; b.fy-=dy/d*f;
-    }
-    for(const n of list){
-      const an=VANCHOR[n.id];
-      if(an){n.fx=(an[0]-n.x)*0.010+n.fx*0.10; n.fy=(an[1]-n.y)*0.010+n.fy*0.10;}
-      n.vx=(n.vx+n.fx*16)*0.86; n.vy=(n.vy+n.fy*16)*0.86;
-      const cap=1.4;
-      n.vx=Math.max(-cap,Math.min(cap,n.vx)); n.vy=Math.max(-cap,Math.min(cap,n.vy));
-      n.x+=n.vx*16; n.y+=n.vy*16;
-    }
-    // 全局尺度约束:斥力模型的平衡距离对常数极敏感,与其调参,不如每步把包围盒拉回目标尺寸
-    let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
-    for(const n of list){x0=Math.min(x0,n.x);x1=Math.max(x1,n.x);y0=Math.min(y0,n.y);y1=Math.max(y1,n.y)}
-    const span=Math.max(x1-x0,(y1-y0)*AR);
-    if(span>1){
-      const k=1+((880/span)-1)*0.06, cx=(x0+x1)/2, cy=(y0+y1)/2;
-      for(const n of list){n.x=cx+(n.x-cx)*k; n.y=cy+(n.y-cy)*k}
+  const cw=n=>repos.reduce((s,m)=>s+(wOf.get(n.id+'|'+m.id)||0),0);
+  const pool=repos.slice().sort((a,b)=>cw(b)-cw(a)||a.id.localeCompare(b.id));
+  const order=[];
+  if(pool.length){
+    order.push(pool.shift());
+    while(pool.length){
+      const last=order[order.length-1];
+      let bi=0,bw=-1;
+      pool.forEach((m,i)=>{const w=wOf.get(last.id+'|'+m.id)||0; if(w>bw){bw=w;bi=i}});
+      order.push(pool.splice(bi,1)[0]);
     }
   }
-  for(const n of list){n.vx=n.vy=0}
-  // 卫星:子项目沿母星椭圆轨道,轨道参数一次算定
-  for(const n of U.n.values()){
+  // 扇区宽度按「该仓名下有多少项目」分配,项目多的仓给更宽的角度,项目才摊得开
+  const kids=new Map(order.map(r=>[r.id,[]]));
+  for(const p of projects){const r=srcRepo.get(p.id); if(kids.has(r))kids.get(r).push(p)}
+  const orphan=projects.filter(p=>!kids.has(srcRepo.get(p.id)));
+  const wt=order.map(r=>1+kids.get(r.id).length*0.85);
+  const total=wt.reduce((a,b)=>a+b,0)+(orphan.length?orphan.length*0.85:0);
+  let acc=0;
+  order.forEach((r,i)=>{
+    const span=2*Math.PI*wt[i]/Math.max(1e-6,total);
+    const th=-Math.PI/2+acc+span/2;               // 从正上方顺时针铺开
+    r.x=Math.cos(th)*RING.repo; r.y=Math.sin(th)*RING.repo*YK; r.th=th; r.span=span;
+    // ③ 项目落在**它自己源码仓的扇区**里 —— 于是「源码在」那条边几乎是径向的,不交叉
+    const ks=kids.get(r.id);
+    ks.forEach((p,j)=>{
+      const t=ks.length===1?th:(th-span*0.34+span*0.68*j/(ks.length-1));
+      p.x=Math.cos(t)*RING.project; p.y=Math.sin(t)*RING.project*YK; p.th=t;
+    });
+    acc+=span;
+  });
+  orphan.forEach((p,j)=>{                          // 没有源码仓的项目:补在剩下的角度里
+    const t=-Math.PI/2+acc+(j+0.5)*2*Math.PI*0.85/Math.max(1e-6,total);
+    p.x=Math.cos(t)*RING.project; p.y=Math.sin(t)*RING.project*YK; p.th=t;
+  });
+
+  // ④ 存储:挂在它所存的那个供应商的方向上,同一供应商下的多个存储散开一点
+  const perV=new Map();
+  stores.forEach(s=>{const v=onVendor.get(s.id)||'';(perV.get(v)||perV.set(v,[]).get(v)).push(s)});
+  for(const [vid,list] of perV){
+    const v=U.n.get(vid);
+    const base=v&&v.th!=null?v.th:-Math.PI/2;
+    list.forEach((s,j)=>{
+      const t=base+(j-(list.length-1)/2)*0.42;
+      s.x=Math.cos(t)*RING.store; s.y=Math.sin(t)*RING.store*YK; s.th=t;
+    });
+  }
+
+  // ⑤ 子项目:母仓的卫星。母仓按「属于」关系认,不再切 id 字符串
+  for(const n of all){
     if(n.kind!=='subproject')continue;
-    const host=U.n.get('r:'+((n.id.split('/')[0]||'').slice(3)));
-    n.host=host||null;
-    n.orbR=host?host.r+17+uhash(n.id+'d')*14:0;
+    n.host=U.n.get(inRepo.get(n.id))||null;
+    n.orbR=n.host?n.host.r+16+uhash(n.id+'d')*13:0;
     n.orbSpeed=0.00040*(1+uhash(n.id)*0.7);
+    if(n.host&&n.x==null){n.x=n.host.x;n.y=n.host.y}
   }
+
+  for(const n of all){n.vx=n.vy=0}
   U.frozen=true;
   uniFit();
   uniPlaceLabels();
 }
 
-/* ---------- 标签:布局冻结后一次算定,之后不再逐帧变动(这是 v1 闪烁的根因) ---------- */
+/* ---------- 标签:靠**构造**分开,不靠搜索 ----------
+   环上相邻两个仓之间有几百像素,标签一律沿半径朝外放就不可能撞;
+   供应商在中心,标签放正下方。于是 v2 那套「四个候选位 + 矩形相交检测」整段可以删掉。 */
 function uniPlaceLabels(){
   if(!U.cx||!U.box||!U.box.w)return;
-  const cx=U.cx, put=[];
+  const cx=U.cx;
   U.labels=[];
-  const list=[...U.n.values()].filter(n=>uniVisible(n)&&!n.gone)
-    .sort((a,b)=>b.r-a.r);                       // 大星优先占位
-  for(const n of list){
+  for(const n of U.n.values()){
     const big=n.kind==='vendor'||n.kind==='repo'||n.kind==='repo_private';
-    if(!big){n.lab=null;continue}                // 小星只在悬停/放大时显示,不参与静态避让
+    if(!big||!uniVisible(n)||n.gone){n.lab=null;continue}
     cx.font=(n.kind==='vendor'?'600 12.5px':'560 11.5px')+' -apple-system,"PingFang SC",sans-serif';
     const tw=cx.measureText(n.label).width, r=n.r*U.cam.z;
-    const cand=[[0,r+6],[0,-r-19],[r+8,-7],[-r-8-tw,-7]];   // 下 / 上 / 右 / 左
-    let ok=null;
-    for(const [ox,oy] of cand){
-      const [sx,sy]=uT(n);
-      const b={l:sx+ox-tw/2-5,t:sy+oy,r:sx+ox+tw/2+5,b:sy+oy+16};
-      if(!put.some(o=>b.l<o.r&&b.r>o.l&&b.t<o.b&&b.b>o.t)){ok={ox,oy,tw};break}
-    }
-    n.lab=ok||{ox:0,oy:r+6,tw,crowded:true};
-    const [sx,sy]=uT(n);
-    put.push({l:sx+n.lab.ox-tw/2-5,t:sy+n.lab.oy,r:sx+n.lab.ox+tw/2+5,b:sy+n.lab.oy+16});
+    if(n.kind==='vendor'){n.lab={ox:0,oy:r+7,tw};continue}
+    /* 方向取**实际坐标**的朝外向量,不取扇区角:环被压成椭圆之后,
+       角度方向和「离中心更远」的方向已经不是一回事了。 */
+    const d=Math.hypot(n.x,n.y)||1, dx=n.x/d, dy=n.y/d;
+    n.lab={ox:dx*(r+10+tw/2), oy:dy*(r+10)+(dy>=0?13:-6), tw};
   }
 }
 
@@ -955,10 +1020,20 @@ function uniDraw(now){
       const base=e.rel==='co_change'?0.46:0.26;
       let al=hot?0.98:(active?0.06+0.04*(1-ht):base*(1-ht*0.82));
       if(pass===0&&!(hot||(!active&&e.rel==='co_change')))continue;
-      // 垂直偏移的控制点:同一对节点的连线不会重叠成一根
       const mx=(ax+bx)/2, my=(ay+by)/2, dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1;
-      const bend=Math.min(34,len*0.13)*(uhash(e.s+e.t)>0.5?1:-1);
-      const qx=mx-dy/len*bend, qy=my+dx/len*bend;
+      let qx,qy;
+      if(e.rel==='co_change'){
+        /* ★ 层次边捆绑:控制点朝**星系中心**拉。仓已经按耦合强度排过环,
+           大多数耦合是相邻仓之间的短弧;少数跨半圈的强耦合被拉成向内的弦,
+           成束地贴着中心走,而不是各走各的直线把中间那片空白劈得七零八落。 */
+        // β 只拉到 0.40:再大,弧束就压到中心那圈供应商星体上了 —— 中心是骨架,不是走线区
+        const cx0=U.cam.x+W/2, cy0=U.cam.y+H/2, beta=0.40;
+        qx=mx+(cx0-mx)*beta; qy=my+(cy0-my)*beta;
+      }else{
+        // 基础设施/同栈边是径向的,给一点垂直偏移,免得同向的几条叠成一根
+        const bend=Math.min(26,len*0.10)*(uhash(e.s+e.t)>0.5?1:-1);
+        qx=mx-dy/len*bend; qy=my+dx/len*bend;
+      }
       cx.save();
       cx.globalAlpha=pass===0?al*0.20:al;
       cx.strokeStyle=col; cx.lineCap='round';
@@ -1269,7 +1344,9 @@ SYNC['']=function(){
   const hist=(s.history&&s.history.min)||{t:[],mem:[],disk:[]};
   const memSpark=hist.mem.slice(-60), depSpark=(s.deploy&&s.deploy.d7_data)||[];
   kpiRow('#kpis',[
-    {lab:'健康分',val:healthScore(s),unit:'',sub:`${(s.projects||[]).length} 个项目在册`,
+    {lab:'健康分',val:healthScore(s),unit:'',
+      sub:(()=>{const i=insights(s),b=i.filter(x=>x.lv==='bad').length,w=i.filter(x=>x.lv==='warn').length;
+        return b||w?`扣自 ${b} 项待处理 · ${w} 项需关注`:`${(s.projects||[]).length} 个项目在册 · 无扣分项`})(),
       tone:healthScore(s)>=90?'ok':(healthScore(s)>=70?'warn':'bad')},
     {lab:'服务在线',val:parseInt(su.services_online),unit:'/'+su.services_online.split('/')[1],
       sub:'探测 + 容器双重判定',tone:'ok'},
@@ -1403,8 +1480,16 @@ function syncBase(){
       fmt:v=>v.toFixed(0),sub:`${w.units_registered} / ${w.units_total} 已认领`,
       tone:viol?'bad':'ok'},
     {lab:'未登记违规',val:viol,unit:'',sub:viol?'必须补登记':'全部有归属',tone:viol?'bad':'ok'},
-    {lab:'不达标段',val:w.lines.reduce((n,l)=>n+Object.values(l.cells).filter(c=>c.s==='bad').length,0),
-      unit:'',sub:'九段切片中',tone:'ok'},
+    /* ★ 「不达标段 0」+「17 条线全 100 分」以前是同一个假绿:
+       na(不适用)既不扣分也不进分母,ADP 这种跑在 CF 边缘、主机侧本来就没单元的线,
+       9 段里 4 段是 na,照样满分。分数于是对所有线都是 100,完全没有区分度。
+       现在把「实际判过的段」摆出来 —— na 不是达标,是没测。 */
+    (()=>{const cs=w.lines.flatMap(l=>Object.values(l.cells));
+      const bad=cs.filter(c=>c.s==='bad').length, na=cs.filter(c=>c.s==='na').length;
+      return {lab:'实判段',val:cs.length?(cs.length-na)/cs.length*100:0,unit:'%',
+        fmt:v=>v.toFixed(0),
+        sub:`${cs.length-na}/${cs.length} 段有判定 · 不达标 ${bad} · 不适用 ${na}(不计分)`,
+        tone:bad?'bad':(na*3>cs.length?'warn':'ok')}})(),
   ]);
 
   q('#swGov').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;
@@ -1426,7 +1511,9 @@ function syncBase(){
   const rows=w.lines.map(ln=>`<tr class="mxr${SWFOCUS===ln.name?' on':''}" data-l="${esc(ln.name)}">
     <td data-v="${esc(ln.name)}"><b>${esc(ln.name)}</b>
       ${ln.kind==='platform'?'<span class="chip" style="margin-left:5px">底座</span>':''}</td>
-    <td data-v="${ln.score}" style="color:${SST[ln.state].c};font-weight:650">${ln.score}</td>
+    <td data-v="${ln.score}" style="color:${SST[ln.state].c};font-weight:650"
+      title="${ln.na?`九段里 ${ln.na} 段不适用,未参与判定`:'九段全部参与判定'}">${ln.score}${
+      ln.na?`<span class="muted" style="font-weight:400;font-size:11px"> ${ln.judged}/${ln.stages_total}</span>`:''}</td>
     ${w.stages.map(st=>{const c=ln.cells[st.k];
       return `<td class="mxc" title="${esc(st.n)}:${esc(c.v)}">
         <span class="dot" style="background:${SST[c.s].c}"></span></td>`}).join('')}
@@ -1515,10 +1602,8 @@ function vFlow(){
     ${Object.entries(CS).map(([k,v])=>`<span><i style="background:${v.c};border-radius:50%;width:9px;height:9px"></i>${v.t}</span>`).join('')}
     <span>点任意格看证据与探测结果</span></div>
   <div class="card" id="flCell" style="margin-top:13px"></div>
-  <h2>已知缺陷 <span class="hint">逐条挂在 基线 × 阶段 上,不是空标</span></h2>
-  <div class="card p0 scroll"><table><thead><tr>
-    <th class="s">缺陷</th><th class="s">基线</th><th class="s">阶段</th><th>说明</th><th class="s">起始</th>
-  </tr></thead><tbody id="flDefect"></tbody></table></div>
+  <h2>已知缺陷 <span class="hint">挂在基线上;被测方指明了阶段的,再落到具体那一段</span></h2>
+  <div class="card p0 scroll"><table id="flDefTable"></table></div>
   <h2>源级爆炸半径 <span class="hint">一个上游源断了,会连累哪几条业务基线</span></h2>
   <div class="card" id="flSrc"></div>
   <h2>健康趋势 <span class="hint">每格逐日归档,同一天取最差的一次</span></h2>
@@ -1550,9 +1635,14 @@ SYNC['flow']=function(){
     {lab:'业务基线',val:t.baselines,unit:'',sub:`${f.projects.length} 个系统 · ${t.cells} 格`},
     {lab:'通畅率',val:t.cells?t.healthy/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
       sub:`${t.healthy} 格通`,tone:'ok'},
-    {lab:'要催人',val:t.blocked_by_input+t.blocked,unit:'',
-      sub:`缺输入 ${t.blocked_by_input} · 未细分 ${t.blocked} · 另 ${t.degraded} 格有缺陷`,
-      tone:(t.blocked_by_input+t.blocked)?'bad':'ok'},
+    /* ★ 这一格以前叫「要催人」却把 blocked(未细分)也算进去,而 blocked_by_input 是 0 ——
+       标题与口径互相打架;not_built 明明也不通却被漏在外面。
+       现在按「需要有人做事」统一口径:by_policy 不计(按规定不通,不需要任何人去修)。 */
+    {lab:'不通的格',val:t.blocked_by_input+t.blocked+t.not_built,unit:'',
+      sub:`缺输入·要催人 ${t.blocked_by_input} · 阻断(未细分) ${t.blocked} · 未实现 ${t.not_built}`
+        +(t.blocked_by_policy?` · 另 ${t.blocked_by_policy} 格按规定不通(不计)`:'')
+        +` · 另 ${t.degraded} 格有缺陷`,
+      tone:(t.blocked_by_input+t.blocked+t.not_built)?'bad':'ok'},
     {lab:'实测覆盖',val:t.cells?(f.verified_total||0)/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
       sub:`${f.verified_total||0} / ${t.cells} 格有机器实测,其余仅自报`,
       tone:(f.verified_total||0)*2<t.cells?'warn':'ok'},
@@ -1626,7 +1716,11 @@ SYNC['flow']=function(){
     const b=p.baselines.find(x=>(x.id||x.name)===(FLCELL&&FLCELL.b))||p.baselines[0];
     const st=(FLCELL&&FLCELL.st)||p.stages[0];
     const c=(b.cells||{})[st]||{s:'unknown',v:''}, cs=CS[c.s]||CS.unknown;
-    const def=(p.defects||[]).find(d=>d.id===c.defect);
+    /* ★ 必须先要求 c.defect 为真值。以前直接 d.id===c.defect,两边都是 ""
+       就全都相等 —— KMFA 54 格全挂上了同一条缺陷。空值不是可比较的值。 */
+    const def=c.defect?(p.defects||[]).find(d=>d.id&&d.id===c.defect):null;
+    // 被测方只把缺陷挂到基线上(没给 stage)时,如实按**基线级**呈现,不假装它属于这一格
+    const blDefs=def?[]:(p.defects||[]).filter(d=>d.baseline&&d.baseline===(b.id||b.name)&&!d.stage);
     el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:baseline;
         gap:12px;flex-wrap:wrap">
         <b style="font-size:15px">${esc(b.name)} · ${esc(st)}</b>
@@ -1639,17 +1733,37 @@ SYNC['flow']=function(){
         ${c.mismatch?'<br><b style="color:var(--warn)">⚠ 自报与实测不符</b> —— 登记表可能已经和现实脱节,这比单纯的红更值得看':''}
         ${c.coupling_violation?`<br><b style="color:var(--danger)">⚠ 违反耦合规则</b> —— 上游 ${c.coupling_violation.map(esc).join('、')} 已断,这一格不该是健康`:''}
         ${c.weak?'<br><b style="color:var(--warn)">⚠ 只有弱证据</b> —— 日志新鲜只证明进程在动,不证明有产出;请改用产出物条数或业务时间戳':''}
-        ${def?`<br><b style="color:var(--danger)">已知缺陷 ${esc(def.id)}</b>:${esc(def.desc)}(自 ${esc(def.since||'—')})`:''}
+        ${def?`<br><b style="color:var(--danger)">本格已知缺陷${def.id?' '+esc(def.id):''}</b>:${esc(def.desc)}${def.since?`(自 ${esc(def.since)})`:''}`:''}
+        ${blDefs.length?`<br><b style="color:var(--warn)">本基线已知缺陷</b>(被测方挂在基线上,未指明具体是哪一段):
+          ${blDefs.map(d=>esc(d.desc)).join('<br>')}`:''}
       </div>`;
   }
 
-  const defs=(p.defects||[]).map(d=>`<tr>
-    <td data-v="${esc(d.id)}" style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(d.id)}</td>
-    <td data-v="${esc(d.baseline)}">${esc((p.baselines.find(b=>b.id===d.baseline)||{}).name||d.baseline)}</td>
-    <td data-v="${esc(d.stage)}">${esc(d.stage)}</td>
-    <td>${esc(d.desc)}</td><td class="muted" data-v="${esc(d.since||'')}">${esc(d.since||'—')}</td></tr>`).join('');
-  const db=q('#flDefect');
-  if(db&&db.dataset.k!==FLPROJ+defs.length){db.innerHTML=defs||'<tr><td colspan="5" class="muted">该项目未登记已知缺陷</td></tr>';db.dataset.k=FLPROJ+defs.length}
+  /* ★ 列随数据而定:各项目的事实档结构本来就不一样(KMFA 的 known_defects 是
+     {id, baseline, desc},没有 stage/since)。固定五列的后果是整整两列永远是空的,
+     还会在格子详情里渲染出「已知缺陷 :…(自 —)」这种半截文案。
+     统一的是接口,不是字段齐全度 —— 没有的列就别画。 */
+  const dl=(p.defects||[]);
+  const cols=[
+    {k:'id',   n:'缺陷',  has:dl.some(d=>d.id),
+     f:d=>`<span style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(d.id||'')}</span>`},
+    {k:'baseline',n:'基线',has:true,
+     f:d=>esc((p.baselines.find(b=>b.id===d.baseline)||{}).name||d.baseline||'—')},
+    {k:'stage',n:'阶段',  has:dl.some(d=>d.stage),
+     f:d=>d.stage?esc(d.stage):'<span class="muted">未指明</span>'},
+    {k:'desc', n:'说明',  has:true, wide:true, f:d=>esc(d.desc)},
+    {k:'since',n:'起始',  has:dl.some(d=>d.since),
+     f:d=>`<span class="muted">${esc(d.since||'—')}</span>`},
+  ].filter(c=>c.has);
+  const dt=q('#flDefTable'), dk=FLPROJ+'|'+dl.length+'|'+cols.map(c=>c.k).join(',');
+  if(dt&&dt.dataset.k!==dk){
+    dt.innerHTML=`<thead><tr>${cols.map(c=>
+        `<th${c.wide?'':' class="s"'}>${c.n}</th>`).join('')}</tr></thead><tbody>`
+      +(dl.length?dl.map(d=>`<tr>${cols.map(c=>
+        `<td data-v="${esc(String(d[c.k]||''))}">${c.f(d)}</td>`).join('')}</tr>`).join('')
+        :`<tr><td colspan="${cols.length}" class="muted">该项目未登记已知缺陷</td></tr>`)+`</tbody>`;
+    dt.dataset.k=dk; wire();
+  }
 
   q('#flSrc').innerHTML=(p.sources||[]).length?(p.sources||[]).map(x=>{
     const pct=Math.round(x.n/Math.max(1,p.baselines.length)*100);
