@@ -1512,6 +1512,20 @@ def flow_state():
                 # 自报优先:policy / not_built 是人的决定,机器测不出来,必须尊重
                 if declared in ("blocked_by_policy", "not_built"):
                     final = declared
+                # ★ 「测不出来」绝不能把一格**说得比自报更没事**。
+                #   实测踩到:给 arxiv 的 scan 格接上探针的那一刻,它从如实的
+                #   blocked(看门狗已连红三天:ingested arXiv=0)变成了「不确定」——
+                #   因为回流还没落第一条记录,measured=unknown 直接盖掉了 declared。
+                #   **给一格接上探针,不该让它看起来比原来更没事。**
+                #
+                #   方向是不对称的,而且必须不对称:
+                #     declared=healthy + measured=unknown → 报「不确定」(对:自报的绿不可信)
+                #     declared=blocked + measured=unknown → 报「断了」  (对:自己说坏了,
+                #        机器只是还没测到,不构成"其实没事"的证据)
+                #   自报只被允许**往坏里说**,永远不被允许往好里说 —— 这正是
+                #   FLOW_STATES 这套东西的底线。
+                elif measured == "unknown" and _SEV.get(declared, 9) < _SEV["unknown"]:
+                    final = declared
                 elif measured and not (weak and measured == "healthy"):
                     final = measured          # 弱证据不得单独把一格判成 healthy
                 elif declared in FLOW_STATES:
