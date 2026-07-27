@@ -166,5 +166,51 @@ class PublicMaskTest(unittest.TestCase):
         self.assertIn("私有库", out, "脱敏后语义不该丢失")
 
 
+class SelfReportIsNotVerifiedTest(unittest.TestCase):
+    """★ 自报的绿 ≠ 实测的绿。
+
+    KMFA 线程实测反馈:他们现在**没有任何可探的产出物** ——
+    Coolify exec 不支持、logs 返回空、健康接口在 Access 后面、私有归档一次都没成功过。
+    「连我都拿不到证据,你更拿不到」。这种状态下把自报的 healthy 当成验证过的健康,
+    就是替被测方编了一个绿。必须能在产物里分辨。
+    """
+
+    def _run(self, cells):
+        import tempfile
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "private"), exist_ok=True)
+        os.makedirs(os.path.join(d, "data"), exist_ok=True)
+        json.dump({"projects": [{"project": "T", "repo": "R", "stages": list(cells),
+                                 "baselines": [{"id": "B1", "name": "线", "priority": "P0",
+                                                "cells": cells}], "defects": []}],
+                   "unregistered": [], "at": 0},
+                  open(os.path.join(d, "private", "flow_docs.json"), "w"), ensure_ascii=False)
+        app, data = C.APP_DIR, C.DATA_DIR
+        C.APP_DIR, C.DATA_DIR = d, os.path.join(d, "data")
+        try:
+            return C.flow_state()
+        finally:
+            C.APP_DIR, C.DATA_DIR = app, data
+
+    def test_cells_without_probe_count_as_unverified(self):
+        out = self._run({"a": {"state": "healthy", "evidence": "我说通"},
+                         "b": {"state": "healthy", "evidence": "我也说通"}})
+        p = out["projects"][0]
+        self.assertEqual(p["verified"], 0, "没有探针就不该记成已验证")
+        self.assertTrue(p["self_report_only"], "全无探针的项目必须被标为「仅自报」")
+        self.assertEqual(out["verified_total"], 0)
+        # 状态本身仍尊重自报,不篡改
+        self.assertEqual(p["baselines"][0]["cells"]["a"]["s"], "healthy")
+        self.assertIsNone(p["baselines"][0]["cells"]["a"]["measured"])
+
+    def test_policy_block_still_blocks_downstream(self):
+        """KMFA 的耦合规则把 blocked_by_policy 也算阻断上游 ——
+        按规定不通的东西,下游同样拿不到数;但它不需要任何人去修。两种语义必须分开。"""
+        self.assertIn("blocked_by_policy", C.FLOW_BLOCKS_DOWNSTREAM,
+                      "按规定不通也会让下游拿不到数,必须算阻断上游")
+        self.assertNotIn("blocked_by_policy", C.FLOW_BAD,
+                         "但它不需要处置,不能计进待办")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

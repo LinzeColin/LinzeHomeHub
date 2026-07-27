@@ -935,6 +935,8 @@ def _adapt_business_baselines(doc, name, repo, path):
                        "upstream": b.get("upstream") or [], "downstream": b.get("downstream") or [],
                        "cells": cells})
     return {"schema": "adapted:" + str(doc.get("schema_version") or ""),
+            # 五态中文含义由被测方在自己的事实档里给,适配层不硬编码
+            "status_semantics": doc.get("status_semantics") or {},
             "project": name, "repo": repo, "source": "%s/%s" % (repo, path),
             "stages": stages, "stage_names": names, "stage_meaning": means,
             "baselines": out_bl, "defects": defects,
