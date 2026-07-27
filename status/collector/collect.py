@@ -24,6 +24,7 @@ APP_DIR = os.environ.get("STATUS_APP_DIR", "/srv/linze/apps/status")
 DATA_DIR = os.path.join(APP_DIR, "data")
 BACKUP_DIR = os.environ.get("STATUS_BACKUP_DIR", "/srv/linze/backups")
 HISTORY_MAX = 96                            # 24h @ 15min
+SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyberboss)[-.@]")
 
 # 项目静态配置(存不存在库、通知渠道等靠运维已知;运行状态靠实时探测)
 # 每个项目的运行逻辑:跑在哪(host)/ 数据库(db)/ 文件存储(store)/ 部署方式(deploy)/
@@ -56,6 +57,10 @@ PROJECTS = [
     {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "Cloudflare Workers", "db": "CF D1 · adp", "store": "CF D1 + R2",
      "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件", "owns": {"cloudflare": ["adp"]}},
+    {"name": "CyberBoss", "url": "https://cyberboss.linzezhang.com", "parts": ["控制面"], "repo": "MetaDatabase",
+     "host": "OVH VPS-1", "db": "无独立库 · 受保护运行态（Private-Database 同步待验收）", "store": "OVH 受保护文件 · CB-510 runtime",
+     "deploy": "Linux systemd + Cloudflare Tunnel", "backup": "主机加密备份已覆盖；R2/OCI 专属验证待 CB-530",
+     "agent": "无（运行期模型调用 0）", "notify": "WeChat 凭据待接入", "owns": {"systemd": ["cyberboss-"]}},
     {"name": "Uptime",   "url": "https://uptime.linzezhang.com",   "parts": ["前台"],
      "host": "OVH VPS-1", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
      "backup": "随主机", "agent": "无", "notify": "无", "owns": {"container": ["monitoring-gatus"]}},
@@ -1901,7 +1906,7 @@ def discover_units():
              run("systemctl list-units --type=service --all --no-pager --no-legend "
                  "2>/dev/null").splitlines()
              if f.split() and f.split()[0].endswith(".service")
-             and re.match(r"(alpha|eei|linze|kmfa|adp|cloudflared)[-.@]", f.split()[0])]
+             and SYSTEMD_SERVICE_PATTERN.match(f.split()[0])]
     if names:
         blob = run("systemctl show %s --property=Id --property=Type --property=ActiveState "
                    "--property=Result --property=TriggeredBy --property=Description 2>/dev/null"
