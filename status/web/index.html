@@ -614,7 +614,7 @@ function insights(s){
     const ft=fl.totals||{};
     const stuck=(ft.blocked||0)+(ft.blocked_by_input||0)+(ft.not_built||0);
     if(stuck)push('bad',`业务流 ${stuck} 格不通`,
-      `缺输入 ${ft.blocked_by_input||0} · 未细分 ${ft.blocked||0} · 未实现 ${ft.not_built||0}`);
+      `等你给材料 ${ft.blocked_by_input||0} · 断了 ${ft.blocked||0} · 没做 ${ft.not_built||0}`);
     const susp=(ft.mismatch||0)+(ft.coupling_violation||0);
     if(susp)push('warn',`业务流 ${susp} 格可疑`,
       `自报≠实测 ${ft.mismatch||0} · 违反耦合 ${ft.coupling_violation||0}`);
@@ -1707,14 +1707,29 @@ function syncBase(){
    这边是**业务**纵向切片(一份数据从进来到送出去,中间哪一段断了)。
    ★ 阶段由每个项目自己定义,长度不限 —— KMFA 六段、Alpha 交易执行八段、status 采集五段,
      各画各的矩阵。统一的只有 schema、探针、状态语义和这套呈现语言。 */
-/* 五态。★ blocked_by_input 与 blocked_by_policy 必须分开:前者要催人,后者不需要任何人做事,
-   处置动作相反,合成一态就排不出优先级(KMFA 线程实测反馈)。 */
-const CS={healthy:{t:'通',c:'var(--ok)'},degraded:{t:'有缺陷',c:'var(--warn)'},
-  blocked_by_input:{t:'缺输入·要催人',c:'var(--danger)'},
-  blocked:{t:'阻断(未细分)',c:'var(--danger)'},
-  blocked_by_policy:{t:'按规定不通',c:'var(--pro)'},
-  not_built:{t:'未实现',c:'var(--t3)'},
-  unknown:{t:'无法判定',c:'var(--t3)'}};
+/* ══ 状态:两级 ══
+   ★ 机器照旧算七个状态,但**给人看的一级只有四个**:通 / 断了 / 没做 / 不确定。
+     为什么、该谁办,放在旁边的子状态小签上。
+     理由是实测:七个状态色两两对比度全部 <3:1 —— 颜色其实一个状态都分不开;
+     而且一次要人记七个词,记不住。先分四类,再看小签,才是人能用的粒度。
+   ★ blocked_by_input 与 blocked_by_policy 仍然必须分开:前者要催人、后者谁也不用动,
+     处置动作相反,合成一态就排不出优先级(KMFA 线程实测反馈)。
+     现在它们同属一级「断了」,但子状态不同 —— 分类没丢,只是不再平铺给人。 */
+const CL1={
+  ok:  {t:'通',    g:'✓', c:'var(--ok)'},
+  down:{t:'断了',  g:'✕', c:'var(--danger)'},
+  todo:{t:'没做',  g:'○', c:'var(--pro)'},
+  unk: {t:'不确定',g:'?', c:'var(--t3)'}};
+const CS={
+  healthy:          {l1:'ok',  sub:'',           t:'通'},
+  degraded:         {l1:'ok',  sub:'有缺陷',     t:'通(有缺陷)'},
+  blocked:          {l1:'down',sub:'',           t:'断了'},
+  blocked_by_input: {l1:'down',sub:'等你给材料', t:'断了(等你给材料)'},
+  blocked_by_policy:{l1:'down',sub:'按规定',     t:'断了(按规定,不用管)'},
+  not_built:        {l1:'todo',sub:'',           t:'没做'},
+  unknown:          {l1:'unk', sub:'没自动核查', t:'不确定(没自动核查)'}};
+// 颜色一律走一级 —— 四个颜色,而不是七个
+Object.values(CS).forEach(v=>{v.c=CL1[v.l1].c; v.g=CL1[v.l1].g;});
 const PRC={P0:'var(--danger)',P1:'var(--warn)',P2:'var(--accent)',P3:'var(--t3)'};
 let FLPROJ=null, FLCELL=null;
 
@@ -1835,8 +1850,8 @@ SYNC['flow']=function(){
        标题与口径互相打架;not_built 明明也不通却被漏在外面。
        现在按「需要有人做事」统一口径:by_policy 不计(按规定不通,不需要任何人去修)。 */
     {lab:'不通的格',val:t.blocked_by_input+t.blocked+t.not_built,unit:'',
-      sub:`缺输入·要催人 ${t.blocked_by_input} · 阻断(未细分) ${t.blocked} · 未实现 ${t.not_built}`
-        +(t.blocked_by_policy?` · 另 ${t.blocked_by_policy} 格按规定不通(不计)`:'')
+      sub:`等你给材料 ${t.blocked_by_input} · 断了 ${t.blocked} · 没做 ${t.not_built}`
+        +(t.blocked_by_policy?` · 另 ${t.blocked_by_policy} 格按规定就该不通(不用管,不计)`:'')
         +` · 另 ${t.degraded} 格有缺陷`,
       tone:(t.blocked_by_input+t.blocked+t.not_built)?'bad':'ok'},
     {lab:'实测覆盖',val:t.cells?(f.verified_total||0)/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
@@ -1926,8 +1941,8 @@ SYNC['flow']=function(){
         <span class="pill" style="color:${cs.c};background:color-mix(in srgb,${cs.c} 14%,transparent)">${cs.t}</span></div>
       <div style="font-size:13px;color:var(--t2);margin-top:10px;line-height:1.85">
         <b>证据</b>:${esc(c.v)||'—'}<br>
-        <b>自报</b>:${c.declared?esc(CS[c.declared]?CS[c.declared].t:c.declared):'未声明'}
-        · <b>本机实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured)
+        <b>项目自己填的</b>:${c.declared?esc(CS[c.declared]?CS[c.declared].t:c.declared):'未声明'}
+        · <b>系统实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured)
           :'<span style="color:var(--warn)">未配探针 —— 本格结论完全来自自报</span>'}
         ${c.mismatch?'<br><b style="color:var(--warn)">⚠ 自报与实测不符</b> —— 登记表可能已经和现实脱节,这比单纯的红更值得看':''}
         ${c.coupling_violation?`<br><b style="color:var(--danger)">⚠ 违反耦合规则</b> —— 上游 ${c.coupling_violation.map(esc).join('、')} 已断,这一格不该是健康`:''}
