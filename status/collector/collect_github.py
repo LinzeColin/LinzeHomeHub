@@ -911,6 +911,53 @@ FLOW_PROJECTS = FEATURE_PROJECTS + [("LinzeHomeHub", "status")]
 NATIVE_FACTS = {"KMFA": ("KMOS", "KMFA/machine/facts/business_baselines.json")}
 
 
+def _iso_ts(raw):
+    """解析自报时间戳。**认显式时区偏移** —— 这一条是 collect.py 里踩过的坑:
+    截断成 19 位再当 UTC，会把 `+08:00` 的时间算旧 8 小时,
+    刚跑完的步骤会被误报成超期。没有偏移的才回落到北京时间。
+    """
+    s = str(raw or "").strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone(timedelta(hours=8)))
+    except ValueError:
+        return None
+
+
+_LIVE_STATES = ("healthy", "degraded", "blocked", "blocked_by_input",
+                "blocked_by_policy", "not_built", "unknown")
+_LIVE_KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
+
+
+def _parse_flow_state(raw, project):
+    """解析项目自报的 `flow_state.json`。**整份文件都是不可信输入**。
+
+    只接受三样东西:已知状态词、能解析的时间戳、截断后的一句话说明。
+    任何路径、命令、表达式一律不读 —— 这份文件永远只是数据,不是指令。
+    解析失败如实返回空,不是当成通过(静默丢弃 = 假绿)。
+    """
+    if not raw:
+        return {}, None
+    try:
+        doc = json.loads(raw)
+    except Exception:
+        return {}, "flow_state.json 解析失败"
+    if not isinstance(doc, dict) or not isinstance(doc.get("steps"), dict):
+        return {}, "flow_state.json 缺 steps 段"
+    out = {}
+    for k, v in list(doc["steps"].items())[:400]:
+        if not (isinstance(k, str) and _LIVE_KEY.match(k) and isinstance(v, dict)):
+            continue
+        st = v.get("state")
+        if st not in _LIVE_STATES:
+            continue                       # 认不出的状态词直接不收,不猜
+        at = _iso_ts(v.get("at") or "")
+        out[k] = {"state": st, "at": at,
+                  "note": str(v.get("note") or "")[:120],
+                  "n": v.get("n") if isinstance(v.get("n"), int) else None}
+    return out, (None if out else "flow_state.json 里没有一条能用的记录")
+
+
 def _adapt_business_baselines(doc, name, repo, path):
     """把 KMFA 的 business_baselines.json 规范化成统一接口。
 
@@ -973,8 +1020,15 @@ def gather_flows(token):
     """
     keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow.yaml")
             for r, d in FLOW_PROJECTS]
+    # ★ 双向的那一半:各项目**自己**把「这一步刚跑完、产出是什么」写进
+    #   docs/governance/flow_state.json,由它自己的 CI/cron 提交,本站只读不写。
+    #   这是三个「主机上一个程序都没有」的系统唯一可能被实测到的通道 ——
+    #   没有它,自动核查覆盖率的天花板只有 72%,永远够不到 85%。
+    live_keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow_state.json")
+                 for r, d in FLOW_PROJECTS]
     nat = {n: (r, p) for n, (r, p) in NATIVE_FACTS.items()}
-    texts = _blobs(token, keys + [(r, p) for r, p in nat.values()], "text", chunk=8)
+    texts = _blobs(token, keys + live_keys + [(r, p) for r, p in nat.values()],
+                   "text", chunk=8)
     projects, missing = [], []
     for i, (repo, d) in enumerate(FLOW_PROJECTS):
         name = d if d != "." else repo
@@ -990,6 +1044,7 @@ def gather_flows(token):
                     missing.append({"project": name, "repo": nr, "expect": np_,
                                     "why": "自有事实档解析失败:%s" % str(e)[:60]})
                     continue
+        live, live_why = _parse_flow_state(texts.get(live_keys[i]), name)
         t = texts.get(keys[i])
         if not t:
             missing.append({"project": name, "repo": repo,
@@ -1006,6 +1061,12 @@ def gather_flows(token):
         doc["repo"] = repo
         doc.setdefault("stage_names", {})
         doc["source"] = "%s/%s" % (repo, keys[i][1])
+        # 项目自报的实时步骤状态(双向的回流那一半)。为空就是为空,如实标原因,
+        # **不静默丢弃** —— 丢掉的东西不进任何总量校验,总量就永远是对的(假绿)。
+        doc["live"] = live
+        doc["live_at"] = max([v["at"].isoformat() for v in live.values() if v["at"]] or [""]) or None
+        doc["live_why"] = live_why
+        doc["live_expect"] = live_keys[i][1]
         projects.append(doc)
     return {"projects": projects, "unregistered": missing,
             "registered": len(projects), "expected": len(FLOW_PROJECTS),

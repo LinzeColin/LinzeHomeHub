@@ -1267,7 +1267,45 @@ def _pr_log_recent(a):
             "健康请改用 artifact_rows / business_ts)" % (age or 0))
 
 
+# ★ 项目自报的实时步骤状态。由 collect_github.py 从各仓 docs/governance/flow_state.json
+#   读来,在跑每个项目的格子之前塞进这里。这是**双向的回流那一半**:
+#   本站 → 各条线(看板);各条线 → 本站(自己吐 flow_state.json)。
+#   之所以必须有它:KM_IDSystem / arxiv-daily-push / whkmSalary 三个系统
+#   在主机上一个程序都没有,主机侧自动核查**永远**探不到它们(实测 49 个在跑的程序里 0 个属于它们)。
+#   没有这个通道,自动核查覆盖率的天花板是 72%,owner 定的 85% 在数学上够不到。
+_LIVE = {}
+
+
+def _pr_repo_state(a):
+    """读项目自己吐的那一步的状态。
+
+    ★ 这不是「把自报当实测」。区别在于:
+      · flow.yaml 里的 `state` 是**人写死的**,改一次能挂半年;
+      · flow_state.json 是**那一步跑完时机器写的**,带时间戳,过期就降级。
+      所以它算实测 —— 但**只在新鲜时算**。超期一律降级并写明超了多久,
+      不允许拿一条三个月前的记录充当「今天跑通了」。
+    """
+    key = str(a.get("key") or "")
+    if not re.match(r"^[A-Za-z0-9_.:-]{1,80}$", key):
+        return "unknown", "自报键名不合法,拒绝采信"
+    rec = _LIVE.get(key)
+    if not rec:
+        return "unknown", "项目没有吐出这一步的记录"
+    at = rec.get("at")
+    if not at:
+        return "unknown", "这条记录没有时间戳 —— 无法判断是不是今天的"
+    age = (datetime.now(CN) - at).total_seconds() / 3600
+    mx = float(a.get("max_age_h") or 26)
+    ev = "项目自己上报 %s(%.1f 小时前%s)" % (
+        rec["state"], age, "" if rec.get("n") is None else " · %d 条" % rec["n"])
+    if age > mx:
+        # 过期不是「不通」,是「不知道」—— 说成 blocked 会造假红,说成 healthy 会造假绿
+        return "unknown", ev + " · **已超过 %.0f 小时的新鲜度要求**,这条不算数" % mx
+    return rec["state"], ev + ("" if not rec.get("note") else " · " + rec["note"])
+
+
 PROBES = {"file_fresh": _pr_file_fresh, "glob_count": _pr_glob_count, "systemd": _pr_systemd,
+          "repo_state": _pr_repo_state,
           "container": _pr_container, "http": _pr_http, "db_rows": _pr_db_rows,
           "log_recent": _pr_log_recent, "artifact_rows": _pr_artifact_rows,
           "business_ts": _pr_business_ts}
@@ -1369,6 +1407,11 @@ def flow_state():
            "probed": 0, "mismatch": 0, "coupling_violation": 0, "weak_only": 0}
     integrity = []          # ★ 分层自洽:见文件末尾 _flow_integrity 的说明
     for p in docs["projects"]:
+        # ★ 每个项目只看自己那一份,绝不串项目 —— 串了就会把别人的绿算到自己头上
+        _LIVE.clear()
+        for k, v in (p.get("live") or {}).items():
+            _LIVE[k] = {"state": v.get("state"), "note": v.get("note"),
+                        "n": v.get("n"), "at": _parse_ts(v.get("at") or "")}
         raw_stages = [x for x in (p.get("stages") or []) if isinstance(x, str)]
         stages = raw_stages[:12]
         if len(raw_stages) > len(stages):
