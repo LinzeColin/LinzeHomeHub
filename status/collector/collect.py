@@ -949,12 +949,44 @@ FLOW_BAD = ("blocked", "blocked_by_input", "not_built")     # 计数意义上的
 # ★ 阻断下游 ≠ 需要处置。KMFA 的耦合规则明确把 blocked_by_policy 也算作阻断上游:
 #   按规定不通的东西,下游同样拿不到数,不该自称健康 —— 但它不需要任何人去修。
 #   两种语义必须分开,否则要么漏判耦合、要么把「不用管」排进待办。
+#
+#   ★★ 判定「上游是否阻断下游」一律走 _blocks_downstream(),**不要拿基线的
+#      state 来对这个元组做 in 判断**。state 是逐格塌缩出来的,塌缩用的 _SEV
+#      是给人看的展示优先级,不是阻断严重度 —— 实测因此漏掉过 Alpha 实盘的
+#      假绿。详见 _blocks_downstream 与 tests/test_coupling_terminal_policy.py。
 FLOW_BLOCKS_DOWNSTREAM = ("blocked", "blocked_by_policy", "blocked_by_input", "not_built")
+# ★ 展示优先级,**不是**阻断严重度。这里排的是「人该先看哪一格」:
+#   「等你给材料」只有 owner 能解,排最前;「按规定」谁也不用动,排在 healthy 之前
+#   但在所有真故障之后。拿它当阻断严重度用会把 policy 阻断排到 degraded 后面,
+#   于是同一条基线里 degraded 会盖住 policy —— 那正是上面说的假绿。
 _SEV = {"blocked_by_input": 0, "blocked": 1, "degraded": 2, "not_built": 3,
         "unknown": 4, "blocked_by_policy": 5, "healthy": 6}
 # 旧词汇兼容(第一版用的是 ok/warn/bad/not_implemented)
 _ALIAS = {"ok": "healthy", "warn": "degraded", "bad": "blocked",
           "not_implemented": "not_built"}
+
+
+def _blocks_downstream(up, stages):
+    """上游这条基线,是否真的让下游拿不到数据。
+
+    ★ 不能直接拿 up["state"](= 最差的那一格)来判。**下游消费的是上游算出来的
+      数据,不是上游的最后一公里展示/投递。** 实测踩到的误报:
+      whkmSalary 的「季度绩效工资总额」只有末段 present 是 blocked_by_policy
+      ——「工资敏感,只进私有库、不出公开面」。数据照样流到了下游结算,可
+      整条基线的 state 被这一格拉成 blocked_by_policy,于是下游三格全被判违规。
+
+      所以:**末段的「按规定不通」不算阻断下游**,它挡的是公开展示不是数据。
+      末段以外的任何阻断、以及末段的真故障(blocked/blocked_by_input/not_built),
+      照旧算阻断 —— KMFA 上游归档 intake 卡住就必须继续报出来。
+    """
+    tail = stages[-1] if stages else None
+    for st, c in (up.get("cells") or {}).items():
+        if c.get("s") not in FLOW_BLOCKS_DOWNSTREAM:
+            continue
+        if c.get("s") == "blocked_by_policy" and st == tail:
+            continue
+        return True
+    return False
 
 
 def _safe_path(p):
@@ -1518,7 +1550,7 @@ def flow_state():
         # 跨基线耦合校验
         for b in bl_out:
             ups = [by_id[u] for u in b["upstream"] if u in by_id]
-            bad_up = [u for u in ups if u["state"] in FLOW_BLOCKS_DOWNSTREAM]
+            bad_up = [u for u in ups if _blocks_downstream(u, stages)]
             if not bad_up:
                 continue
             for st, c in b["cells"].items():
