@@ -282,6 +282,36 @@ def fx_rates(prev):
 
 
 # ---------- 续费倒计时 ----------
+def subscription_ledger(costblk, red_days=7, warn_days=14):
+    """全部订阅的到期账。**提前 red_days 天变红**(owner 定的口径 = 7)。
+
+    ★ 为什么必须是全量:老口径只看 OVH 一条 —— 7 条订阅覆盖 1 条,
+      实测 ChatGPT Pro20x 剩 7 天时页面上一点提示都没有。
+      「口径只覆盖子集却当成全局」在这套系统里已经复发过很多次。
+    ★ 没有购买日期的算不出到期日,单独列进 blind。
+      **算不出 ≠ 没事** —— 这类最容易漏,因为它连红都不会红。
+      blind 必须进 total,不许从分母里消失。
+    """
+    due, blind = [], []
+    for it in (costblk or {}).get("items") or []:
+        nm = it.get("name") or "?"
+        dt, dleft = it.get("renew_date"), it.get("renew_days")
+        if dt is None or dleft is None:
+            blind.append({"name": nm, "cadence": it.get("cadence"),
+                          "why": "没登记购买日期,算不出下次扣费日"})
+            continue
+        due.append({"name": nm, "date": dt, "days": dleft,
+                    "auto_renew": bool(it.get("auto_renew")),
+                    "cadence": it.get("cadence"),
+                    "level": "bad" if dleft <= red_days
+                             else ("warn" if dleft <= warn_days else "ok")})
+    due.sort(key=lambda x: x["days"])
+    return {"items": due, "blind": blind,
+            "due_soon": [x for x in due if x["level"] == "bad"],
+            "tracked": len(due), "total": len(due) + len(blind),
+            "threshold_days": red_days}
+
+
 def renew_days(purchase, cadence):
     """purchase 'YYYY-MM-DD';cadence 'monthly'|'yearly'  (下次日期, 剩余天)。"""
     p = datetime.strptime(purchase, "%Y-%m-%d").replace(tzinfo=CN)
@@ -2568,6 +2598,7 @@ def main():
     usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
     ovh_renew = {"date": ovh_date, "days": ovh_days}
+    subs = subscription_ledger(costblk)
     ch = container_health()
     backup = backup_status()
     costblk = cost(prices, fx)
@@ -2588,6 +2619,7 @@ def main():
             "backup": backup,
             "cert": cert,
             "ovh_renew": ovh_renew,
+            "subs": subs,
             "restarts": ch["restarts"],
         },
         "host": host,
