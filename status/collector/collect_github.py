@@ -926,6 +926,11 @@ NOT_PROJECT = {
     ("CodexProject", "INVENTORY"): "资产清单文档目录",
     ("MetaDatabase", "LinzeDatabase"): "数据目录,不是软件项目",
     ("MetaDatabase", "FINAL_ACCEPTANCE_BUNDLE"): "一次性验收产物归档",
+    # Private-Database 是**纯数据仓**,这三块是数据分区不是软件项目;
+    # 数据治理走 Private-Database 自己那条线(PROTOCOL.md),不走业务流登记。
+    ("Private-Database", "Private-AgentDatabase"): "私有数据仓的数据分区,不是软件项目",
+    ("Private-Database", "Private-KMDatabase"): "私有数据仓的数据分区,不是软件项目",
+    ("Private-Database", "Private-MetaDatabase"): "私有数据仓的数据分区,不是软件项目",
 }
 _PROJECT_MARKERS = ("README.md", "AGENTS.md", "VERSION")
 
@@ -946,10 +951,17 @@ def discover_ungoverned(token, repos, governed):
     """
     gset = set(governed or [])
     out, scanned = [], 0
+    archived_skipped = []
     for r in repos or []:
         name = r.get("name") if isinstance(r, dict) else str(r)
         branch = (r.get("default_branch") if isinstance(r, dict) else None) or "main"
         if not name:
+            continue
+        # ★ 归档仓整仓跳过:里面的目录是**已经退役的**东西,不是「该治理却没治理」。
+        #   把它们混进红名单会让真正要办的事淹没在噪音里 —— 假红泛滥和假绿一样有害。
+        #   但跳过必须留痕,不能静默。
+        if isinstance(r, dict) and r.get("archived"):
+            archived_skipped.append(name)
             continue
         tree, _ = _get("%s/repos/%s/%s/git/trees/%s?recursive=1"
                        % (API, "LinzeColin", name, branch), token)
@@ -982,6 +994,7 @@ def discover_ungoverned(token, repos, governed):
                         "why": "有 %s 但没有 docs/governance/project.yaml —— "
                                "本站看不到它的任何业务状态" % "/".join(sorted(marks[d]))})
     return {"items": out, "scanned": scanned, "count": len(out),
+            "archived_skipped": sorted(archived_skipped),
             "exempt": [{"repo": k[0], "dir": k[1], "why": v}
                        for k, v in sorted(NOT_PROJECT.items())]}
 
