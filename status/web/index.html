@@ -1737,7 +1737,7 @@ function vFlow(){
   const f=S.flow;
   if(!f)return `<div class="warnbox">业务流采集尚未产出</div>`;
   if(!f.available)return `<div class="warnbox" style="margin-bottom:16px">${esc(f.note||'')}</div>
-    ${unregHTML(f.unregistered||[])}`;
+    ${discoveryHTML(f.discovery)}${unregHTML(f.unregistered||[])}`;
   return `<div class="grid k5" id="flKpi"></div>
   <div id="flIntegrity"></div>
   <div id="flUnreg"></div>
@@ -1822,6 +1822,26 @@ function integrityHTML(list,scope){
           <td>${esc(x.detail)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 
+/* 自动纳入的口径:这一轮扫了多少仓、新发现了谁、谁没扫到。
+   ★ 必须能被复核 —— 否则「发现机制坏了」和「真的没有新项目」在页面上长得一模一样。 */
+function discoveryHTML(d){
+  if(!d)return '';
+  const bad = d.mode!=='discovered';
+  const nw=(d.newly_discovered||[]), miss=(d.in_fallback_but_not_found||[]), fail=(d.failed||[]);
+  return `<div class="card" style="border-left:4px solid var(--${bad?'danger':'ok'})">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <b style="font-size:14px">项目自动纳入</b>
+      <span class="pill ${bad?'bad':'ok'}">${bad?'没在自动发现':'扫了 '+(d.scanned||0)+' 个仓'}</span></div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.8">
+      <b>新建项目只要有 <code>docs/governance/project.yaml</code> 就自动进这张表，不用改代码。</b>
+      没发布 <code>flow.yaml</code> 的会落到下面「未登记」，<b>而不是隐形</b>。<br>
+      ${nw.length?`本轮新发现:<b>${nw.map(esc).join('、')}</b><br>`:''}
+      ${miss.length?`<b style="color:var(--warn)">兜底清单里有、这轮没扫到:${miss.map(esc).join('、')}</b>
+        —— 可能是仓改名/迁出，也可能是发现机制出问题，需要人看一眼。<br>`:''}
+      ${fail.length?`<b style="color:var(--warn)">取不到目录树:${fail.map(esc).join('、')}</b><br>`:''}
+      ${bad?`<b style="color:var(--danger)">${esc(d.why||'自动发现没跑成，当前用的是写死的兜底清单')}</b>`:''}
+    </div></div>`;
+}
 function unregHTML(list){
   if(!list.length)return '';
   return `<div class="card" style="border-left:4px solid var(--danger)">
@@ -1864,7 +1884,7 @@ SYNC['flow']=function(){
       tone:(f.unregistered||[]).length?'bad':'ok'},
   ]);
   q('#flIntegrity').innerHTML=integrityHTML(f.integrity||[],'业务流');
-  q('#flUnreg').innerHTML=unregHTML(f.unregistered||[]);
+  q('#flUnreg').innerHTML=discoveryHTML(f.discovery)+unregHTML(f.unregistered||[]);
 
   if(!FLPROJ||!f.projects.some(p=>p.project===FLPROJ))FLPROJ=f.projects[0].project;
   const tabs=q('#flTabs');

@@ -903,7 +903,64 @@ def gather_features(token):
 
 FLOW_DOCS = os.path.join(PRIVATE_DIR, "flow_docs.json")
 # 业务流登记范围 = 有治理事实的项目 + status 自己(自己也必须被同一套规则管住)
-FLOW_PROJECTS = FEATURE_PROJECTS + [("LinzeHomeHub", "status")]
+# ★ 这个写死的清单只是**兜底**,不是发现机制。
+#   真正的发现走 discover_projects():扫全部仓的 git tree,凡是有
+#   `<项目>/docs/governance/project.yaml` 的就自动纳入。
+#   为什么必须这样:写死清单意味着**新建项目在有人想起来改这行之前是隐形的** ——
+#   它不在分母里,所以覆盖率不会掉、未登记数不会涨、看板一切正常。
+#   这正是本域反复出现的假绿形态:被丢掉的东西不参与任何总量校验,所以总量永远对。
+FLOW_PROJECTS_FALLBACK = FEATURE_PROJECTS + [("LinzeHomeHub", "status")]
+FLOW_PROJECTS = list(FLOW_PROJECTS_FALLBACK)   # 运行时被 discover_projects() 覆盖
+
+# 这些目录不是业务项目,扫到也不算(全是仓自己的骨架/归档位)
+_NOT_A_PROJECT = {"docs", "scripts", "tests", "governance", "templates", "archive",
+                  "_archive", "_protected", "node_modules", "vendor", "third_party"}
+
+
+def discover_projects(token, repos):
+    """扫全部仓,找出所有带治理文件的项目 —— **新项目自动纳入,不用改代码**。
+
+    命中两种形态:
+      · `<项目>/docs/governance/project.yaml`  (单仓多项目,本域主流)
+      · `docs/governance/project.yaml`         (整仓就是一个项目,名字取仓名)
+
+    ★ 只增不减:发现失败(限流/接口变更/网络)时**回落到写死清单**,
+      绝不返回空 —— 返回空会让「未登记」瞬间归零、看板一片绿,
+      而真相是「这一轮没看见」。看不见必须表现为看不见,不能表现为没问题。
+    """
+    found, scanned, failed = set(), 0, []
+    for r in repos or []:
+        name = r.get("name") if isinstance(r, dict) else str(r)
+        branch = (r.get("default_branch") if isinstance(r, dict) else None) or "main"
+        if not name:
+            continue
+        tree, _ = _get("%s/repos/%s/%s/git/trees/%s?recursive=1"
+                       % (API, "LinzeColin", name, branch), token)
+        if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list):
+            failed.append(name)
+            continue
+        scanned += 1
+        for node in tree["tree"]:
+            path = node.get("path") or ""
+            if not path.endswith("docs/governance/project.yaml"):
+                continue
+            head = path[:-len("docs/governance/project.yaml")].strip("/")
+            if not head:
+                found.add((name, "."))                  # 整仓一个项目
+            elif "/" not in head and head not in _NOT_A_PROJECT:
+                found.add((name, head))                 # 单仓多项目
+    if not found:
+        # 一个都没扫到 = 发现机制本身坏了,不是「真的没有项目」
+        return list(FLOW_PROJECTS_FALLBACK), {"mode": "fallback", "scanned": scanned,
+                                              "failed": failed,
+                                              "why": "自动发现一个项目都没扫到,已回落到兜底清单"}
+    merged = sorted(found | set(FLOW_PROJECTS_FALLBACK))
+    new = sorted(found - set(FLOW_PROJECTS_FALLBACK))
+    gone = sorted(set(FLOW_PROJECTS_FALLBACK) - found)
+    return merged, {"mode": "discovered", "scanned": scanned, "failed": failed,
+                    "found": len(found), "newly_discovered": ["%s/%s" % x for x in new],
+                    # ★ 兜底清单里有、这轮没扫到的,**单独留去向账**,不静默吞掉
+                    "in_fallback_but_not_found": ["%s/%s" % x for x in gone]}
 
 
 # KMFA 已有机器可读事实档,**不要求它再多维护一份 flow.yaml** —— 两份登记必然漂移。
@@ -1010,7 +1067,7 @@ def _adapt_business_baselines(doc, name, repo, path):
             "authority": doc.get("authority") or ""}
 
 
-def gather_flows(token):
+def gather_flows(token, projects_list=None, discovery=None):
     """抓各项目登记的业务流 `flow.yaml`,并检出**有治理文件却没登记**的项目。
 
     ★ 登记覆盖不靠自觉:凡是有 `docs/governance/project.yaml` 的项目就必须发布 flow.yaml,
@@ -1018,19 +1075,22 @@ def gather_flows(token):
     ★ **以 main 的 HEAD 为准**:还在 PR 或本地 worktree 里的登记看不到,如实算未登记 ——
       数据源必须可复核,不能把未合并的东西当成事实。
     """
+    projects_list = projects_list or list(FLOW_PROJECTS_FALLBACK)
+    discovery = discovery or {"mode": "not_run",
+                              "why": "未跑自动发现,用的是兜底清单 —— 新建项目可能没被看见"}
     keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow.yaml")
-            for r, d in FLOW_PROJECTS]
+            for r, d in projects_list]
     # ★ 双向的那一半:各项目**自己**把「这一步刚跑完、产出是什么」写进
     #   docs/governance/flow_state.json,由它自己的 CI/cron 提交,本站只读不写。
     #   这是三个「主机上一个程序都没有」的系统唯一可能被实测到的通道 ——
     #   没有它,自动核查覆盖率的天花板只有 72%,永远够不到 85%。
     live_keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow_state.json")
-                 for r, d in FLOW_PROJECTS]
+                 for r, d in projects_list]
     nat = {n: (r, p) for n, (r, p) in NATIVE_FACTS.items()}
     texts = _blobs(token, keys + live_keys + [(r, p) for r, p in nat.values()],
                    "text", chunk=8)
     projects, missing = [], []
-    for i, (repo, d) in enumerate(FLOW_PROJECTS):
+    for i, (repo, d) in enumerate(projects_list):
         name = d if d != "." else repo
         # 有自有事实档的项目优先走适配层,不要求它再维护一份 flow.yaml
         if name in nat:
@@ -1069,7 +1129,8 @@ def gather_flows(token):
         doc["live_expect"] = live_keys[i][1]
         projects.append(doc)
     return {"projects": projects, "unregistered": missing,
-            "registered": len(projects), "expected": len(FLOW_PROJECTS),
+            "registered": len(projects), "expected": len(projects_list),
+            "discovery": discovery,
             "at": int(time.time()),
             "note": "业务流登记以各仓 main 的 docs/governance/flow.yaml 为准"}
 
@@ -1105,6 +1166,10 @@ def gather_deep(token):
             subs += _subprojects_for(r["name"], db, token)
     repo_rows = list(out.values())
     chist = gather_commit_days(token, [r["name"] for r in repo_rows])
+    # ★ 自动纳入:先扫全部仓找出所有带治理文件的项目,再据此抓业务流登记。
+    #   新建项目一有 docs/governance/project.yaml 就自动进这张表 —— 不用改代码。
+    #   没发布 flow.yaml 的会直接落进 unregistered(红),而**不是隐形**。
+    disc_list, disc_meta = discover_projects(token, repo_rows)
     return {"repos": out, "subprojects": subs, "capability": cap,
             "actions": gather_actions(token, repo_rows),
             "throughput": gather_throughput(token),
@@ -1113,7 +1178,7 @@ def gather_deep(token):
             "coupling": build_coupling(repo_rows, chist, subs),
             "commit_days": _recent_days(chist),
             "features": gather_features(token),
-            "flows": gather_flows(token),
+            "flows": gather_flows(token, disc_list, disc_meta),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 
