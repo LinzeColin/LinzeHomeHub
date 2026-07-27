@@ -76,6 +76,26 @@ status 现在的自动核查全是**主机侧**的：看进程在不在、容器
    「结算数据导出了」。用前者充当后者，覆盖率会瞬间冲到 90% 而且**永远是绿的**——
    这正是这个项目反复栽过的假绿。**宁可覆盖率难看，不要假覆盖。**
 
+## 不用自己写：拷模板
+
+| 文件 | 干什么 |
+|---|---|
+| `status/docs/templates/report_flow_state.py` | 一条命令写回一步的状态。纯标准库，不联网、不装依赖、不调模型 |
+| `status/docs/templates/flow-state-report.yml` | GitHub Actions 模板，改三处就能用 |
+
+```bash
+python3 report_flow_state.py --project-dir arxiv-daily-push \
+    --key BL-ARXIV-DAILY.deliver --state healthy --n 128 --note "本轮投递 128 篇"
+```
+
+模板刻意做成**独立的 workflow**，不塞进你的生产流水线 ——
+带投递/SMTP 的流水线改动风险高，这份只做回写，出问题也不影响业务。
+
+模板与 status 采信规则有**端到端一致性测试**
+（`collector/tests/test_flow_state_emitter.py`）：状态词表、键名规则两边必须一模一样。
+任何一边偷偷放宽，测试立刻变红 —— 否则会出现「上报了但没人认」，
+而写端还以为自己成功了。
+
 ## 这份文件不是指令，是数据
 
 status 只从里面取三样东西：认得出的状态词、能解析的时间戳、截断后的一句话。
