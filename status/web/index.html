@@ -270,6 +270,44 @@ tbody tr:last-child td{border-bottom:none}
   backdrop-filter:blur(6px);pointer-events:none}
 .ulegend{display:flex;gap:15px;flex-wrap:wrap;font-size:11.5px;color:var(--t3);margin-top:9px}
 .ulegend i{display:inline-block;width:15px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+/* ---------- 「更多」气泡:三个整页出口收成一个 ---------- */
+.more{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:550;
+  padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:var(--card);
+  color:var(--t2);cursor:pointer;transition:all .18s var(--ease)}
+.more:hover{border-color:var(--line2);color:var(--t1);transform:translateY(-1px)}
+.more:active{transform:translateY(0) scale(.97)}
+.more.on{background:var(--soft);border-color:var(--line2);color:var(--t1)}
+.more:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.more i{width:0;height:0;border:4px solid transparent;border-top-color:currentColor;
+  margin-top:3px;transition:transform .2s var(--ease)}
+.more.on i{transform:rotate(180deg);margin-top:-3px}
+.ext{position:relative}
+.pop{position:absolute;right:0;top:calc(100% + 9px);min-width:212px;background:var(--card);
+  border:1px solid var(--line2);border-radius:12px;box-shadow:var(--shadow-lift);padding:6px;
+  opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;
+  transition:opacity .17s var(--ease),transform .17s var(--ease);z-index:50}
+.pop.on{opacity:1;transform:none;pointer-events:auto}
+.pop a{display:block;padding:9px 11px;border-radius:8px;text-decoration:none;
+  transition:background .14s var(--ease)}
+.pop a:hover{background:var(--soft)}
+.pop a b{display:block;font-size:13px;color:var(--t1);font-weight:600}
+.pop a span{display:block;font-size:11.5px;color:var(--t3);margin-top:1px}
+.seg.big button{font-size:13.5px;padding:8px 18px}
+/* ---------- 容量结论卡 ---------- */
+.cap{border-left:4px solid var(--sc,var(--ok))}
+.cap summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap}
+.cap summary::-webkit-details-marker{display:none}
+.cap summary .exp{font-size:12px;color:var(--t3);display:inline-flex;align-items:center;gap:5px;
+  transition:color .16s var(--ease)}
+.cap summary:hover .exp{color:var(--accent)}
+.cap summary .exp i{width:0;height:0;border:4px solid transparent;border-top-color:currentColor;
+  transition:transform .2s var(--ease)}
+.cap[open] summary .exp i{transform:rotate(180deg)}
+.cap .sig{display:grid;grid-template-columns:auto auto 1fr;gap:6px 12px;align-items:baseline;
+  font-size:12.5px;margin-top:11px}
+.cap .sig .lv{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.cap .rule{color:var(--t3);font-size:11.5px}
 /* ---------- 业务基线矩阵 ---------- */
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
 table.mx th{white-space:nowrap;font-size:11.5px}
@@ -303,9 +341,12 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   <a class="brand" href="#/"><span class="lg"></span>LinzeCloud</a>
   <nav class="tabs" id="tabs"><span class="tabink" id="tabink"></span></nav>
   <div class="ext">
-    <a href="https://uptime.linzezhang.com">运维健康</a>
-    <a href="/admin">价格设置</a>
-    <a href="/admin/github">GitHub 私有</a>
+    <button class="more" id="moreBtn" aria-haspopup="true" aria-expanded="false">更多<i></i></button>
+    <div class="pop" id="morePop" role="menu">
+      <a href="https://uptime.linzezhang.com" role="menuitem"><b>运维健康</b><span>Gatus 存活探测明细</span></a>
+      <a href="/admin" role="menuitem"><b>价格设置</b><span>成本价格库(需登录)</span></a>
+      <a href="/admin/github" role="menuitem"><b>GitHub 私有</b><span>含私有仓的全量明细(需登录)</span></a>
+    </div>
   </div>
 </div></div>
 
@@ -338,12 +379,15 @@ let S=null, PREV=null, CAN_EDIT=false, PROBED=false, MOUNTED=null, lastAt=0;  //
 
 /* ========== 4 个入口:总览 + 3 个二级 ========== */
 const PAGES=[
-  {id:'',        name:'总览'},
-  {id:'software',name:'软件'},
-  {id:'runtime', name:'运行'},
-  {id:'cost',    name:'成本'},
-  {id:'github',  name:'GitHub'},
+  {id:'',       name:'总览'},
+  {id:'feature',name:'功能'},     // 软件**内部**的功能纵向切片(运维纵向切片在「运行」页)
+  {id:'runtime',name:'运行'},
+  {id:'cost',   name:'成本'},
+  {id:'github', name:'GitHub'},
 ];
+// 「运行」页内的分段:软件基线 / 主机与自愈。**分段不是二级入口**,不进 PAGES。
+const RSEGS=[{id:'base',name:'软件基线'},{id:'host',name:'主机与自愈'}];
+let RSEG=(localStorage.getItem('rseg')||'base');
 const ROUTE=()=> (location.hash||'#/').replace(/^#\/?/,'').split('?')[0];
 
 /* ========== 工具 ========== */
@@ -434,6 +478,58 @@ function heatmap(cal,unit){
 const scrollHM=()=>qa('.hmwrap').forEach(w=>{w.scrollLeft=w.scrollWidth});
 
 /* ========== 派生洞察:零成本,纯算 ========== */
+function drawCapacity(){
+  const c=S.capacity, el=q('#capCard');
+  if(!el)return;
+  if(!c){el.innerHTML='<div class="muted">容量判定尚未产出</div>';return}
+  const tone={ok:'var(--ok)',warn:'var(--warn)',bad:'var(--danger)'}[c.level]||'var(--ok)';
+  const LV={ok:['达标','ok'],watch:['可忽略','ok'],tight:['紧张','warn'],crit:['告急','bad']};
+  const h=c.headroom||{};
+  const key=c.at+'|'+c.verdict;
+  if(el.dataset.k===key)return;                 // 结论没变就不重绘,免得展开态被冲掉
+  el.dataset.k=key;
+  const wasOpen=el.open;
+  el.style.setProperty('--sc',tone);
+  el.innerHTML=`<summary>
+      <span><b style="font-size:15px;color:${tone}">${esc(c.verdict)}</b>
+        <span class="muted" style="margin-left:9px">${esc(c.why)}</span></span>
+      <span class="exp">展开分析<i></i></span></summary>
+    <div class="grid k4" style="margin-top:14px">
+      <div class="kpi"><div class="lab">部署余量</div><div class="val">
+        <span class="v">${h.slots??'—'}</span><span class="u"> 个应用</span></div>
+        <div class="sub">内存可容 ${h.by_mem} · 磁盘可容 ${h.by_disk}</div></div>
+      <div class="kpi"><div class="lab">当前配置(实测)</div><div class="val">
+        <span class="v">${(c.current_tier||{}).cores??'—'}</span><span class="u"> vCPU</span></div>
+        <div class="sub">${(c.current_tier||{}).ram_gb} GB 内存 · ${(c.current_tier||{}).disk_gb} GB 磁盘</div></div>
+      <div class="kpi"><div class="lab">可立刻回收</div><div class="val">
+        <span class="v">${((h.reclaimable_b||0)/1073741824).toFixed(1)}</span><span class="u"> GB</span></div>
+        <div class="sub">Docker 构建缓存 / 悬空镜像 / 卷</div></div>
+      <div class="kpi ${c.eta_days&&c.eta_days<90?'tone-warn':''}"><div class="lab">磁盘触顶预计</div><div class="val">
+        <span class="v">${c.eta_days??'—'}</span><span class="u"> 天</span></div>
+        <div class="sub">${c.eta_days?'按中位斜率外推到 85%':'当前无上升趋势'}</div></div>
+    </div>
+    <div class="sig">${(c.signals||[]).map(x=>{
+      const [t,cl]=LV[x.level]||['—','ok'];
+      return `<span class="lv ${cl==='ok'?'chip ok':(cl==='warn'?'chip warn':'chip danger')}">${t}</span>
+        <b>${esc(x.dim)}</b><span>${esc(x.fact)}</span>
+        <span></span><span class="rule">判定规则</span><span class="rule">${esc(x.rule)}</span>
+        <span></span><span class="rule">判读</span><span class="rule">${x.read.replace(/\*\*(.+?)\*\*/g,'<b style="color:var(--t1)">$1</b>')}</span>`;
+    }).join('')}</div>
+    <div class="card" style="margin-top:13px;box-shadow:none;background:var(--soft)">
+      <b style="font-size:13px">还能再部署多少</b>
+      <div style="font-size:12.5px;color:var(--t2);margin-top:6px;line-height:1.75">
+      按当前空闲 ${fmtBytes(h.free_b)} + 可回收 ${fmtBytes(h.reclaimable_b)},
+      还能再放约 <b style="color:var(--t1)">${h.slots} 个典型应用</b>
+      (内存维度 ${h.by_mem} 个 / 磁盘维度 ${h.by_disk} 个,取小)。<br>
+      <span class="muted">${esc(h.note||'')}</span></div></div>
+    <div style="font-size:12.5px;color:var(--t2);margin-top:12px;line-height:1.75">
+      <b>先做免费的那步</b>:<code>${esc(c.reclaim_hint||'')}</code><br>
+      <span class="muted">${esc(c.tiers_note||'')}</span>
+      ${(c.tiers||[]).length?'':'<br><span class="muted">目前未登记可升级档位 —— 登记后这里会直接给出目标型号与月差价。</span>'}
+    </div>`;
+  el.open=wasOpen;
+}
+
 function insights(s){
   const out=[]; const push=(lv,t,d)=>out.push({lv,t,d});
   const h=s.host||{}, o=s.ops||{}, g=s.github||{};
@@ -491,9 +587,11 @@ setInterval(tickAgo,1000);
 function renderTabs(){
   const g=S&&S.github||{};
   const sw=S&&S.software||null;
+  const ft=S&&S.github&&S.github.features||null;
   const badge={'':S?S.summary.services_online:'',
-    'software':sw?(sw.unregistered.length?sw.unregistered.length+' 未登记':sw.score+'分'):'',
-    'runtime':S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:'',
+    'feature':ft&&ft.totals?(ft.totals.bad?ft.totals.bad+' 断链':ft.totals.features+' 功能'):'',
+    'runtime':sw?(sw.unregistered.length?sw.unregistered.length+' 未登记':sw.score+'分'):
+              (S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:''),
     'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'', 'github':g.available?g.repos_total+'仓':''};
   const nav=q('#tabs');
   nav.innerHTML='<span class="tabink" id="tabink"></span>'+PAGES.map(p=>
@@ -509,20 +607,30 @@ function mount(){
   MOUNTED=ROUTE();
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
-  const V={'':vOverview,'software':vSoftware,'runtime':vRuntime,'cost':vCost,
+  const V={'':vOverview,'feature':vFeature,'runtime':vRuntime,'cost':vCost,
            'github':vGithub}[MOUNTED]||vOverview;
-  const el=q('#view'); el.innerHTML=V(); el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
-  for(const k in _ch){ if(!D.getElementById(k)){ _ch[k].destroy(); delete _ch[k]; } }  // 清掉已脱离 DOM 的图表
-  renderTabs(); wire(); sync(); scrollHM();
-  // 星图:离开该页要停帧,否则后台白烧 CPU
-  if(U.raf){cancelAnimationFrame(U.raf);U.raf=0}
-  if(D.getElementById('uni'))uniMount('uni'); else {U.box=null;U.cv=null}
+  paint(V);
+}
+/* 视图切换统一走这里:能用 View Transitions 就用(整页交叉淡入,最丝滑),
+   不支持则退回 CSS 动画。之前每次切页都是硬替换 innerHTML,所以显得割裂。 */
+function paint(V){
+  const swap=()=>{
+    const el=q('#view');
+    el.innerHTML=V();
+    for(const k in _ch){ if(!D.getElementById(k)){ _ch[k].destroy(); delete _ch[k]; } }
+    renderTabs(); wire(); sync(); scrollHM();
+    uniUnmount();                                  // 星图离页即停帧并断开 observer
+    if(D.getElementById('uni'))uniMount('uni');
+  };
+  if(!reduced&&D.startViewTransition){D.startViewTransition(swap)}
+  else{const el=q('#view'); el.classList.remove('fade'); swap(); void el.offsetWidth; el.classList.add('fade')}
 }
 function sync(){
   if(!S)return;
   renderTabs();
   setText(q('#subtitle'),`快照 ${S.updated_at}(${S.tz}) · 每 ${REFRESH/1000} 秒自动同步`
     +(S.github&&S.github.available?` · GitHub ${S.github.collected_at}`:''));
+  if(MOUNTED==='')drawCapacity();
   const ins=insights(S), bad=ins.filter(i=>i.lv==='bad').length;
   const hp=q('#health'); hp.textContent=bad?`${bad} 项待处理`:'全部健康';
   hp.className='pill '+(bad?'bad':(ins.some(i=>i.lv==='warn')?'warn':'ok'));
@@ -531,8 +639,18 @@ function sync(){
 }
 const SYNC={};
 
-/* 表格排序 */
+/* 表格排序 + 分段切换 */
 function wire(){
+  qa('#rtSeg2 button').forEach(b=>b.onclick=()=>{
+    if(b.dataset.seg===RSEG)return;
+    RSEG=b.dataset.seg; localStorage.setItem('rseg',RSEG);
+    qa('#rtSeg2 button').forEach(x=>x.classList.toggle('on',x.dataset.seg===RSEG));
+    const body=q('#rtBody');
+    const put=()=>{body.innerHTML=RSEG==='base'?segBase():segHost();
+      for(const k in _ch){if(!D.getElementById(k)){_ch[k].destroy();delete _ch[k]}}
+      wire(); sync(); scrollHM(); uniUnmount(); if(D.getElementById('uni'))uniMount('uni');};
+    if(!reduced&&D.startViewTransition)D.startViewTransition(put); else put();
+  });
   qa('th.s').forEach(th=>th.onclick=()=>{
     const tb=th.closest('table').tBodies[0], i=[...th.parentNode.children].indexOf(th);
     const dir=(th.dataset.dir==='1')?-1:1;
@@ -555,94 +673,105 @@ function toggleRenew(el,i){
     .then(()=>{S.cost.items[i].auto_renew=val;el.disabled=false;toast(`${name} 自动续费已${val?'开启':'关闭'}`)})
     .catch(()=>{el.checked=!val;el.disabled=false;toast('保存失败:请先到「价格设置」登录一次')});
 }
+/* ============ 仓库宇宙 v2 ============
+   全仓全项目的耦合星图。数据来自 data/graph.json(服务器 cron 纯派生),
+   前端只负责画:不请求任何第三方、不调用任何模型,符合 0 Agent / 0 Token 约束。
 
-/* ============ 仓库宇宙 ============
-   全仓全项目的动态耦合星图。数据全部来自 data/graph.json(服务器 cron 纯派生),
-   前端只负责画:**不请求任何第三方、不调用任何模型**,符合 0 Agent / 0 Token 约束。
-   星体 = 仓 / 项目 / 供应商 / 存储,卫星 = monorepo 子项目(真的绕母仓公转)。
-   连线 = 共变耦合(同日改动)/ 同栈 / 基础设施依赖,粗细即强度,颜色即趋势。 */
-const LANGC={Python:'#3572A5',JavaScript:'#b8a13a',TypeScript:'#3178c6',HTML:'#e34c26',
-  Shell:'#4f9327',CSS:'#7b5cc0',Makefile:'#427819',Go:'#00ADD8',Rust:'#c56a30'};
-const KINDC={vendor:'#8b8a83',project:'#2a78d6',store:'#0f8a4d',repo:'#4a3aa7',
-  repo_private:'#8b8a83',subproject:'#eda100'};
-const U={n:new Map(),e:[],raf:0,t:0,cam:{x:0,y:0,z:1},drag:null,hover:null,focus:null,
-  show:{co:1,stack:0,infra:1},dpr:1,sig:'',cv:null,cx:null,box:null,stars:[]};
+   v1 的问题与这版的对策(都是实测出来的,不是重构癖):
+   ┌ 布局每帧都在跑力学 ─→ 标签逐帧重新避让,一直在闪;每次进页重新收敛,位置整体跳变。
+   │   对策:**布局与动画彻底分离**。力学只在「拓扑变了」时跑一次并冻结,标签位置随之
+   │        一次算定;动画层只做相机缓动、悬停过渡、能量流与呼吸,永不改变布局。
+   ├ 后台标签页加载时 clientWidth 恒为 0 ─→ 首帧 fit 失败后帧循环直接 return 且不再排帧,
+   │   位图永远停在 300×150(实测确认)。对策:尺寸没就绪就**继续排帧等**,而不是退出。
+   ├ ResizeObserver 每次挂载都新建、从不断开 ─→ 反复切页累积。对策:单例 + 卸载时断开。
+   ├ 力学的回心力与全局尺度约束互相拉扯 ─→ 星系持续缓慢漂移。对策:冻结后不再有力。
+   └ 拖拽结束没释放 pointer capture。对策:释放。
+*/
+const LANGC={Python:'#4B8BBE',JavaScript:'#C9A227',TypeScript:'#3178C6',HTML:'#E34C26',
+  Shell:'#4E9A25',CSS:'#7B5CC0',Makefile:'#427819',Go:'#00ADD8',Rust:'#C56A30',
+  Shell1:'#4E9A25'};
+const KINDC={vendor:'#8E8D85',project:'#2A78D6',store:'#0F8A4D',repo:'#5B4BD6',
+  repo_private:'#8E8D85',subproject:'#E0A028'};
+const KINDLABEL={vendor:'供应商',project:'项目',store:'存储',repo:'代码仓',
+  repo_private:'私有仓(聚合)',subproject:'子项目'};
+
+const U={
+  n:new Map(), e:[], g:null, raf:0, t:0, dpr:1,
+  cam:{x:0,y:0,z:1}, camT:{x:0,y:0,z:1},       // 相机当前值 / 目标值,之间做缓动
+  drag:null, hover:null, focus:null, hoverT:0,
+  show:{co:1,stack:0,infra:1},
+  box:null, cv:null, cx:null, ro:null,
+  sky:null, skyKey:'',                          // 星尘背景离屏缓存(只在尺寸变化时重画)
+  sig:'', frozen:false, labels:[],
+};
 
 function uniHTML(id){
-  return `<div class="uni" id="${id}"><canvas></canvas>
+  return `<div class="uni" id="${id}">
+    <canvas tabindex="0" aria-label="仓库宇宙关系图"></canvas>
     <div class="ubar">
-      <button class="uchip on" data-t="co">共变耦合</button>
-      <button class="uchip" data-t="stack">同栈</button>
-      <button class="uchip on" data-t="infra">基础设施</button>
+      <button class="uchip on" data-t="co" aria-pressed="true">共变耦合</button>
+      <button class="uchip" data-t="stack" aria-pressed="false">同栈</button>
+      <button class="uchip on" data-t="infra" aria-pressed="true">基础设施</button>
       <button class="uchip" data-t="reset">复位</button>
       <span class="ustat"></span></div>
-    <div class="utip"></div>
-    <div class="uhint">拖拽平移 · 滚轮缩放 · 悬停看耦合 · 点击锁定</div></div>
+    <div class="utip" role="tooltip"></div>
+    <div class="uhint">拖拽平移 · 滚轮缩放 · 悬停看耦合 · 点击锁定 · 双击复位</div></div>
   <div class="ulegend">
-    <span><i style="background:#2a78d6"></i>共变耦合(粗=强)</span>
-    <span><i style="background:#0f8a4d"></i>耦合增强</span>
-    <span><i style="background:#c98500"></i>耦合减弱</span>
-    <span><i style="background:#8b8a83;opacity:.5"></i>同栈</span>
-    <span><i style="background:#8b8a83;opacity:.28"></i>基础设施依赖</span>
-    <span>星体大小 = 代码体积 · 光晕 = 近 7 天提交</span></div>`;
+    <span><i style="background:#2A78D6"></i>共变耦合(粗 = 强)</span>
+    <span><i style="background:#0F8A4D"></i>耦合增强</span>
+    <span><i style="background:#C98500"></i>耦合减弱</span>
+    <span><i style="background:#8E8D85;opacity:.55"></i>同栈</span>
+    <span><i style="background:#8E8D85;opacity:.3"></i>基础设施依赖</span>
+    <span>星体大小 = 代码体积 · 亮度 = 近 7 天提交</span></div>`;
 }
 
 /* 稳定散列:同一个 id 每次刷新都落在同一处,图不会每次重排 */
 function uhash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}
   return (h>>>0)/4294967295}
 
-/* 供应商 = 星系核:钉在固定的四个方位,不参与自由漂移。
-   否则四个大盘子会挤成一坨,标签互相盖住(第一版就是这个毛病)。 */
-const VANCHOR={'v:ovh':[-350,-118],'v:cf':[352,-118],'v:github':[-350,142],'v:oci':[352,142]};
-
-function uniSeed(node){
-  if(VANCHOR[node.id])return {x:VANCHOR[node.id][0], y:VANCHOR[node.id][1]};
-  const kind=node.kind;
-  const ring=kind==='vendor'?0.30:kind==='repo'||kind==='repo_private'?0.60:
-             kind==='project'?0.95:0.78;
-  const a=uhash(node.id)*Math.PI*2, rr=(0.72+uhash(node.id+'r')*0.5)*ring*400;
-  return {x:Math.cos(a)*rr, y:Math.sin(a)*rr*0.70};
-}
-/* 「基础设施」关掉时连带隐藏项目/存储节点,只留纯仓库视图——只滤边不滤点等于没滤 */
-const uniVisible=n=>n.kind==='project'||n.kind==='store'?!!U.show.infra:true;
+/* 供应商 = 星系核:钉在四角,给整张图一个稳定的骨架 */
+const VANCHOR={'v:ovh':[-360,-130],'v:cf':[360,-130],'v:github':[-360,150],'v:oci':[360,150]};
+const uniVisible=n=>(n.kind==='project'||n.kind==='store')?!!U.show.infra:true;
 
 function uniRadius(n){
-  if(n.kind==='vendor')return 26;
-  if(n.kind==='repo')return 9+Math.min(19,Math.sqrt((n.meta.size_kb||0)/1024)*2.1);
-  if(n.kind==='repo_private')return 14;
-  if(n.kind==='project')return 8;
+  if(n.kind==='vendor')return 24;
+  if(n.kind==='repo')return 11+Math.min(19,Math.sqrt((n.meta.size_kb||0)/1024)*2.1);
+  if(n.kind==='repo_private')return 13;
+  if(n.kind==='project')return 8.5;
   if(n.kind==='store')return 7;
-  return 3.6;                                     // 子项目=卫星
+  return 3.4;
 }
 function uniColor(n){
   if(n.kind==='repo')return LANGC[n.meta.lang]||KINDC.repo;
-  if(n.kind==='project')return n.meta.status==='down'?'#cf3a3a':(n.meta.status==='access'?'#eda100':'#2a78d6');
-  return KINDC[n.kind]||'#8b8a83';
+  if(n.kind==='project')return n.meta.status==='down'?'#CF3A3A':(n.meta.status==='access'?'#E0A028':'#2A78D6');
+  return KINDC[n.kind]||'#8E8D85';
 }
 
+/* ---------- 数据同步:只更新数值与增删,不碰布局 ---------- */
 function uniSync(g){
   if(!g||!g.nodes)return;
   const now=performance.now();
   const seen=new Set();
-  g.nodes.forEach((raw,i)=>{
+  g.nodes.forEach(raw=>{
     seen.add(raw.id);
     let n=U.n.get(raw.id);
-    const meta=Object.assign({},raw);
     if(!n){
-      const p=uniSeed(raw,i,g.nodes.length);
-      n={id:raw.id,label:raw.label,kind:raw.kind,meta,x:p.x,y:p.y,vx:0,vy:0,
-         born:now,flash:now,gone:0,orbit:uhash(raw.id+'o')*Math.PI*2};
+      n={id:raw.id,label:raw.label,kind:raw.kind,meta:Object.assign({},raw),
+         x:0,y:0,vx:0,vy:0,born:now,flash:now,gone:0,orbit:uhash(raw.id+'o')*Math.PI*2,placed:false};
       U.n.set(raw.id,n);
     }else{
       // 数值变了就闪一下:这是「动态」的来源,不需要任何额外请求
-      if(n.meta.commits7!==meta.commits7||n.meta.status!==meta.status||n.label!==raw.label)n.flash=now;
-      n.meta=meta; n.label=raw.label; n.kind=raw.kind; n.gone=0;
+      if(n.meta.commits7!==raw.commits7||n.meta.status!==raw.status||n.label!==raw.label)n.flash=now;
+      Object.assign(n.meta,raw); n.label=raw.label; n.kind=raw.kind; n.gone=0;
     }
     n.r=uniRadius(n); n.color=uniColor(n);
   });
-  U.n.forEach(n=>{ if(!seen.has(n.id)&&!n.gone)n.gone=now; });      // 消失的星:坍缩后移除
-  U.e=g.edges||[];
-  U.g=g;
+  U.n.forEach(n=>{ if(!seen.has(n.id)&&!n.gone)n.gone=now; });
+  U.e=g.edges||[]; U.g=g;
+  // 拓扑签名:只有节点集/连线集真的变了才重新布局,否则位置一动不动
+  const sig=g.nodes.map(n=>n.id).sort().join('|')+'##'
+           +U.e.map(e=>e.s+'>'+e.t+e.rel).sort().join('|')+'##'+(U.show.infra?1:0);
+  if(sig!==U.sig){U.sig=sig; U.frozen=false;}
   uniStat();
 }
 function uniStat(){
@@ -652,135 +781,212 @@ function uniStat(){
   st.textContent=`${U.g.counts.nodes} 星体 · ${co} 条共变耦合 · ${U.g.generated_at||''}`;
 }
 
-function uniLayout(dt){
+/* ---------- 布局:只在拓扑变化时跑一次,跑完冻结 ---------- */
+function uniLayoutOnce(){
   const list=[...U.n.values()].filter(n=>n.kind!=='subproject'&&uniVisible(n)&&!n.gone);
+  if(!list.length)return;
+  for(const n of list){
+    if(n.placed)continue;
+    const a=VANCHOR[n.id];
+    if(a){n.x=a[0];n.y=a[1];}
+    else{
+      const ring=n.kind==='vendor'?0.30:(n.kind==='repo'||n.kind==='repo_private')?0.60:
+                 n.kind==='project'?0.95:0.78;
+      const th=uhash(n.id)*Math.PI*2, rr=(0.72+uhash(n.id+'r')*0.5)*ring*400;
+      n.x=Math.cos(th)*rr; n.y=Math.sin(th)*rr*0.70;
+    }
+    n.placed=true;
+  }
   const idx=new Map(list.map(n=>[n.id,n]));
-  for(const n of list){
-    let fx=-n.x*0.0020, fy=-n.y*0.0028;                       // 回心力(纵向压扁成星系盘)
-    for(const m of list){
-      if(m===n)continue;
-      const dx=n.x-m.x, dy=n.y-m.y;
-      const d=Math.hypot(dx,dy)||0.01, d2=d*d+30;
-      const f=(n.kind==='vendor'||m.kind==='vendor'?4200:2400)/d2;
-      fx+=dx/d*f*d; fy+=dy/d*f*d;
-      // 硬碰撞:半径相加还嫌挤就直接推开,避免星体套娃、标签叠字
-      const need=(n.r+m.r)*1.9+22;
-      if(d<need){const push=(need-d)*0.020; fx+=dx/d*push; fy+=dy/d*push}
+  const AR=(U.box&&U.box.w&&U.box.h)?Math.max(1.2,Math.min(3,U.box.w/U.box.h)):2.2;
+  for(let step=0;step<340;step++){
+    for(const n of list){n.fx=-n.x*0.0020; n.fy=-n.y*0.0028;}
+    for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
+      const a=list[i],b=list[j];
+      const dx=a.x-b.x, dy=a.y-b.y, d=Math.hypot(dx,dy)||0.01;
+      const f=((a.kind==='vendor'||b.kind==='vendor')?4200:2400)/(d*d+30);
+      a.fx+=dx*f; a.fy+=dy*f; b.fx-=dx*f; b.fy-=dy*f;
+      const need=(a.r+b.r)*1.9+24;                      // 硬碰撞:不许星体套娃
+      if(d<need){const p=(need-d)*0.020; a.fx+=dx/d*p; a.fy+=dy/d*p; b.fx-=dx/d*p; b.fy-=dy/d*p;}
     }
-    n.fx=fx; n.fy=fy;
-  }
-  for(const e of U.e){
-    const a=idx.get(e.s), b=idx.get(e.t);
-    if(!a||!b)continue;
-    const w=e.rel==='co_change'?(e.w||0.3)*1.5:(e.rel==='stack'?0.25:0.8);
-    const rest=e.rel==='co_change'?150:(e.rel==='stack'?250:175);
-    const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1;
-    const f=(d-rest)*0.0016*w;
-    a.fx+=dx/d*f; a.fy+=dy/d*f; b.fx-=dx/d*f; b.fy-=dy/d*f;
-  }
-  for(const n of list){
-    if(U.drag&&U.drag.node===n)continue;
-    const an=VANCHOR[n.id];
-    if(an){                                     // 星系核:强弹簧拉回锚点,只允许小幅呼吸
-      n.fx=(an[0]-n.x)*0.010+n.fx*0.10; n.fy=(an[1]-n.y)*0.010+n.fy*0.10;
+    for(const e of U.e){
+      const a=idx.get(e.s), b=idx.get(e.t);
+      if(!a||!b)continue;
+      const w=e.rel==='co_change'?(e.w||0.3)*1.5:(e.rel==='stack'?0.25:0.8);
+      const rest=e.rel==='co_change'?150:(e.rel==='stack'?250:175);
+      const dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1;
+      const f=(d-rest)*0.0016*w;
+      a.fx+=dx/d*f; a.fy+=dy/d*f; b.fx-=dx/d*f; b.fy-=dy/d*f;
     }
-    n.vx=(n.vx+n.fx*dt)*0.86; n.vy=(n.vy+n.fy*dt)*0.86;
-    const cap=1.4; n.vx=Math.max(-cap,Math.min(cap,n.vx)); n.vy=Math.max(-cap,Math.min(cap,n.vy));
-    n.x+=n.vx*dt; n.y+=n.vy*dt;
-  }
-  // ★ 全局尺度约束:斥力/引力这类模型的平衡距离对常数极其敏感,单靠调参很难稳。
-  //   与其调参,不如每帧把整个星系的包围盒**缓慢拉回目标尺寸**——相对布局(谁离谁近)
-  //   由力学决定,绝对尺度由这里钉死。这样镜头永远框得住,也不会缩成一堆小点。
-  if(list.length>1){
+    for(const n of list){
+      const an=VANCHOR[n.id];
+      if(an){n.fx=(an[0]-n.x)*0.010+n.fx*0.10; n.fy=(an[1]-n.y)*0.010+n.fy*0.10;}
+      n.vx=(n.vx+n.fx*16)*0.86; n.vy=(n.vy+n.fy*16)*0.86;
+      const cap=1.4;
+      n.vx=Math.max(-cap,Math.min(cap,n.vx)); n.vy=Math.max(-cap,Math.min(cap,n.vy));
+      n.x+=n.vx*16; n.y+=n.vy*16;
+    }
+    // 全局尺度约束:斥力模型的平衡距离对常数极敏感,与其调参,不如每步把包围盒拉回目标尺寸
     let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
     for(const n of list){x0=Math.min(x0,n.x);x1=Math.max(x1,n.x);y0=Math.min(y0,n.y);y1=Math.max(y1,n.y)}
-    // 目标形状跟着画布长宽比走,否则宽画布上会剩一大片空白
-    const AR=(U.box&&U.box.w&&U.box.h)?Math.max(1.2,Math.min(3,U.box.w/U.box.h)):2;
     const span=Math.max(x1-x0,(y1-y0)*AR);
     if(span>1){
-      const k=1+((860/span)-1)*0.06, cx0=(x0+x1)/2, cy0=(y0+y1)/2;
-      for(const n of list){n.x=cx0+(n.x-cx0)*k; n.y=cy0+(n.y-cy0)*k}
+      const k=1+((880/span)-1)*0.06, cx=(x0+x1)/2, cy=(y0+y1)/2;
+      for(const n of list){n.x=cx+(n.x-cx)*k; n.y=cy+(n.y-cy)*k}
     }
   }
-  // 卫星:子项目绕母仓公转(轨道半径随母星大小,不参与力学,避免把星系搅乱)
+  for(const n of list){n.vx=n.vy=0}
+  // 卫星:子项目沿母星椭圆轨道,轨道参数一次算定
   for(const n of U.n.values()){
     if(n.kind!=='subproject')continue;
     const host=U.n.get('r:'+((n.id.split('/')[0]||'').slice(3)));
-    if(!host)continue;
-    n.orbit+=0.00045*dt*(1+uhash(n.id)*0.6);
-    const rad=host.r+16+uhash(n.id+'d')*13;
-    n.x=host.x+Math.cos(n.orbit)*rad; n.y=host.y+Math.sin(n.orbit)*rad*0.62;
+    n.host=host||null;
+    n.orbR=host?host.r+17+uhash(n.id+'d')*14:0;
+    n.orbSpeed=0.00040*(1+uhash(n.id)*0.7);
+  }
+  U.frozen=true;
+  uniFit();
+  uniPlaceLabels();
+}
+
+/* ---------- 标签:布局冻结后一次算定,之后不再逐帧变动(这是 v1 闪烁的根因) ---------- */
+function uniPlaceLabels(){
+  if(!U.cx||!U.box||!U.box.w)return;
+  const cx=U.cx, put=[];
+  U.labels=[];
+  const list=[...U.n.values()].filter(n=>uniVisible(n)&&!n.gone)
+    .sort((a,b)=>b.r-a.r);                       // 大星优先占位
+  for(const n of list){
+    const big=n.kind==='vendor'||n.kind==='repo'||n.kind==='repo_private';
+    if(!big){n.lab=null;continue}                // 小星只在悬停/放大时显示,不参与静态避让
+    cx.font=(n.kind==='vendor'?'600 12.5px':'560 11.5px')+' -apple-system,"PingFang SC",sans-serif';
+    const tw=cx.measureText(n.label).width, r=n.r*U.cam.z;
+    const cand=[[0,r+6],[0,-r-19],[r+8,-7],[-r-8-tw,-7]];   // 下 / 上 / 右 / 左
+    let ok=null;
+    for(const [ox,oy] of cand){
+      const [sx,sy]=uT(n);
+      const b={l:sx+ox-tw/2-5,t:sy+oy,r:sx+ox+tw/2+5,b:sy+oy+16};
+      if(!put.some(o=>b.l<o.r&&b.r>o.l&&b.t<o.b&&b.b>o.t)){ok={ox,oy,tw};break}
+    }
+    n.lab=ok||{ox:0,oy:r+6,tw,crowded:true};
+    const [sx,sy]=uT(n);
+    put.push({l:sx+n.lab.ox-tw/2-5,t:sy+n.lab.oy,r:sx+n.lab.ox+tw/2+5,b:sy+n.lab.oy+16});
   }
 }
 
 const uT=(n)=>[n.x*U.cam.z+U.cam.x+U.box.w/2, n.y*U.cam.z+U.cam.y+U.box.h/2];
 
-/* 自动取景:把当前可见的星体全部框进画布。没有它,星系核会被切在画外。 */
 function uniFit(pad){
-  pad=pad||42;
+  pad=pad||46;
   const ns=[...U.n.values()].filter(n=>uniVisible(n)&&!n.gone);
   if(!ns.length||!U.box||!U.box.w)return;
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
   for(const n of ns){
     x0=Math.min(x0,n.x-n.r); x1=Math.max(x1,n.x+n.r);
-    y0=Math.min(y0,n.y-n.r); y1=Math.max(y1,n.y+n.r+19);   // +19 给标签留位
+    y0=Math.min(y0,n.y-n.r); y1=Math.max(y1,n.y+n.r+20);
   }
   const z=Math.max(0.35,Math.min(2.2,
     Math.min((U.box.w-pad*2)/Math.max(1,x1-x0),(U.box.h-pad*2)/Math.max(1,y1-y0))));
-  U.cam.z=z; U.cam.x=-((x0+x1)/2)*z; U.cam.y=-((y0+y1)/2)*z;
+  U.camT={z, x:-((x0+x1)/2)*z, y:-((y0+y1)/2)*z};
+  if(!U.cam.z||U.cam.z===1)Object.assign(U.cam,U.camT);      // 首帧直接到位,不做入场缓动
 }
 
-function uniDraw(){
-  const cx=U.cx, W=U.box.w, H=U.box.h, now=performance.now();
-  cx.clearRect(0,0,W,H);
-  // 星尘背景(确定性,不随机闪)
-  cx.save();
-  for(const s of U.stars){
-    cx.globalAlpha=s.a*(0.55+0.45*Math.sin(now/1400+s.p));
-    cx.fillStyle=dark?'#cfd6e6':'#7d8496';
-    cx.fillRect(s.x*W,s.y*H,s.r,s.r);
+/* ---------- 星尘背景:离屏缓存,只在尺寸变化时重画 ---------- */
+function uniSky(){
+  const W=U.box.w, H=U.box.h, key=W+'x'+H+(dark?'d':'l');
+  if(U.skyKey===key&&U.sky)return U.sky;
+  const c=document.createElement('canvas');
+  c.width=W*U.dpr; c.height=H*U.dpr;
+  const g=c.getContext('2d'); g.setTransform(U.dpr,0,0,U.dpr,0,0);
+  const neb=g.createRadialGradient(W*0.5,H*0.1,10,W*0.5,H*0.1,Math.max(W,H)*1.05);
+  if(dark){neb.addColorStop(0,'#1B2030');neb.addColorStop(.45,'#131722');neb.addColorStop(1,'#0C0E14')}
+  else{neb.addColorStop(0,'#F2F3F8');neb.addColorStop(.45,'#EAECF2');neb.addColorStop(1,'#E2E4EC')}
+  g.fillStyle=neb; g.fillRect(0,0,W,H);
+  for(let i=0;i<190;i++){
+    const x=uhash('sx'+i)*W, y=uhash('sy'+i)*H, s=uhash('sr'+i);
+    g.globalAlpha=(dark?0.13:0.10)+s*(dark?0.30:0.16);
+    g.fillStyle=dark?'#CFD8EE':'#6E7690';
+    const r=s<0.86?0.9:1.7;
+    g.beginPath(); g.arc(x,y,r,0,7); g.fill();
   }
-  cx.restore();
+  U.sky=c; U.skyKey=key;
+  return c;
+}
+
+/* ---------- 绘制 ---------- */
+function uniDraw(now){
+  const cx=U.cx, W=U.box.w, H=U.box.h;
+  now=now||performance.now();
+  cx.clearRect(0,0,W,H);
+  cx.drawImage(uniSky(),0,0,W,H);
 
   const idx=U.n;
   const active=U.focus||U.hover;
   const near=new Set();
   if(active){near.add(active.id);
     for(const e of U.e){if(e.s===active.id)near.add(e.t);if(e.t===active.id)near.add(e.s)}}
+  const ht=U.hoverT;                              // 0→1 的高亮过渡量,避免瞬变
 
   const vis=e=>e.rel==='co_change'?U.show.co:(e.rel==='stack'?U.show.stack:U.show.infra);
-  for(const e of U.e){
-    if(!vis(e))continue;
-    const a=idx.get(e.s), b=idx.get(e.t);
-    if(!a||!b||!uniVisible(a)||!uniVisible(b))continue;
-    const [ax,ay]=uT(a), [bx,by]=uT(b);
-    const hot=active&&(e.s===active.id||e.t===active.id);
-    let col, w, dash=null;
-    if(e.rel==='co_change'){
-      const tr=e.trend||0;
-      col=tr>0.08?'#0f8a4d':(tr<-0.08?'#c98500':'#2a78d6');
-      w=0.7+(e.w||0)*3.4;
-    }else if(e.rel==='stack'){col='#8b8a83'; w=1; dash=[3,5];}
-    else{col=dark?'#5a5a52':'#b9b8ae'; w=0.9;}
-    cx.save();
-    cx.globalAlpha=hot?0.95:(active?0.08:(e.rel==='co_change'?0.5:0.3));
-    cx.strokeStyle=col; cx.lineWidth=w*(hot?1.7:1); cx.lineCap='round';
-    if(dash)cx.setLineDash(dash);
-    cx.beginPath(); cx.moveTo(ax,ay); cx.lineTo(bx,by); cx.stroke();
-    // 共变边上的流动粒子:强度越高流得越密,这是"耦合在动"的直观表达
-    if(e.rel==='co_change'&&!reduced&&(hot||!active)){
-      const cnt=Math.max(1,Math.round((e.w||0)*3));
-      for(let i=0;i<cnt;i++){
-        const ph=((now/2600)+i/cnt+uhash(e.s+e.t))%1;
-        cx.globalAlpha=hot?0.9:0.34;
-        cx.fillStyle=col;
-        cx.beginPath();cx.arc(ax+(bx-ax)*ph,ay+(by-ay)*ph,hot?2.4:1.6,0,7);cx.fill();
+  // ——— 连线:二次贝塞尔 + 辉光。曲线比直线更能让密集连线区分开 ———
+  for(let pass=0;pass<2;pass++){                  // pass0 = 辉光底,pass1 = 实线
+    for(const e of U.e){
+      if(!vis(e))continue;
+      const a=idx.get(e.s), b=idx.get(e.t);
+      if(!a||!b||!uniVisible(a)||!uniVisible(b))continue;
+      const [ax,ay]=uT(a), [bx,by]=uT(b);
+      const hot=active&&(e.s===active.id||e.t===active.id);
+      let col,w,dash=null;
+      if(e.rel==='co_change'){
+        const tr=e.trend||0;
+        col=tr>0.08?'#0F8A4D':(tr<-0.08?'#C98500':'#2A78D6');
+        w=0.7+(e.w||0)*2.2;                      // 上限约 2.9px:再粗就成丝带,盖掉星体
+      }else if(e.rel==='stack'){col='#8E8D85'; w=1; dash=[3,6];}
+      else{col=dark?'#5A5A52':'#B9B8AE'; w=0.9;}
+      const base=e.rel==='co_change'?0.46:0.26;
+      let al=hot?0.98:(active?0.06+0.04*(1-ht):base*(1-ht*0.82));
+      if(pass===0&&!(hot||(!active&&e.rel==='co_change')))continue;
+      // 垂直偏移的控制点:同一对节点的连线不会重叠成一根
+      const mx=(ax+bx)/2, my=(ay+by)/2, dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1;
+      const bend=Math.min(34,len*0.13)*(uhash(e.s+e.t)>0.5?1:-1);
+      const qx=mx-dy/len*bend, qy=my+dx/len*bend;
+      cx.save();
+      cx.globalAlpha=pass===0?al*0.20:al;
+      cx.strokeStyle=col; cx.lineCap='round';
+      cx.lineWidth=pass===0?Math.min(11,w*2.6):w*(hot?1.6:1);
+      if(dash)cx.setLineDash(dash);
+      cx.beginPath(); cx.moveTo(ax,ay); cx.quadraticCurveTo(qx,qy,bx,by); cx.stroke();
+      cx.restore();
+      // 能量流:沿曲线运动的粒子。强度越高越密,方向即耦合走向。
+      if(pass===1&&e.rel==='co_change'&&!reduced&&(hot||!active)){
+        const cnt=Math.max(1,Math.round((e.w||0)*3));
+        cx.save(); cx.fillStyle=col;
+        for(let i=0;i<cnt;i++){
+          const p=((now/2800)+i/cnt+uhash(e.s+e.t))%1, q=1-p;
+          const px=q*q*ax+2*q*p*qx+p*p*bx, py=q*q*ay+2*q*p*qy+p*p*by;
+          cx.globalAlpha=(hot?0.95:0.38)*Math.sin(p*Math.PI);
+          cx.beginPath(); cx.arc(px,py,hot?2.5:1.7,0,7); cx.fill();
+        }
+        cx.restore();
       }
     }
-    cx.restore();
   }
 
-  const labs=[];                                   // 已画标签的矩形,用来避让
+  // ——— 卫星轨道(先画轨道线,再画卫星,才有层次) ———
+  for(const n of idx.values()){
+    if(n.kind!=='subproject'||!n.host||!uniVisible(n))continue;
+    n.orbit+=n.orbSpeed*16;
+    const [hx,hy]=uT(n.host), R=n.orbR*U.cam.z;
+    if(R>6&&(!active||near.has(n.host.id))){
+      cx.save(); cx.globalAlpha=active?0.30:0.13; cx.strokeStyle=KINDC.subproject;
+      cx.setLineDash([2,4]); cx.lineWidth=0.8;
+      cx.beginPath(); cx.ellipse(hx,hy,R,R*0.62,0,0,7); cx.stroke(); cx.restore();
+    }
+    n.x=n.host.x+Math.cos(n.orbit)*n.orbR;
+    n.y=n.host.y+Math.sin(n.orbit)*n.orbR*0.62;
+  }
+
+  // ——— 星体:外辉光 → 球体渐变 → 边缘高光 ———
   for(const n of [...idx.values()].sort((a,b)=>a.r-b.r)){
     if(!uniVisible(n))continue;
     const [x,y]=uT(n);
@@ -788,83 +994,111 @@ function uniDraw(){
     const age=(now-n.born)/900, fl=Math.max(0,1-(now-n.flash)/1300);
     const dying=n.gone?Math.max(0,1-(now-n.gone)/1400):0;
     if(n.gone&&dying<=0){idx.delete(n.id);continue}
-    const grow=age<1&&!reduced?0.35+0.65*(1-Math.pow(1-age,3)):1;
-    const r=n.r*U.cam.z*grow*(n.gone?dying:1);
-    cx.save();
-    cx.globalAlpha=(dimmed?0.2:1)*(n.gone?dying:1);
-    // 新星爆发 / 坍缩:环形冲击波
-    if(age<1&&!reduced){cx.globalAlpha*=1-age;cx.strokeStyle=n.color;cx.lineWidth=2;
-      cx.beginPath();cx.arc(x,y,r+age*34,0,7);cx.stroke();cx.globalAlpha=(dimmed?0.2:1)}
-    if(n.gone){cx.strokeStyle='#cf3a3a';cx.lineWidth=1.6;
-      cx.beginPath();cx.arc(x,y,r+(1-dying)*26,0,7);cx.stroke()}
-    // 活跃度光晕:近 7 天提交越多越亮
+    const grow=(age<1&&!reduced)?0.35+0.65*(1-Math.pow(1-age,3)):1;
+    const breathe=reduced?1:1+0.022*Math.sin(now/1900+uhash(n.id)*7);
+    const r=Math.max(1.2,n.r*U.cam.z*grow*breathe*(n.gone?dying:1));
     const act=Math.min(1,(n.meta.commits7||0)/120);
-    if(act>0.02||fl>0){
-      const gr=cx.createRadialGradient(x,y,r*0.6,x,y,r*(2.6+act*2.4+fl*2));
-      gr.addColorStop(0,n.color+'88'); gr.addColorStop(1,n.color+'00');
-      cx.fillStyle=gr; cx.beginPath(); cx.arc(x,y,r*(2.6+act*2.4+fl*2),0,7); cx.fill();
+    cx.save();
+    cx.globalAlpha=(dimmed?0.16+0.10*(1-ht):1)*(n.gone?dying:1);
+
+    if(age<1&&!reduced){                          // 新星爆发
+      cx.save();cx.globalAlpha*=1-age;cx.strokeStyle=n.color;cx.lineWidth=2;
+      cx.beginPath();cx.arc(x,y,r+age*36,0,7);cx.stroke();cx.restore();
     }
-    if(n.kind==='vendor'){
-      cx.fillStyle=dark?'rgba(255,255,255,.045)':'rgba(20,20,15,.045)';
-      cx.beginPath();cx.arc(x,y,r*1.9,0,7);cx.fill();
+    if(n.gone){cx.strokeStyle='#CF3A3A';cx.lineWidth=1.6;
+      cx.beginPath();cx.arc(x,y,r+(1-dying)*26,0,7);cx.stroke()}
+
+    const glowR=r*(1.9+act*2.2+fl*1.8);
+    if(glowR>r){
+      const gr=cx.createRadialGradient(x,y,r*0.5,x,y,glowR);
+      gr.addColorStop(0,n.color+(dark?'70':'55')); gr.addColorStop(1,n.color+'00');
+      cx.fillStyle=gr; cx.beginPath(); cx.arc(x,y,glowR,0,7); cx.fill();
     }
-    cx.fillStyle=n.color;
-    cx.beginPath(); cx.arc(x,y,r,0,7); cx.fill();
-    if(n.meta.ci_ok===false){cx.strokeStyle='#cf3a3a';cx.lineWidth=2.2;
-      cx.beginPath();cx.arc(x,y,r+3.5,0,7);cx.stroke()}
-    if(active&&n.id===active.id){cx.strokeStyle=dark?'#fff':'#1b1b19';cx.lineWidth=1.6;
-      cx.beginPath();cx.arc(x,y,r+5,0,7);cx.stroke()}
-    // 标签:大星常显,小星靠近才显——避免糊成一团
-    const showLab=n.kind==='vendor'||n.kind==='repo'||n.kind==='repo_private'
-      ||U.cam.z>1.35||(active&&near.has(n.id));
-    if(showLab&&!n.gone){
-      cx.font=(n.kind==='vendor'?'600 12.5px':'550 11.5px')+
-        ' -apple-system,"PingFang SC",sans-serif';
-      const tw=cx.measureText(n.label).width;
-      // 标签避让:先试星体下方,挡住了就翻到上方,再挡住就这一帧不画。
-      // 宁可少一个标签,也不要叠成一团糊字。
-      const cand=[y+r+3, y-r-18];
-      const box=cand.map(ty=>({l:x-tw/2-4,t:ty,r:x+tw/2+4,b:ty+15}))
-        .find(bx=>!labs.some(o=>bx.l<o.r&&bx.r>o.l&&bx.t<o.b&&bx.b>o.t));
-      if(box||n.id===(active&&active.id)){
-        const bx=box||{l:x-tw/2-4,t:y+r+3,r:x+tw/2+4,b:y+r+18};
-        labs.push(bx);
-        cx.fillStyle=dark?'rgba(0,0,0,.5)':'rgba(255,255,255,.76)';
-        cx.fillRect(bx.l,bx.t,tw+8,15);
-        cx.fillStyle=dark?'#e9e8e1':'#33322c';
-        cx.textAlign='center'; cx.textBaseline='top';
-        cx.fillText(n.label,x,bx.t+2);
-      }
+    if(n.kind==='vendor'){                        // 星系核:一圈暗晕 + 外环
+      cx.fillStyle=dark?'rgba(255,255,255,.040)':'rgba(20,20,15,.038)';
+      cx.beginPath();cx.arc(x,y,r*2.2,0,7);cx.fill();
+      cx.strokeStyle=dark?'rgba(255,255,255,.10)':'rgba(20,20,15,.10)';
+      cx.lineWidth=1; cx.beginPath();cx.arc(x,y,r*2.2,0,7);cx.stroke();
+    }
+    const sp=cx.createRadialGradient(x-r*0.34,y-r*0.4,r*0.06,x,y,r);
+    sp.addColorStop(0,uniLighten(n.color,0.46));
+    sp.addColorStop(0.62,n.color);
+    sp.addColorStop(1,uniLighten(n.color,-0.30));
+    cx.fillStyle=sp; cx.beginPath(); cx.arc(x,y,r,0,7); cx.fill();
+    if(r>5){                                      // 边缘高光,让球有体积
+      cx.strokeStyle=uniLighten(n.color,0.55); cx.globalAlpha*=0.5; cx.lineWidth=0.9;
+      cx.beginPath(); cx.arc(x,y,r-0.5,Math.PI*1.05,Math.PI*1.75); cx.stroke();
+      cx.globalAlpha/=0.5;
+    }
+    if(n.meta.ci_ok===false){cx.strokeStyle='#CF3A3A';cx.lineWidth=2.2;
+      cx.beginPath();cx.arc(x,y,r+4,0,7);cx.stroke()}
+    if(active&&n.id===active.id){
+      cx.strokeStyle=dark?'#fff':'#1B1B19'; cx.lineWidth=1.6;
+      cx.beginPath();cx.arc(x,y,r+5+2*Math.sin(now/380),0,7);cx.stroke();
     }
     cx.restore();
   }
+
+  // ——— 标签:位置在布局时算定,这里只画;悬停时额外显示邻居小标签 ———
+  cx.save();
+  for(const n of idx.values()){
+    if(!uniVisible(n)||n.gone)continue;
+    const near_=active&&near.has(n.id);
+    const lab=n.lab;
+    if(!lab&&!near_)continue;
+    const [x,y]=uT(n);
+    const dimmed=active&&!near.has(n.id);
+    cx.font=(n.kind==='vendor'?'600 12.5px':'560 11.5px')+' -apple-system,"PingFang SC",sans-serif';
+    const tw=lab?lab.tw:cx.measureText(n.label).width;
+    const ox=lab?lab.ox:0, oy=lab?lab.oy:(n.r*U.cam.z+6);
+    cx.globalAlpha=dimmed?0.18:(lab&&lab.crowded&&!near_?0.55:1);
+    cx.fillStyle=dark?'rgba(8,10,16,.62)':'rgba(255,255,255,.80)';
+    cx.beginPath();
+    const bx=x+ox-tw/2-5, by=y+oy;
+    if(cx.roundRect)cx.roundRect(bx,by,tw+10,16,5); else cx.rect(bx,by,tw+10,16);
+    cx.fill();
+    cx.fillStyle=dark?'#E9E8E1':'#2E2D28';
+    cx.textAlign='center'; cx.textBaseline='top';
+    cx.fillText(n.label,x+ox,by+2);
+  }
+  cx.restore();
 }
 
-/* 预收敛:先在一帧内把力学跑完,别让用户盯着一团乱麻慢慢散开 */
-function uniSettle(steps){
-  const n=steps||260;
-  for(let i=0;i<n;i++)uniLayout(16);
+function uniLighten(hex,amt){
+  const m=/^#?([0-9a-f]{6})$/i.exec(hex||'');
+  if(!m)return hex;
+  const v=parseInt(m[1],16);
+  const f=c=>Math.max(0,Math.min(255,Math.round(amt>=0?c+(255-c)*amt:c*(1+amt))));
+  return '#'+[f(v>>16&255),f(v>>8&255),f(v&255)].map(c=>c.toString(16).padStart(2,'0')).join('');
 }
 
-function uniFrame(){
+/* ---------- 帧循环 ---------- */
+function uniFrame(now){
   U.raf=0;
-  if(!U.box||!U.cv.isConnected||D.hidden)return;         // 隐藏页不排帧(rAF 本来也不触发)
-  // ★ 后台标签页加载时 clientWidth 恒为 0,首帧的 fit() 必然失败。
-  //   回到前台后必须**在这里补一次尺寸测量**,否则 U.box.w 永远是 undefined,
-  //   坐标全变 NaN,画布一片空白——这是"隐藏页"坑的第四种形态。
-  if(!U.box.w&&U.fit&&!U.fit())return;
-  const now=performance.now(), dt=Math.min(40,now-(U.t||now)); U.t=now;
-  uniLayout(dt||16); uniDraw();
+  if(!U.box||!U.cv||!U.cv.isConnected)return;                 // 已卸载:停
+  if(D.hidden){U.raf=requestAnimationFrame(uniFrame);return}  // 隐藏页:rAF 本就不触发,排着即可
+  // ★ 后台加载时 clientWidth 恒为 0,首帧 fit 必然失败。
+  //   v1 在这里 return 且不再排帧 —— 于是位图永远停在 300×150(实测确认)。
+  //   正确做法是**继续排帧等尺寸就绪**,而不是退出循环。
+  if(!U.box.w||!U.cv.clientWidth){
+    if(!U.prime||!U.prime()){U.raf=requestAnimationFrame(uniFrame);return}
+  }
+  if(!U.frozen)uniLayoutOnce();
+  // 相机缓动 + 高亮过渡:所有变化都有过渡,不做瞬变
+  const k=reduced?1:0.16;
+  U.cam.x+=(U.camT.x-U.cam.x)*k; U.cam.y+=(U.camT.y-U.cam.y)*k; U.cam.z+=(U.camT.z-U.cam.z)*k;
+  U.hoverT+=(((U.focus||U.hover)?1:0)-U.hoverT)*(reduced?1:0.18);
+  uniDraw(now);
   U.raf=requestAnimationFrame(uniFrame);
 }
-function uniKick(){ if(!U.raf&&U.box&&!D.hidden)U.raf=requestAnimationFrame(uniFrame); }
+function uniKick(){ if(!U.raf&&U.box)U.raf=requestAnimationFrame(uniFrame); }
 
 function uniHit(mx,my){
   let best=null,bd=1e9;
   for(const n of U.n.values()){
     if(n.gone||!uniVisible(n))continue;
     const [x,y]=uT(n), d=Math.hypot(mx-x,my-y);
-    if(d<Math.max(11,n.r*U.cam.z+7)&&d<bd){bd=d;best=n}
+    if(d<Math.max(12,n.r*U.cam.z+8)&&d<bd){bd=d;best=n}
   }
   return best;
 }
@@ -875,9 +1109,7 @@ function uniTip(n,mx,my){
   const m=n.meta, R=(k,v)=>v==null||v===''?'':`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
   const co=U.e.filter(e=>e.rel==='co_change'&&(e.s===n.id||e.t===n.id))
     .sort((a,b)=>(b.w||0)-(a.w||0)).slice(0,3);
-  const KIND={vendor:'供应商',project:'项目',store:'存储',repo:'代码仓',
-    repo_private:'私有仓(聚合)',subproject:'子项目'}[n.kind]||n.kind;
-  tip.innerHTML=`<b>${esc(n.label)}</b> <span class="k">${KIND}</span>
+  tip.innerHTML=`<b>${esc(n.label)}</b> <span class="k">${KINDLABEL[n.kind]||n.kind}</span>
     ${R('语言',m.lang)}${R('体积',m.size_kb?fmtKB(m.size_kb):'')}
     ${R('提交 7d/30d',m.commits7!=null?`${num(m.commits7)} / ${num(m.commits30)}`:'')}
     ${R('分支 / PR',m.branches!=null?`${m.branches} / ${m.open_pr}`:'')}
@@ -897,73 +1129,110 @@ function uniTip(n,mx,my){
   tip.style.top=Math.max(8,Math.min(U.box.h-r.height-8,my+15))+'px';
 }
 
+function uniUnmount(){
+  if(U.raf){cancelAnimationFrame(U.raf);U.raf=0}
+  if(U.ro){U.ro.disconnect();U.ro=null}     // v1 每次挂载都新建 observer 且从不断开
+  U.box=null;U.cv=null;U.cx=null;U.hover=null;U.focus=null;U.sky=null;U.skyKey='';
+}
+
 function uniMount(id){
   const box=D.getElementById(id); if(!box)return;
+  uniUnmount();
   U.box=box; U.cv=box.querySelector('canvas'); U.cx=U.cv.getContext('2d');
-  U.stars=Array.from({length:110},(_,i)=>({x:uhash('sx'+i),y:uhash('sy'+i),
-    r:uhash('sr'+i)<0.82?1:1.8,a:0.12+uhash('sa'+i)*0.3,p:uhash('sp'+i)*7}));
   const fit=()=>{
     const w=U.cv.clientWidth, h=U.cv.clientHeight;
     if(!w||!h)return false;
-    // 下限必须钉到 1:缩放过的窗口里 devicePixelRatio 可能小于 1(实测 0.665),
-    // 直接乘上去会让位图比 CSS 尺寸还小,星图糊成一片。
-    U.dpr=Math.max(1,Math.min(2,devicePixelRatio||1));
-    U.cv.width=w*U.dpr; U.cv.height=h*U.dpr;
+    U.dpr=Math.max(1,Math.min(2,devicePixelRatio||1));   // <1 会让位图比 CSS 还小,糊
+    if(U.cv.width!==Math.round(w*U.dpr)||U.cv.height!==Math.round(h*U.dpr)){
+      U.cv.width=Math.round(w*U.dpr); U.cv.height=Math.round(h*U.dpr);
+    }
     U.cx.setTransform(U.dpr,0,0,U.dpr,0,0);
-    U.box.w=w; U.box.h=h; return true;
+    const changed=(U.box.w!==w||U.box.h!==h);
+    U.box.w=w; U.box.h=h;
+    if(changed){U.sky=null; if(U.frozen){uniFit();uniPlaceLabels()}}
+    return true;
   };
-  U.fit=()=>{ if(!fit())return false;
-    if(!U.settled){U.settled=1;uniSettle()} uniFit(); return true; };
-  U.settled=0; uniStat();
-  new ResizeObserver(()=>{ if(U.fit()){uniDraw();uniKick()} }).observe(U.cv);
-  U.fit();                                            // 尺寸为 0(后台/折叠中):留给 observer 与 uniFrame 兜底
+  U.fit=fit;
+  // ★ 首帧必须**同步**画出来,不能只交给 rAF ——
+  //   隐藏/后台标签页里 rAF 根本不触发,只靠动画帧的话画布会一直空着。
+  //   (这是本项目第 N 次踩 rAF-hidden;v1 就是靠同步首帧才没出这个问题,v2 重写时丢了。)
+  const prime=()=>{ if(!fit())return false; if(!U.frozen)uniLayoutOnce(); Object.assign(U.cam,U.camT); uniDraw(performance.now()); return true; };
+  U.prime=prime;
+  U.ro=new ResizeObserver(()=>{ if(prime())uniKick(); });
+  U.ro.observe(U.cv);
+  prime(); uniStat();
 
-  const pos=ev=>{const r=U.cv.getBoundingClientRect();
-    return [(ev.touches?ev.touches[0]:ev).clientX-r.left,(ev.touches?ev.touches[0]:ev).clientY-r.top]};
-  U.cv.onpointerdown=ev=>{const [x,y]=pos(ev); const n=uniHit(x,y);
-    U.cv.setPointerCapture(ev.pointerId);
-    U.drag={sx:x,sy:y,cx:U.cam.x,cy:U.cam.y,node:n,moved:false};};
+  const pos=ev=>{const r=U.cv.getBoundingClientRect();return [ev.clientX-r.left,ev.clientY-r.top]};
+  U.cv.onpointerdown=ev=>{
+    const [x,y]=pos(ev); const n=uniHit(x,y);
+    try{U.cv.setPointerCapture(ev.pointerId)}catch(e){}
+    U.drag={sx:x,sy:y,cx:U.camT.x,cy:U.camT.y,node:n,moved:false,lx:0,ly:0,id:ev.pointerId};
+  };
   U.cv.onpointermove=ev=>{
     const [x,y]=pos(ev);
     if(U.drag){
       const dx=x-U.drag.sx, dy=y-U.drag.sy;
       if(Math.abs(dx)+Math.abs(dy)>3)U.drag.moved=true;
-      if(U.drag.node){U.drag.node.x+=dx/U.cam.z-(U.drag.lx||0);U.drag.node.y+=dy/U.cam.z-(U.drag.ly||0);
-        U.drag.lx=dx/U.cam.z;U.drag.ly=dy/U.cam.z;U.drag.node.vx=U.drag.node.vy=0;}
-      else{U.cam.x=U.drag.cx+dx;U.cam.y=U.drag.cy+dy}
+      if(U.drag.node){
+        U.drag.node.x+=dx/U.cam.z-U.drag.lx; U.drag.node.y+=dy/U.cam.z-U.drag.ly;
+        U.drag.lx=dx/U.cam.z; U.drag.ly=dy/U.cam.z;
+        uniPlaceLabels();                       // 拖动改变了布局,标签跟着重新算定一次
+      }else{U.camT.x=U.drag.cx+dx; U.camT.y=U.drag.cy+dy}
       uniKick(); return;
     }
     const n=uniHit(x,y);
     if(n!==U.hover){U.hover=n;U.cv.style.cursor=n?'pointer':'grab'}
     uniTip(U.focus||n,x,y); uniKick();
   };
-  U.cv.onpointerup=ev=>{
+  const endDrag=ev=>{
     const moved=U.drag&&U.drag.moved, n=U.drag&&U.drag.node;
+    if(U.drag){try{U.cv.releasePointerCapture(U.drag.id)}catch(e){}}
     U.drag=null;
-    if(!moved){U.focus=(U.focus&&n&&U.focus.id===n.id)?null:n;
-      const [x,y]=pos(ev); uniTip(U.focus||uniHit(x,y),x,y);}
+    if(!moved){
+      U.focus=(U.focus&&n&&U.focus.id===n.id)?null:n;
+      if(U.focus){                              // 聚焦:相机平滑推到该星体
+        U.camT.z=Math.min(2.0,Math.max(1.15,U.camT.z));
+        U.camT.x=-U.focus.x*U.camT.z; U.camT.y=-U.focus.y*U.camT.z;
+      }else uniFit();
+      const [x,y]=pos(ev); uniTip(U.focus||uniHit(x,y),x,y);
+    }
     uniKick();
   };
-  U.cv.onpointerleave=()=>{U.drag=null;U.hover=null;if(!U.focus)uniTip(null)};
+  U.cv.onpointerup=endDrag;
+  U.cv.onpointercancel=()=>{U.drag=null};
+  U.cv.ondblclick=()=>{U.focus=null;uniTip(null);uniFit();uniPlaceLabels();uniKick()};
+  U.cv.onpointerleave=()=>{if(!U.drag){U.hover=null;if(!U.focus)uniTip(null);uniKick()}};
   U.cv.onwheel=ev=>{ev.preventDefault();
-    const [x,y]=pos(ev), k=Math.exp(-ev.deltaY*0.0016), z=Math.max(0.4,Math.min(3.2,U.cam.z*k));
-    const f=z/U.cam.z;
-    U.cam.x=x-U.box.w/2-(x-U.box.w/2-U.cam.x)*f;
-    U.cam.y=y-U.box.h/2-(y-U.box.h/2-U.cam.y)*f;
-    U.cam.z=z; uniKick();};
+    const [x,y]=pos(ev), k=Math.exp(-ev.deltaY*0.0016);
+    const z=Math.max(0.35,Math.min(3.2,U.camT.z*k)), f=z/U.camT.z;
+    U.camT.x=x-U.box.w/2-(x-U.box.w/2-U.camT.x)*f;
+    U.camT.y=y-U.box.h/2-(y-U.box.h/2-U.camT.y)*f;
+    U.camT.z=z; uniKick();};
+  U.cv.onkeydown=ev=>{                          // 键盘可达:不能只有鼠标能用
+    const step=60;
+    if(ev.key==='ArrowLeft')U.camT.x+=step; else if(ev.key==='ArrowRight')U.camT.x-=step;
+    else if(ev.key==='ArrowUp')U.camT.y+=step; else if(ev.key==='ArrowDown')U.camT.y-=step;
+    else if(ev.key==='+'||ev.key==='=')U.camT.z=Math.min(3.2,U.camT.z*1.2);
+    else if(ev.key==='-')U.camT.z=Math.max(0.35,U.camT.z/1.2);
+    else if(ev.key==='0'){U.focus=null;uniFit()}
+    else return;
+    ev.preventDefault(); uniKick();};
   box.querySelectorAll('.uchip').forEach(b=>b.onclick=()=>{
     const t=b.dataset.t;
-    if(t==='reset'){U.focus=null;uniTip(null);uniSettle();uniFit();uniDraw();uniKick();return}
-    U.show[t]=U.show[t]?0:1; b.classList.toggle('on',!!U.show[t]);
-    uniSettle(60); uniFit(); uniDraw(); uniKick();});   // 显隐变了要重新取景,否则一半在画外
+    if(t==='reset'){U.focus=null;uniTip(null);uniFit();uniPlaceLabels();uniKick();return}
+    U.show[t]=U.show[t]?0:1;
+    b.classList.toggle('on',!!U.show[t]); b.setAttribute('aria-pressed',String(!!U.show[t]));
+    U.sig=''; U.frozen=false;                   // 显隐改变了参与布局的集合,重新收敛一次
+    uniKick();});
   uniKick();
 }
-
 /* ============ 总览 ============ */
 function vOverview(){
   return `<div class="grid k5" id="kpis"></div>
   <h2>需要你处理的事 <span class="hint">按严重度排序,全部由已采数据推导,零额外成本</span></h2>
   <div class="card" id="actions"></div>
+  <h2>容量与升级 <span class="hint">该不该升级 VPS、还能再部署多少 —— 阈值与实测值都摆出来,结论可复核</span></h2>
+  <details class="card cap" id="capCard"></details>
   <h2>供应商 <span class="hint">状态 / 成本 / 风险 / 健康</span></h2>
   <div class="grid k4" id="inv"></div>
   <h2>活跃度 <span class="hint">一年视图</span></h2>
@@ -1063,7 +1332,7 @@ const SST={ok:{c:'var(--ok)',t:'达标'},warn:{c:'var(--warn)',t:'需关注'},
             bad:{c:'var(--danger)',t:'不达标'},na:{c:'var(--t3)',t:'不适用'}};
 let SWFOCUS=null;
 
-function vSoftware(){
+function segBase(){
   const w=S.software;
   if(!w)return `<div class="warnbox">软件运行状态尚未产出(采集器每分钟一次)</div>`;
   return `<div class="grid k5" id="swKpi"></div>
@@ -1112,7 +1381,7 @@ function chainHTML(ln,stages){
     }).join('')}</div>`;
 }
 
-SYNC['software']=function(){
+function syncBase(){
   const w=S.software, b=S.baseline||{};
   if(!w)return;
   const viol=w.unregistered.length;
@@ -1204,12 +1473,98 @@ SYNC['software']=function(){
   const ub=q('#swUnits'); if(ub&&ub.dataset.k!==us.length+String(w.at)){ub.innerHTML=ur;ub.dataset.k=us.length+String(w.at)}
 
   setText(q('#swNote'),w.note+' 归档自 '+(b.since?new Date(b.since*1000).toLocaleDateString('zh-CN'):'—'));
+}
+
+/* ============ 功能基线:软件**内部**的功能纵向切片 ============
+   「运行」页看的是运维纵向切片(代码→CI→部署→…→自愈);这一页看的是每个项目
+   声明了哪些功能、处于什么状态、有没有实据、以及**实据是不是还成立**。
+   数据源是各项目 docs/governance/project.yaml 的 canonical facts,不是猜的。 */
+const FV={ok:{t:'达标',c:'var(--ok)'},warn:{t:'存疑',c:'var(--warn)'},
+          bad:{t:'证据链断裂',c:'var(--danger)'},plan:{t:'计划中',c:'var(--t3)'}};
+let FPROJ=null;
+function vFeature(){
+  const f=(S.github||{}).features;
+  if(!f||!f.projects)return `<div class="warnbox">功能基线尚未产出(每小时深采一次)</div>`;
+  return `<div class="grid k5" id="ftKpi"></div>
+  <h2>项目功能健康 <span class="hint">点项目看它的完整功能清单与逐条判据</span></h2>
+  <div class="card p0 scroll"><table><thead><tr>
+    <th class="s">项目</th><th class="s">仓</th><th class="s">健康</th>
+    <th class="s">达标</th><th class="s">存疑</th><th class="s">断链</th><th class="s">计划</th>
+    <th class="s">仅本地</th><th class="s">保障维度</th><th>当前状态</th>
+  </tr></thead><tbody id="ftRows"></tbody></table></div>
+  <h2>功能清单 <span class="hint" id="ftWho"></span></h2>
+  <div class="card p0 scroll"><table><thead><tr>
+    <th class="s">判定</th><th class="s">功能</th><th class="s">声明状态</th>
+    <th class="s">证据等级</th><th class="s">证据</th><th>说明</th>
+  </tr></thead><tbody id="ftFeat"></tbody></table></div>
+  <div class="card" id="ftNote" style="margin-top:14px"></div>`;
+}
+SYNC['feature']=function(){
+  const f=(S.github||{}).features; if(!f||!f.projects)return;
+  const t=f.totals||{};
+  kpiRow('#ftKpi',[
+    {lab:'纳管功能',val:t.features||0,unit:'',sub:`${t.projects} 个项目`},
+    {lab:'跑得通',val:t.features?t.ok/t.features*100:0,unit:'%',fmt:v=>v.toFixed(0),
+      sub:`${t.ok} 条达标`,tone:'ok'},
+    {lab:'证据链断裂',val:t.bad||0,unit:'',sub:`已核验 ${num(t.evidence_checked)} 个证据路径`,
+      tone:t.bad?'bad':'ok'},
+    {lab:'仅本地验证',val:t.local_only||0,unit:'',sub:'本地跑得通 ≠ 云端跑得通',
+      tone:t.local_only?'warn':'ok'},
+    {lab:'存疑 / 计划',val:(t.warn||0)+(t.plan||0),unit:'',sub:`存疑 ${t.warn} · 计划 ${t.plan}`},
+  ]);
+  if(!FPROJ||!f.projects.some(p=>p.project===FPROJ))FPROJ=f.projects[0].project;
+  const rows=f.projects.map(p=>`<tr class="mxr${FPROJ===p.project?' on':''}" data-p="${esc(p.project)}">
+    <td data-v="${esc(p.project)}"><b>${esc(p.project)}</b></td>
+    <td class="muted" data-v="${esc(p.repo)}">${esc(p.repo)}</td>
+    <td data-v="${p.health??0}" style="color:${FV[p.state].c};font-weight:650">${p.health??'—'}%</td>
+    <td data-v="${p.counts.ok}">${p.counts.ok}</td>
+    <td data-v="${p.counts.warn}" style="color:${p.counts.warn?'var(--warn)':'var(--t3)'}">${p.counts.warn}</td>
+    <td data-v="${p.counts.bad}" style="color:${p.counts.bad?'var(--danger)':'var(--t3)'};font-weight:${p.counts.bad?650:400}">${p.counts.bad}</td>
+    <td class="muted" data-v="${p.counts.plan}">${p.counts.plan}</td>
+    <td data-v="${p.local_only}" style="color:${p.local_only?'var(--warn)':'var(--t3)'}">${p.local_only}</td>
+    <td class="muted" data-v="${p.verified_dims}">${p.verified_dims}/${p.total_dims}</td>
+    <td class="muted" style="max-width:250px">${esc(p.status||'—')}</td></tr>`).join('');
+  const tb=q('#ftRows');
+  if(tb&&tb.dataset.k!==rows.length+String(f.at)+FPROJ){
+    tb.innerHTML=rows; tb.dataset.k=rows.length+String(f.at)+FPROJ;
+    qa('#ftRows tr').forEach(tr=>tr.onclick=()=>{FPROJ=tr.dataset.p;SYNC['feature']()});
+  }
+  const p=f.projects.find(x=>x.project===FPROJ)||f.projects[0];
+  setText(q('#ftWho'),`${p.project} · ${p.features.length} 条 · ${esc(p.version||'')}`);
+  const fr=[...p.features].sort((a,b)=>({bad:0,warn:1,plan:2,ok:3}[a.v]-{bad:0,warn:1,plan:2,ok:3}[b.v]))
+   .map(x=>`<tr>
+    <td data-v="${x.v}"><span class="dot" style="background:${FV[x.v].c}"></span>${FV[x.v].t}</td>
+    <td data-v="${esc(x.name)}"><b>${esc(x.name)}</b>
+      ${x.local?'<span class="chip warn" style="margin-left:6px">仅本地</span>':''}
+      <div class="muted" style="font-size:11px">${esc(x.id)}</div></td>
+    <td class="muted" data-v="${esc(x.status)}" style="max-width:190px">${esc(x.status||'—')}</td>
+    <td data-v="${esc(x.fact)}"><span class="chip ${x.fact==='VERIFIED'?'ok':(x.fact==='EXTRACTED'?'':'warn')}">${esc(x.fact||'—')}</span></td>
+    <td class="muted" data-v="${(x.paths||[]).length}">${(x.paths||[]).length} 条路径${x.unres&&x.unres.length?` · ${x.unres.length} 条不可机器核验`:''}</td>
+    <td class="muted" style="max-width:330px;font-size:11.5px">${
+      x.miss&&x.miss.length?`<b style="color:var(--danger)">证据文件已不存在:</b> ${x.miss.map(esc).join('、')}`
+      :(x.local?'已在本地验证通过,但尚未进入 GitHub —— 云端是否跑得通未经证实'
+        :(x.v==='plan'?'尚未实现,只是登记的计划'
+        :(x.v==='warn'?'状态或证据等级不足以判定"跑得通"':'状态已完成 + 证据等级充分 + 证据文件全部在位')))}</td>
+   </tr>`).join('');
+  const fb=q('#ftFeat'); if(fb&&fb.dataset.k!==FPROJ+String(f.at)){fb.innerHTML=fr;fb.dataset.k=FPROJ+String(f.at)}
+  q('#ftNote').innerHTML=`<div class="vsec" style="margin-bottom:7px">判据说明</div>
+    <div style="font-size:12.5px;color:var(--t2);line-height:1.8">${esc(f.note)}<br>
+    <b>达标</b> = 声明状态已完成 + 证据等级 VERIFIED/EXTRACTED + 声明的证据文件全部在位;
+    <b>存疑</b> = 进行中/受阻,或证据等级只到 RECONSTRUCTED/INFERRED;
+    <b>断链</b> = 声明的证据文件此刻已不存在;<b>计划中</b> = 只是登记的计划。<br>
+    <span class="muted">证据在本项目仓或原仓 CodexProject 任一处存在即算成立 —— 项目是迁移过来的,
+    不该把迁移算成断链。</span></div>`;
 };
 
 /* ============ 运行(项目 + 主机 + 自愈)============ */
 const RANGES=[['1h',3600],['4h',14400],['1D',86400],['3D',259200],['7D',604800],['30D',2592000],['全部',-1]];
 let TR='1D';
 function vRuntime(){
+  return `<div class="seg big" id="rtSeg2">${RSEGS.map(x=>
+      `<button data-seg="${x.id}" class="${x.id===RSEG?'on':''}">${x.name}</button>`).join('')}</div>
+    <div id="rtBody">${RSEG==='base'?segBase():segHost()}</div>`;
+}
+function segHost(){
   return `<div class="grid k5" id="rtKpis"></div>
   <h2>项目清单 <span class="hint">点表头可排序;每个项目跑在哪 / 存哪 / 怎么部署 / 怎么备份</span></h2>
   <div class="card p0 scroll"><table><thead><tr>
@@ -1296,6 +1651,10 @@ function drawLive(){
   setText(q('#lvNote'),L.note||'');
 }
 SYNC['runtime']=function(){
+  if(RSEG==='base'){syncBase();return}
+  syncHost();
+};
+function syncHost(){
   const s=S,h=s.host||{},o=s.ops||{};
   drawLive();
   kpiRow('#rtKpis',[
@@ -1656,6 +2015,15 @@ D.addEventListener('visibilitychange',()=>{if(!D.hidden){tickAgo();load();
   if(U.box&&U.cv&&U.cv.isConnected){U.t=performance.now();
     if(U.box.w||(U.fit&&U.fit()))uniDraw();
     uniKick();}}});
+/* 「更多」气泡:三个整页出口收成一个,点外面/按 Esc 关 */
+(function(){
+  const b=q('#moreBtn'), pop=q('#morePop');
+  if(!b)return;
+  const set=v=>{pop.classList.toggle('on',v);b.setAttribute('aria-expanded',String(v));b.classList.toggle('on',v)};
+  b.onclick=e=>{e.stopPropagation();set(!pop.classList.contains('on'))};
+  D.addEventListener('click',e=>{if(!pop.contains(e.target))set(false)});
+  D.addEventListener('keydown',e=>{if(e.key==='Escape')set(false)});
+})();
 load().then(probeEdit);
 setInterval(load,REFRESH);
 </script>

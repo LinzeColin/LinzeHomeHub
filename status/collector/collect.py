@@ -95,9 +95,16 @@ def host_metrics():
     disk = run("df / | awk 'NR==2{gsub(\"%\",\"\",$5); print $5}'")
     up_days = run("awk '{printf \"%d\", $1/86400}' /proc/uptime")
     load = run("awk '{print $1}' /proc/loadavg")
+    load3 = run("awk '{print $1\" \"$2\" \"$3}' /proc/loadavg").split()
     dbytes = run("df -B1 / | awk 'NR==2{print $3\" \"$2}'").split()
     used_b = int(dbytes[0]) if len(dbytes) == 2 and dbytes[0].isdigit() else None
     total_b = int(dbytes[1]) if len(dbytes) == 2 and dbytes[1].isdigit() else None
+    # 容量判定要用到的原始量:光看百分比会误判。
+    # 例:swap 用了一半但 available 还很宽裕 —— Linux 不会主动把 swap 换回内存,
+    # 那是**历史峰值的遗留**,不代表此刻缺内存。两个数必须一起看。
+    f = run("free -m | awk '/Mem:/{print $2\" \"$3\" \"$7} /Swap:/{print $2\" \"$3}'").split()
+    g = (lambda i: int(f[i]) if i < len(f) and f[i].isdigit() else None)
+    cores = run("nproc")
     return {
         "mem_pct": int(mem) if mem.isdigit() else None,
         "disk_pct": int(disk) if disk.isdigit() else None,
@@ -105,7 +112,40 @@ def host_metrics():
         "disk_total_b": total_b,
         "uptime_days": int(up_days) if up_days.isdigit() else None,
         "load1": load,
+        "load5": load3[1] if len(load3) > 2 else None,
+        "load15": load3[2] if len(load3) > 2 else None,
+        "cores": int(cores) if cores.isdigit() else None,
+        "mem_total_mb": g(0), "mem_used_mb": g(1), "mem_avail_mb": g(2),
+        "swap_total_mb": g(3), "swap_used_mb": g(4),
     }
+
+
+def docker_space():
+    """Docker 占了多少、其中多少是**能立刻回收**的。
+
+    这个数是容量判断的关键:磁盘 67% 里如果有 13% 是构建缓存,
+    那么「该不该升级」的答案在回收之前根本无法成立 —— 先回收,再谈钱。
+    """
+    out = {"total_b": 0, "reclaim_b": 0, "rows": []}
+    raw = run("docker system df --format '{{.Type}}|{{.Size}}|{{.Reclaimable}}'", timeout=40)
+
+    def parse(s):
+        m = re.match(r"([\d.]+)\s*([KMGT]?i?B)", (s or "").strip())
+        if not m:
+            return 0
+        mul = {"B": 1, "KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12,
+               "KiB": 1024, "MiB": 1024 ** 2, "GiB": 1024 ** 3, "TiB": 1024 ** 4}
+        return int(float(m.group(1)) * mul.get(m.group(2), 1))
+
+    for line in raw.splitlines():
+        p = line.split("|")
+        if len(p) < 3:
+            continue
+        size, recl = parse(p[1]), parse(p[2].split("(")[0])
+        out["rows"].append({"type": p[0], "size_b": size, "reclaim_b": recl})
+        out["total_b"] += size
+        out["reclaim_b"] += recl
+    return out
 
 
 def container_health():
@@ -848,6 +888,207 @@ def deploy_calendar():
             "since": first, "label": "每日部署次数"}
 
 
+# ---------- 容量判定:该不该升级 VPS / 还能再部署多少 ----------
+# 阈值全部写死在这里,页面上原样展示 —— 结论必须能被复核,不能是"我觉得"。
+THRESH = {
+    "mem_avail_tight": 0.20,      # 可用内存 / 总内存 低于此值 = 紧张
+    "mem_avail_crit": 0.10,       #                          低于此值 = 告急
+    "swap_tight": 0.50,           # swap 使用率 高于此值 = 紧张(需结合可用内存判读)
+    "swap_crit": 0.85,
+    "disk_tight": 0.75,           # 磁盘使用率
+    "disk_crit": 0.85,
+    "cpu_tight": 0.70,            # load1 / 核数
+    "cpu_crit": 1.00,
+    "disk_eta_days": 90,          # 磁盘按当前斜率外推,少于这么多天触顶 = 需要动作
+    "reserve_mem_mb": 500,        # 算余量时给系统留的内存
+    "reserve_disk_b": 4 * 1024 ** 3,   # 算余量时给系统留的磁盘
+}
+
+
+def _slope_per_day(ts, vs, min_pts=8):
+    """磁盘占用的日增长率(%/天),用 **Theil–Sen 中位数斜率**,不用最小二乘。
+
+    ★ 为什么不用最小二乘:实测日序列是 `46 → 76 → 60 → 67` —— 构建缓存一次清理就能
+      让磁盘掉 16 个点。最小二乘对这种跳变极敏感,一个异常点就能把外推拉出几天的假警报。
+      Theil–Sen 取所有点对斜率的**中位数**,天然抗离群,几个跳变点动不了结论。
+    """
+    pts = [(t, v) for t, v in zip(ts, vs) if isinstance(v, (int, float))]
+    if len(pts) < min_pts:
+        return None
+    sl = []
+    for i in range(len(pts)):
+        for j in range(i + 1, len(pts)):
+            dt = (pts[j][0] - pts[i][0]) / 86400.0
+            if dt > 0.02:                      # 相隔太近的两点比值噪声太大,跳过
+                sl.append((pts[j][1] - pts[i][1]) / dt)
+    if not sl:
+        return None
+    sl.sort()
+    n = len(sl)
+    return sl[n // 2] if n % 2 else (sl[n // 2 - 1] + sl[n // 2]) / 2
+
+
+def capacity_advice(host, hist, prices, sw):
+    """该不该升级 VPS、还能再部署多少 —— 全部由实测量 + 明写阈值判定。
+
+    **不联网抓 OVH 价格。** VPS 档位与月价由 owner 在 `data/prices.json` 的 `vps_tiers`
+    里登记;没登记就只给「要不要升级」的结论,不编造型号和差价。
+    """
+    mt, ma = host.get("mem_total_mb"), host.get("mem_avail_mb")
+    st, su = host.get("swap_total_mb"), host.get("swap_used_mb")
+    dt, du = host.get("disk_total_b"), host.get("disk_used_b")
+    cores = host.get("cores") or 1
+    def _f(k):
+        try:
+            return float(host.get(k) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    load1, load15 = _f("load1"), _f("load15") or _f("load1")
+    dock = docker_space()
+
+    sig = []                                   # 每条信号:维度 / 级别 / 实测 / 阈值 / 判读
+
+    def add(dim, level, fact, rule, read):
+        sig.append({"dim": dim, "level": level, "fact": fact, "rule": rule, "read": read})
+
+    avail_r = (ma / mt) if (ma and mt) else None
+    swap_r = (su / st) if (su is not None and st) else None
+    if avail_r is not None:
+        lv = ("crit" if avail_r < THRESH["mem_avail_crit"] else
+              "tight" if avail_r < THRESH["mem_avail_tight"] else "ok")
+        add("内存", lv, "可用 %d MB / 共 %d MB(%.0f%%)" % (ma, mt, avail_r * 100),
+            "可用率 <%.0f%% 紧张 / <%.0f%% 告急" % (THRESH["mem_avail_tight"] * 100,
+                                                    THRESH["mem_avail_crit"] * 100),
+            "含 buff/cache 可回收部分,这是内核口径的真实可用量")
+    if swap_r is not None:
+        lv = ("crit" if swap_r > THRESH["swap_crit"] else
+              "tight" if swap_r > THRESH["swap_tight"] else "ok")
+        # ★ swap 高 + 可用内存充足 = 历史峰值遗留,不是此刻缺内存。
+        #   Linux 不会主动把 swap 换回内存,只看 swap 会把"曾经紧张过"误读成"现在告急"。
+        if lv != "ok" and avail_r is not None and avail_r >= THRESH["mem_avail_tight"]:
+            lv, note = "watch", "swap 高但可用内存充足 —— 是**历史峰值的遗留**,不是此刻缺内存。" \
+                                "Linux 不会主动换回,重启即清零。真正要看的是可用内存。"
+        else:
+            note = "swap 与可用内存同时吃紧,才是真的内存不够"
+        add("Swap", lv, "已用 %d MB / 共 %d MB(%.0f%%)" % (su, st, swap_r * 100),
+            "使用率 >%.0f%% 紧张 / >%.0f%% 告急" % (THRESH["swap_tight"] * 100,
+                                                    THRESH["swap_crit"] * 100), note)
+
+    disk_r = (du / dt) if (du and dt) else None
+    free_b = (dt - du) if (du and dt) else 0
+    recl = dock["reclaim_b"]
+    after_r = ((du - recl) / dt) if (du and dt) else None
+    if disk_r is not None:
+        lv = ("crit" if disk_r > THRESH["disk_crit"] else
+              "tight" if disk_r > THRESH["disk_tight"] else "ok")
+        if lv != "ok" and after_r is not None and after_r <= THRESH["disk_tight"]:
+            lv = "watch"
+        add("磁盘", lv, "已用 %s / %s(%.0f%%)" % (fmt_bytes(du), fmt_bytes(dt), disk_r * 100),
+            "使用率 >%.0f%% 紧张 / >%.0f%% 告急" % (THRESH["disk_tight"] * 100,
+                                                    THRESH["disk_crit"] * 100),
+            ("其中 %s 是 Docker 可立刻回收的(构建缓存/悬空镜像/卷),回收后降到 %.0f%% —— "
+             "**在回收之前谈升级是不理性的**" % (fmt_bytes(recl), after_r * 100)) if recl > 0
+            else "无可回收空间")
+
+    # 优先用小时序列(样本密、覆盖近 31 天),不够再退回日序列
+    hr = (hist or {}).get("hour") or {}
+    day = (hist or {}).get("day") or {}
+    src, slope = "小时序列", _slope_per_day(hr.get("t") or [], hr.get("disk") or [], 24)
+    if slope is None:
+        src, slope = "日序列", _slope_per_day(day.get("t") or [], day.get("disk") or [], 6)
+    n_pts = len(hr.get("t") or []) if src == "小时序列" else len(day.get("t") or [])
+    eta_days = None
+    if slope is not None and disk_r is not None:
+        if slope <= 0.02:
+            add("磁盘趋势", "ok", "中位斜率 %+.3f %%/天(%s,%d 点)" % (slope, src, n_pts),
+                "增长 >0.02 %%/天 才外推触顶时间", "当前基本持平或在下降,不构成容量风险")
+        else:
+            eta_days = int(max(0, (THRESH["disk_crit"] * 100 - disk_r * 100) / slope))
+            add("磁盘趋势", "tight" if eta_days < THRESH["disk_eta_days"] else "ok",
+                "中位斜率 %+.3f %%/天,按此外推 %d 天后触及 %.0f%%"
+                % (slope, eta_days, THRESH["disk_crit"] * 100),
+                "少于 %d 天触顶即需动作" % THRESH["disk_eta_days"],
+                "用 Theil–Sen 中位数斜率(抗离群):清一次构建缓存磁盘就能掉十几个点,"
+                "最小二乘会被这种跳变带出假警报。样本 %d 点(%s)" % (n_pts, src))
+
+    # ★ 判定必须用 **15 分钟均载**,不能用 load1。
+    #   实测教训:采集器自己跑一次 4 分钟的深采就能把 load1 顶到 5.63(2 核),
+    #   于是"该不该升级"被**我自己的测量动作**翻成了"建议升级" —— 典型观察者效应。
+    #   我在判读里写着"持续高于 1 才有意义",却让一个瞬时采样决定了结论,这就是自打脸。
+    # ★ 单次采样一律不作数。实测:采集器自己跑一次 4 分钟深采,就把 load1 顶到 5.63、
+    #   load15 顶到 3.09(2 核),于是"该不该升级"被**我自己的测量动作**翻成了"建议升级"
+    #   —— 典型观察者效应。所以判定改看 **24 小时 P90**;样本不够就如实说暂不判定,不硬下结论。
+    mseries = [v for v in ((hist or {}).get("min") or {}).get("load", []) if isinstance(v, (int, float))]
+    win = mseries[-1440:]
+    if len(win) >= 60:
+        srt = sorted(win)
+        p90 = srt[int(len(srt) * 0.9) - 1]
+        cpu_r = p90 / cores
+        add("CPU", "crit" if cpu_r > THRESH["cpu_crit"] else
+            ("tight" if cpu_r > THRESH["cpu_tight"] else "ok"),
+            "24h P90 均载 %.2f / %d 核 = %.2f(当前 load1 %.2f / load15 %.2f)"
+            % (p90, cores, cpu_r, load1, load15),
+            "**24 小时 P90** 比值 >%.2f 紧张 / >%.2f 告急" % (THRESH["cpu_tight"], THRESH["cpu_crit"]),
+            "按分位数判定,单次采集/构建造成的尖峰不会翻转结论(样本 %d 个)" % len(win))
+    else:
+        add("CPU", "ok", "当前 load15 %.2f / %d 核 = %.2f" % (load15, cores, load15 / cores),
+            "需要 ≥60 个样本才按 24h P90 判定", "★负载样本仅 %d 个,**暂不作为升级依据**——"
+            "单次采样会被采集器自身的负载污染,宁可不判也不误判" % len(win))
+
+    # ---- 部署余量:还能再放几个「典型应用」----
+    lines = [x for x in (sw or {}).get("lines", []) if x.get("kind") == "business"]
+    typ_mem = 60                                  # MB:按现有业务容器实测中位数量级取整
+    imgs = next((r["size_b"] for r in dock["rows"] if r["type"].lower().startswith("image")), 0)
+    typ_disk = int(imgs / max(1, len(lines))) if imgs else 300 * 1024 ** 2
+    slots_mem = int(max(0, (ma or 0) - THRESH["reserve_mem_mb"]) / typ_mem) if ma else 0
+    slots_disk = int(max(0, free_b + recl - THRESH["reserve_disk_b"]) / max(1, typ_disk))
+    slots = min(slots_mem, slots_disk)
+
+    levels = [s["level"] for s in sig]
+    crit = levels.count("crit")
+    tight = levels.count("tight")
+    tiers = (prices or {}).get("vps_tiers") or []
+    if crit:
+        verdict, vlevel = "建议升级", "bad"
+        why = "有 %d 个维度已达告急阈值,且不是回收就能解决的。" % crit
+    elif tight:
+        verdict, vlevel = "先回收,暂不升级", "warn"
+        why = "有 %d 个维度紧张,但回收 Docker 可用空间后即可缓解 —— 花钱之前先做免费的那步。" % tight
+    else:
+        verdict, vlevel = "无需升级", "ok"
+        why = "所有维度都在阈值内,当前配置仍有余量。"
+    # 当前档位一律由**实测**推导,不依赖登记 —— 登记表只用来提供可升级的目标档与差价
+    cur = {"name": "当前机器", "cores": cores,
+           "ram_gb": round((mt or 0) / 1024.0, 1),
+           "disk_gb": round((dt or 0) / 1024.0 ** 3, 1), "current": True, "measured": True}
+    target = None
+    if crit and tiers:
+        target = next((t for t in tiers if (t.get("ram_gb") or 0) > cur["ram_gb"]), None)
+
+    return {
+        "verdict": verdict, "level": vlevel, "why": why,
+        "signals": sig,
+        "thresholds": THRESH,
+        "headroom": {
+            "slots": slots, "by_mem": slots_mem, "by_disk": slots_disk,
+            "typical_mem_mb": typ_mem, "typical_disk_b": typ_disk,
+            "free_b": free_b, "reclaimable_b": recl,
+            "note": "「典型应用」= 按现有 %d 条业务线的镜像均摊与容器内存量级估算;"
+                    "已给系统预留 %d MB 内存与 %s 磁盘。这是数量级参考,不是保证。"
+                    % (len(lines), THRESH["reserve_mem_mb"], fmt_bytes(THRESH["reserve_disk_b"])),
+        },
+        "docker": dock,
+        "reclaim_hint": "docker builder prune -f  # 只清构建缓存,不动镜像与卷",
+        "current_tier": cur,
+        "tiers": tiers,
+        "target": target,
+        "tiers_note": "VPS 档位与月价由 owner 在 /admin 的价格库登记(`vps_tiers`);"
+                      "本站**不联网抓取供应商价格**,没登记就不给型号与差价,只给要不要升级的结论。",
+        "eta_days": eta_days,
+        "at": int(time.time()),
+    }
+
+
 # ---------- 软件运行状态:自动探测 + 登记核对 + 业务基线纵向切片 ----------
 # 平台底座也必须登记 —— 否则「未登记」告警会被底座组件刷屏,治理就形同虚设。
 # 这些不是业务线,但同样是跑在 OVH 上的软件,同样要有归属和自愈。
@@ -1497,19 +1738,28 @@ def main():
     hist = load_json(os.path.join(DATA_DIR, "history.json"), {})
     for tier in ("min", "hour", "day"):
         hist.setdefault(tier, {"t": [], "mem": [], "disk": []})
+        hist[tier].setdefault("load", [])           # 15 分钟均载:容量判定要按分位数看,不能看单次
+        # 旧档没有 load 列,长度对不上 —— 先左侧补 None 对齐,再写入,否则索引越界
+        while len(hist[tier]["load"]) < len(hist[tier]["t"]):
+            hist[tier]["load"].insert(0, None)
     ep = int(time.time())
     mem_v, disk_v = host.get("mem_pct"), host.get("disk_pct")
+    try:
+        load_v = float(host.get("load15") or 0) or None
+    except (TypeError, ValueError):
+        load_v = None
     m = hist["min"]
-    m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v)
-    for k in ("t", "mem", "disk"):
+    m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v); m["load"].append(load_v)
+    for k in ("t", "mem", "disk", "load"):
         m[k] = m[k][-1440:]                      # 24h @ 1min
     h = hist["hour"]
     cur_hour = ep - (ep % 3600)
     if not h["t"] or h["t"][-1] != cur_hour:
-        h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v)
+        h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v); h["load"].append(load_v)
     else:
         h["mem"][-1] = mem_v; h["disk"][-1] = disk_v
-    for k in ("t", "mem", "disk"):
+        h["load"][-1] = max(h["load"][-1] or 0, load_v or 0) or None   # 小时桶取峰值,不掩盖高负载
+    for k in ("t", "mem", "disk", "load"):
         h[k] = h[k][-744:]                       # 31 天 @ 1hour
     d = hist["day"]
     cur_day = ep - (ep % 86400)
@@ -1567,6 +1817,7 @@ def main():
     snap["software"] = software_runtime(projects, snap["github"], backup, cert, ch,
                                         snap["live"], snap["selfheal"], dep)
     snap["baseline"] = baseline_history(snap["software"])
+    snap["capacity"] = capacity_advice(host, hist, prices, snap["software"])
     snap["graph"] = project_graph(projects, snap["github"])
 
     # 关系图单独出一份小文件,供 home 站跨域拉取(比整份 80KB 快照轻得多)

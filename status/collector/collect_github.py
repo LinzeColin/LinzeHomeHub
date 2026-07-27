@@ -689,6 +689,205 @@ def gather_billing(token, login):
     }
 
 
+# ======================= 功能基线:软件内部的功能纵向切片 =======================
+# 「软件运行状态」页看的是**运维**纵向切片(代码→CI→部署→…→自愈);
+# 这里看的是**功能**纵向切片:每个项目声明了哪些功能、处于什么状态、
+# 有没有实据、以及**实据是不是还成立**。
+#
+# 数据源不是猜的:CodexProject 治理规定每个 active project 必须把 canonical facts 写进
+# `<项目>/docs/governance/project.yaml`(features / limitations / current_status)
+# 与 `ASSURANCE_STATUS.yaml`(各保障维度 VERIFIED / PARTIAL)。实测 9 个项目都有。
+FEATURE_PROJECTS = [
+    ("KMOS", "KMFA"), ("KMOS", "KM_IDSystem"), ("KMOS", "whkmSalary"),
+    ("MetaDatabase", "Alpha"), ("MetaDatabase", "EEI"), ("MetaDatabase", "arxiv-daily-push"),
+    ("MetaDatabase", "PFI"), ("MetaDatabase", "Serenity-Alipay"),
+    ("AgentDatabase", "OpenAIDatabase"),
+]
+FEATURE_CACHE = os.path.join(PRIVATE_DIR, "feature_cache.json")
+# ★ 状态词表必须按**实际数据**定,不能凭想象。实测 9 个项目用了十几种写法:
+#   completed_validated_local_only / uploaded_to_github_main / review_passed_upload_ready_local_only
+#   / remediation_rereview_verified / accepted_release_frozen_waiting_final_delivery …
+#   词表太窄就会把一大批已完成功能误判成「存疑」(第一版误判了 44 条)。
+_ST_OK_HINT = ("active", "done", "complete", "ship", "verified", "released", "uploaded",
+               "accepted", "review_passed", "closed")
+_ST_PLAN_HINT = ("planned", "proposed", "todo", "pending", "draft", "not_started")
+_ST_WARN_HINT = ("in_progress", "blocked", "partial", "wip")
+# 证据等级由强到弱:VERIFIED 比 EXTRACTED 更强,第一版只认 EXTRACTED,把 44 条 VERIFIED 误降级了
+_FACT_STRONG = ("VERIFIED", "EXTRACTED")
+_FACT_WEAK = ("RECONSTRUCTED", "INFERRED")
+
+
+def _feature_verdict(st, fact, has_path):
+    if any(h in st for h in _ST_PLAN_HINT) or fact in ("PROPOSED", "UNKNOWN", ""):
+        return "plan"
+    if any(h in st for h in _ST_WARN_HINT):
+        return "warn"
+    if fact in _FACT_WEAK:
+        return "warn"                       # 重建/推断出来的证据弱一档,不能算跑得通
+    if any(h in st for h in _ST_OK_HINT) and fact in _FACT_STRONG and has_path:
+        return "ok"
+    return "warn"
+
+
+def _blob_query(entries, field):
+    parts = ['a%d: repository(owner:"LinzeColin", name:"%s"){ o: object(expression:"HEAD:%s")'
+             '{... on Blob{ %s }} }' % (i, r, p.replace('"', ''), field)
+             for i, (r, p) in enumerate(entries)]
+    return "query{ rateLimit{cost remaining} " + " ".join(parts) + " }"
+
+
+def _blobs(token, entries, field, chunk=120):
+    """按别名批量取 blob 的某个字段(oid 或 text)。一次查上百个,cost 仍是 1。"""
+    out = {}
+    for k in range(0, len(entries), chunk):
+        part = entries[k:k + chunk]
+        d = _gql(token, _blob_query(part, field))
+        data = (d or {}).get("data") or {}
+        for i, key in enumerate(part):
+            node = ((data.get("a%d" % i) or {}).get("o")) or None
+            out[key] = node.get(field) if node else None
+    return out
+
+
+def _yaml_load(text):
+    try:
+        import yaml
+        return yaml.safe_load(text) or {}
+    except Exception as e:                       # 缺 pyyaml 或文件损坏:如实返回空,不猜
+        print("features: yaml parse failed: %s" % e)
+        return {}
+
+
+def gather_features(token):
+    """抓各项目的功能基线,并**验证证据链是否还成立**。
+
+    ★ 「跑不跑得通」不能只看它自己声明的 status —— 那是自述。
+      真正能机器判定的是:功能声称的 evidence_refs 指向的文件**现在还在不在**。
+      文件被删/改名而功能清单没跟着改,这条功能的「有实据」就已经过期了,
+      这是纯派生、零模型、可复核的判据。
+    """
+    cache = load_json(FEATURE_CACHE, {}) or {}
+    pj_keys = [(r, ("" if d == "." else d + "/") + "docs/governance/project.yaml")
+               for r, d in FEATURE_PROJECTS]
+    as_keys = [(r, ("" if d == "." else d + "/") + "docs/governance/ASSURANCE_STATUS.yaml")
+               for r, d in FEATURE_PROJECTS]
+    oids = _blobs(token, pj_keys + as_keys, "oid")
+
+    need = [k for k in pj_keys + as_keys if oids.get(k) and oids[k] not in cache]
+    texts = _blobs(token, need, "text", chunk=6) if need else {}   # 单个 YAML 可达 400KB,少量多批
+    for k in need:
+        t = texts.get(k)
+        if t:
+            cache[oids[k]] = _yaml_load(t)
+    for oid in list(cache):                       # 只保留本轮仍被引用的解析结果
+        if oid not in set(v for v in oids.values() if v):
+            cache.pop(oid, None)
+
+    projects, ev_want = [], []
+    for i, (repo, d) in enumerate(FEATURE_PROJECTS):
+        pj = cache.get(oids.get(pj_keys[i]) or "") or {}
+        asr = cache.get(oids.get(as_keys[i]) or "") or {}
+        if not pj:
+            continue
+        # ★ 证据引用有两种写法,混为一谈就会造出一片假红(实测:186 个功能里 105 个被误判断链)。
+        #   多数项目在 project.yaml 顶层维护一张 evidence 注册表
+        #     evidence_refs: [{evidence_id: EVID-XXX, ref: 实际路径, ...}]
+        #   功能里写的是 **evidence_id 符号**,要先查表才拿得到路径;
+        #   KMFA 是老写法,功能里直接写路径。两种都得支持。
+        evmap = {}
+        for e in (pj.get("evidence_refs") or []):
+            if isinstance(e, dict) and e.get("evidence_id"):
+                evmap[e["evidence_id"]] = e.get("ref") or ""
+        feats = []
+        for f in (pj.get("features") or []):
+            if not isinstance(f, dict):
+                continue
+            refs = [x for x in (f.get("evidence_refs") or []) if isinstance(x, str)]
+            paths, unres = [], []
+            for rf in refs:
+                raw = evmap.get(rf) or (rf if ("/" in rf or "." in rf) else None)
+                if raw is None:
+                    unres.append(rf)                  # 符号但查不到表 —— 记「未解析」,不等于断链
+                    continue
+                # ★ 一条 ref 里可能用 ; 或换行串了**多个**路径,也可能夹着散文描述
+                #   (实测 PFI 的 52 条"断链"全是这么来的)。拆开逐个判,
+                #   只有"没空格且带 /"的 token 才是能机器核验的路径;
+                #   其余是人读的说明,归「不可机器核验」而不是「断链」。
+                for tok in re.split(r"[;\n]+", raw):
+                    tok = tok.strip().strip(",")
+                    if not tok:
+                        continue
+                    if "/" in tok and " " not in tok:
+                        paths.append(tok)
+                    else:
+                        unres.append(tok)
+            feats.append({"id": f.get("feature_id") or "", "name": f.get("name") or "",
+                          "status": (f.get("status") or "").lower(),
+                          "fact": (f.get("fact_level") or "").upper(),
+                          "refs": refs, "paths": paths, "unres": unres})
+            for pp in paths:
+                ev_want.append((repo, pp))
+                ev_want.append(("CodexProject", pp))  # 项目是迁移来的,老证据可能还留在原仓
+        dims = {}
+        for k, v in (asr.get("dimensions") or {}).items():
+            if isinstance(v, dict):
+                dims[k] = (v.get("status") or "").upper()
+        projects.append({
+            "project": d if d != "." else repo, "repo": repo,
+            "summary": (pj.get("summary") or "")[:300],
+            "status": pj.get("current_status") or "", "version": pj.get("version") or "",
+            "fact_level": (pj.get("fact_level") or "").upper(),
+            "features": feats, "dimensions": dims,
+            "limitations": len(pj.get("limitations") or []),
+        })
+
+    # 证据链核验:同一路径只查一次
+    uniq = sorted(set(ev_want))
+    exists = _blobs(token, uniq, "oid") if uniq else {}
+    ok_path = {k: bool(v) for k, v in exists.items()}
+
+    for p in projects:
+        cnt = {"ok": 0, "warn": 0, "bad": 0, "plan": 0}
+        for f in p["features"]:
+            # 证据在本仓或原仓(CodexProject)任一处存在即算成立 —— 迁移不该被算成断链
+            miss = [r for r in f["paths"]
+                    if not (ok_path.get((p["repo"], r)) or ok_path.get(("CodexProject", r)))]
+            f["miss"] = miss
+            f["v"] = "bad" if miss else _feature_verdict(f["status"], f["fact"], bool(f["paths"]))
+            # local_only = 只在本地验证过、还没进 GitHub —— 算达标但要单独标出来,
+            # 因为"本地跑得通"和"云端跑得通"不是一回事
+            f["local"] = "local_only" in f["status"]
+            cnt[f["v"]] += 1
+        p["counts"] = cnt
+        p["local_only"] = sum(1 for f in p["features"] if f.get("local"))
+        live = cnt["ok"] + cnt["warn"] + cnt["bad"]
+        p["health"] = round(cnt["ok"] / live * 100) if live else None
+        p["state"] = "bad" if cnt["bad"] else ("warn" if cnt["warn"] else "ok")
+        vd = [v for v in p["dimensions"].values()]
+        p["verified_dims"] = sum(1 for v in vd if v == "VERIFIED")
+        p["total_dims"] = len(vd)
+
+    _atomic_write(FEATURE_CACHE, cache, 0o640)
+    projects.sort(key=lambda x: (0 if x["state"] == "bad" else 1 if x["state"] == "warn" else 2,
+                                 -(x["health"] or 0)))
+    tot = {"projects": len(projects),
+           "features": sum(len(p["features"]) for p in projects),
+           "ok": sum(p["counts"]["ok"] for p in projects),
+           "warn": sum(p["counts"]["warn"] for p in projects),
+           "bad": sum(p["counts"]["bad"] for p in projects),
+           "plan": sum(p["counts"]["plan"] for p in projects),
+           "evidence_checked": len(set(p for _, p in uniq)),
+           "evidence_missing": sum(1 for p in projects for f in p["features"] for _ in f["miss"]),
+           "local_only": sum(p["local_only"] for p in projects),
+           "unresolved_symbols": sum(1 for p in projects for f in p["features"] for _ in f["unres"])}
+    return {"projects": projects, "totals": tot,
+            "note": "功能与状态来自各项目 docs/governance/project.yaml(治理 canonical facts);"
+                    "「证据链」= 该功能声明的 evidence_refs 指向的文件此刻是否仍存在 —— "
+                    "文件被删或改名而清单没跟着改,这条功能的「有实据」就已经过期。"
+                    "本判据纯派生、零模型、可复核。",
+            "at": int(time.time())}
+
+
 def gather_deep(token):
     """REST 深采:仓库清单(权威,含 GraphQL 看不到的仓)+ release/CI/子项目。"""
     me, _ = _get(f"{API}/user", token)
@@ -726,6 +925,7 @@ def gather_deep(token):
             "traffic": gather_traffic(token, repo_rows),
             "billing": gather_billing(token, login),
             "coupling": build_coupling(repo_rows, chist, subs),
+            "features": gather_features(token),
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 
@@ -827,6 +1027,8 @@ def build_public(priv):
         "traffic": _public_traffic(priv.get("traffic") or {}),
         "billing": _public_billing(priv.get("billing") or {}),
         "coupling": _public_coupling(priv.get("coupling") or {}, priv.get("repos", [])),
+        # 功能基线全部来自**公开仓**的治理文件,不含私有仓;仍走一次防御性过滤
+        "features": priv.get("features") or {},
         "public_repos": pub_rows,
         "subprojects": [s for s in priv.get("subprojects", []) if s.get("repo") in pub_names],
         "note": "私有仓明细仅登录 /admin/github 可见",
@@ -864,7 +1066,7 @@ def run_deep(token):
                  "capability": deep["capability"], "account": deep["account"],
                  "actions": deep["actions"], "throughput": deep["throughput"],
                  "traffic": deep["traffic"], "billing": deep["billing"],
-                 "coupling": deep["coupling"],
+                 "coupling": deep["coupling"], "features": deep["features"],
                  "deep_at": _fmt(now), "collected_at": _fmt(now),
                  "collected_epoch": int(time.time())})
     write_all(priv)
