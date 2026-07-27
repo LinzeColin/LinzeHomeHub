@@ -1340,6 +1340,13 @@ def build_public(priv):
     return {
         "collected_at": priv.get("collected_at"), "collected_epoch": priv.get("collected_epoch"),
         "deep_at": priv.get("deep_at"),
+        # ★ 未纳入治理的检出**只出计数,绝不出名字** ——
+        #   条目里带的是仓名/目录名,而 MetaDatabase / KMOS / AgentDatabase 都是私有仓。
+        #   整份搬到公开面就等于把私有仓名泄到公网,是本站修过的同一个漏。
+        #   计数够触发「有问题,去登录看」;明细留在登录后的 owner 页。
+        "ungoverned_count": (priv.get("ungoverned") or {}).get("count", 0),
+        "ungoverned_scanned": (priv.get("ungoverned") or {}).get("scanned", 0),
+        "ungoverned_exempt": len((priv.get("ungoverned") or {}).get("exempt") or []),
         "repos_total": t.get("repos"), "public": t.get("public"), "private": t.get("private"),
         "archived": t.get("archived"), "commits_7d": t.get("commits_7d"),
         "commits_30d": t.get("commits_30d"), "open_pr": t.get("open_pr"),
