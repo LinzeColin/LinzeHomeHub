@@ -1549,6 +1549,7 @@ function segBase(){
   if(!w)return `<div class="warnbox">软件运行状态尚未产出(采集器每分钟一次)</div>`;
   return `<div class="grid k5" id="swKpi"></div>
   <h2>治理登记合规 <span class="hint">凡部署到 OVH / Cloudflare 的软件必须登记并接入监控与自愈</span></h2>
+  <div id="swIntegrity"></div>
   <div class="card" id="swGov"></div>
   <h2>业务基线纵向切片 <span class="hint">一条业务线从代码到自愈,每一段都要有实测证据;点行看端到端链路</span></h2>
   <div class="card p0 scroll"><table class="mx"><thead><tr>
@@ -1618,6 +1619,8 @@ function syncBase(){
         tone:bad?'bad':(na*3>cs.length?'warn':'ok')}})(),
   ]);
 
+  q('#swGov').insertAdjacentHTML('beforebegin','');
+  const swInt=q('#swIntegrity'); if(swInt)swInt.innerHTML=integrityHTML(w.integrity||[],'运行');
   q('#swGov').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;
       gap:12px;flex-wrap:wrap"><b style="font-size:14px">登记治理</b>
       ${viol?`<span class="pill bad">${viol} 个单元未登记</span>`
@@ -1719,6 +1722,7 @@ function vFlow(){
   if(!f.available)return `<div class="warnbox" style="margin-bottom:16px">${esc(f.note||'')}</div>
     ${unregHTML(f.unregistered||[])}`;
   return `<div class="grid k5" id="flKpi"></div>
+  <div id="flIntegrity"></div>
   <div id="flUnreg"></div>
   <h2>业务基线矩阵 <span class="hint" id="flWho"></span></h2>
   <div class="seg" id="flTabs" style="margin-bottom:12px"></div>
@@ -1735,6 +1739,29 @@ function vFlow(){
   <h2>健康趋势 <span class="hint">每格逐日归档,同一天取最差的一次</span></h2>
   <div class="card hov"><div class="chartbox"><canvas id="flTrend"></canvas></div></div>
   <div class="card" id="flNote" style="margin-top:14px"></div>`;
+}
+
+/* ---------- 分层自洽:每一级必须等于自身加它的下级 ----------
+   ★ 只查总量是查不出东西的。KMFA 线程今天连踩两次同类坑(报表映射漏了模板 B 的行名,
+     金额直接蒸发;上卷靠行号认层级,没有行号的那批钱永远卷不上去)——
+     **两次总额守恒时错误都照样成立**,是靠逐级自洽才逼出来的。
+   本站同样有「总数对得上就算通过」的地方:格子只按 stage_model 建,基线若声明了
+   stage_model 里没有的阶段,那一格连同它的状态/证据/缺陷会被整个丢掉,而各级总数依然自洽。
+   查出来就如实挂在页面最上面,不静默取整、不四舍五入掩盖。 */
+function integrityHTML(list,scope){
+  if(!list||!list.length)return '';
+  return `<div class="card" style="border-left:4px solid var(--danger);margin-bottom:13px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <b style="font-size:14px">${esc(scope)}数据自洽性异常</b>
+      <span class="pill bad">${list.length} 处</span></div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.85">
+      下面这些**不是业务出了问题,是这张表本身对不上**。逐级核对(每一级必须等于它自身加下级)
+      查出来的,总量看着正常时也会存在 —— 在修好之前,本页的统计数字不可全信。
+      <div class="card p0" style="margin-top:10px;box-shadow:none"><table><thead><tr>
+        <th>范围</th><th>类型</th><th>说明</th></tr></thead><tbody>
+        ${list.map(x=>`<tr><td><b>${esc(x.project||'—')}</b></td>
+          <td class="muted" style="font-family:ui-monospace,monospace;font-size:11.5px">${esc(x.kind)}</td>
+          <td>${esc(x.detail)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
 }
 
 function unregHTML(list){
@@ -1778,6 +1805,7 @@ SYNC['flow']=function(){
     {lab:'未登记',val:(f.unregistered||[]).length,unit:'',sub:'有治理文件却没登记',
       tone:(f.unregistered||[]).length?'bad':'ok'},
   ]);
+  q('#flIntegrity').innerHTML=integrityHTML(f.integrity||[],'业务流');
   q('#flUnreg').innerHTML=unregHTML(f.unregistered||[]);
 
   if(!FLPROJ||!f.projects.some(p=>p.project===FLPROJ))FLPROJ=f.projects[0].project;

@@ -1310,6 +1310,45 @@ def _mask_private(obj):
     return obj
 
 
+def _rollup_check(projects, tot):
+    """★ 分层自洽:**每一级都必须等于它自身加上它的下级**。
+
+    只查总量是查不出东西的 —— KMFA 线程今天连踩两次同类坑(报表映射漏了模板 B 的行名,
+    金额直接蒸发;上卷靠行号认层级,没有行号的那批钱永远卷不上去),两次**总额守恒时
+    错误都照样成立**,是靠逐级自洽才逼出来的。本站同样有「总数对得上就算通过」的地方,
+    照这个思路补齐:格子数、状态计数、实测数,三条都要逐级对得上,对不上就如实报出来,
+    绝不静默取整。
+    """
+    issues = []
+    cells_sum = 0
+    for p in projects:
+        bl_cells = sum(len(b["cells"]) for b in p["baselines"])
+        if bl_cells != p["cells_n"]:
+            issues.append({"project": p["project"], "kind": "cells_mismatch",
+                           "detail": "项目级记 %d 格,但逐基线加起来是 %d 格"
+                                     % (p["cells_n"], bl_cells)})
+        exp = len(p["stages"]) * len(p["baselines"])
+        if bl_cells != exp:
+            issues.append({"project": p["project"], "kind": "matrix_not_rectangular",
+                           "detail": "%d 基线 × %d 段应为 %d 格,实得 %d 格"
+                                     % (len(p["baselines"]), len(p["stages"]), exp, bl_cells)})
+        ver = sum(b["verified"] for b in p["baselines"])
+        if ver != p["verified"]:
+            issues.append({"project": p["project"], "kind": "verified_mismatch",
+                           "detail": "项目级记实测 %d 格,逐基线加起来是 %d 格"
+                                     % (p["verified"], ver)})
+        cells_sum += bl_cells
+    if cells_sum != tot["cells"]:
+        issues.append({"project": "(全域)", "kind": "total_cells_mismatch",
+                       "detail": "总计 %d 格,但逐项目加起来是 %d 格" % (tot["cells"], cells_sum)})
+    by_state = sum(tot.get(k, 0) for k in FLOW_STATES)
+    if by_state != tot["cells"]:
+        issues.append({"project": "(全域)", "kind": "state_sum_mismatch",
+                       "detail": "按状态分类加起来 %d 格,总格数 %d —— 有格子没被任何状态计到"
+                                 % (by_state, tot["cells"])})
+    return issues
+
+
 def flow_state():
     """把各项目登记的业务流跑一遍探针,并与自报状态**交叉校验**。
 
@@ -1328,12 +1367,28 @@ def flow_state():
     tot = {"baselines": 0, "cells": 0, "healthy": 0, "degraded": 0, "blocked": 0,
            "blocked_by_policy": 0, "blocked_by_input": 0, "not_built": 0, "unknown": 0,
            "probed": 0, "mismatch": 0, "coupling_violation": 0, "weak_only": 0}
+    integrity = []          # ★ 分层自洽:见文件末尾 _flow_integrity 的说明
     for p in docs["projects"]:
-        stages = [x for x in (p.get("stages") or []) if isinstance(x, str)][:12]
+        raw_stages = [x for x in (p.get("stages") or []) if isinstance(x, str)]
+        stages = raw_stages[:12]
+        if len(raw_stages) > len(stages):
+            integrity.append({"project": p.get("project") or "?", "kind": "stages_truncated",
+                              "detail": "声明了 %d 段,本站只画前 %d 段,其余**没有进任何统计**"
+                                        % (len(raw_stages), len(stages))})
         names = p.get("stage_names") or {}
         bl_out, by_id = [], {}
         for b in (p.get("baselines") or []):
             cells, worst = {}, "healthy"
+            # ★ 关键的静默丢失:格子只按 stage_model 建。基线若声明了一个不在 stage_model
+            #   里的阶段,那一格连同它的状态/证据/缺陷会被整个丢掉,**而各级总数依然自洽** ——
+            #   这正是「总额守恒时错误照样成立」。必须单独查出来并如实报出。
+            orphan = sorted(set((b.get("cells") or {}).keys()) - set(stages))
+            if orphan:
+                integrity.append({
+                    "project": p.get("project") or "?", "kind": "orphan_cells",
+                    "detail": "基线「%s」声明了 stage_model 里没有的阶段 %s —— "
+                              "这些格子**不会出现在矩阵里,也不进任何统计**"
+                              % (b.get("name") or b.get("id") or "?", "、".join(orphan))})
             for st in stages:
                 spec = (b.get("cells") or {}).get(st)
                 spec = spec if isinstance(spec, dict) else None
@@ -1457,7 +1512,9 @@ def flow_state():
                 if d0 and (since is None or d0 < since):
                     since = d0
             b["since"] = since
+    integrity += _rollup_check(out, tot)
     return _mask_private({"available": True, "projects": out, "totals": tot,
+            "integrity": integrity,
             "unregistered": docs.get("unregistered") or [],
             "fetched_at": docs.get("at"),
             "history_days": len(days), "history_since": days[0] if days else None,
@@ -1987,7 +2044,27 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
                     key=lambda x: -x["n"])
 
     covered = len([u for u in units if u["owner"]])
+    # ★ 同一条分层自洽:探测到的单元必须 = 已认领 + 未认领,一个不多一个不少。
+    #   只看「合规率 100%」是查不出「有单元既没被认领也没进违规表」的。
+    sw_integrity = []
+    if covered + len(unregistered) != len(units):
+        sw_integrity.append({"kind": "units_not_accounted",
+                             "detail": "探测到 %d 个单元,已认领 %d + 未认领 %d = %d,对不上"
+                                       % (len(units), covered, len(unregistered),
+                                          covered + len(unregistered))})
+    owned_sum = sum(len(v) for k, v in by_owner.items() if k)
+    if owned_sum != covered:
+        sw_integrity.append({"kind": "owner_bucket_mismatch",
+                             "detail": "按归属分桶合计 %d,已认领计数 %d,对不上"
+                                       % (owned_sum, covered)})
+    units_in_lines = sum(ln["units"] for ln in lines)
+    if units_in_lines != covered:
+        sw_integrity.append({"kind": "line_units_mismatch",
+                             "detail": "逐业务线的单元数加起来 %d,已认领 %d —— "
+                                       "有单元认领到了登记表里没有的业务线"
+                                       % (units_in_lines, covered)})
     return {
+        "integrity": sw_integrity,
         "stages": [{"k": k, "n": n} for k, n in STAGES],
         "lines": lines,
         "units_total": len(units),
