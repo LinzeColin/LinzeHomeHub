@@ -917,6 +917,75 @@ _NOT_A_PROJECT = {"docs", "scripts", "tests", "governance", "templates", "archiv
                   "_archive", "_protected", "node_modules", "vendor", "third_party"}
 
 
+# ★ 明确判定「这个目录不是业务项目」的白名单。**每一条都必须写理由** ——
+#   没有理由的豁免过两个月就没人知道当初为什么豁免，等同于永久黑洞。
+NOT_PROJECT = {
+    ("AgentDatabase", "CodexSkills"): "技能注册表,不是业务项目;由 skill-github-sync 自己管",
+    ("KMOS", "KMDatabase"): "数据目录,不是软件项目;数据治理走 Private-Database 那条线",
+    ("CodexProject", "GOLDEN_PATH"): "上云配方文档目录",
+    ("CodexProject", "INVENTORY"): "资产清单文档目录",
+    ("MetaDatabase", "LinzeDatabase"): "数据目录,不是软件项目",
+    ("MetaDatabase", "FINAL_ACCEPTANCE_BUNDLE"): "一次性验收产物归档",
+}
+_PROJECT_MARKERS = ("README.md", "AGENTS.md", "VERSION")
+
+
+def discover_ungoverned(token, repos, governed):
+    """找出**长得像项目、却完全没纳入治理**的目录。
+
+    ★ 为什么还需要这一层:discover_projects() 找的是**已经有** project.yaml 的目录。
+      一个新项目在写出治理文件之前，对本站是**彻底隐形**的 ——
+      它不在分母里，所以覆盖率不掉、未登记数不涨、看板一切正常。
+      实测(2026-07-27)全仓有 10 个这样的目录，其中 CyberBoss 有 634 个文件、
+      owner 明确说它是**在跑的活跃项目**，而本站一个字都看不到它。
+
+    ★ 判定原则:**不自动下结论,强制表态。**
+      扫到的目录只要没被 NOT_PROJECT 显式豁免,就一直挂在「未纳入治理」里(红)。
+      要么给它补治理文件,要么在白名单里写明为什么它不是项目。
+      **沉默不是选项** —— 沉默正是过去它能隐形的原因。
+    """
+    gset = set(governed or [])
+    out, scanned = [], 0
+    for r in repos or []:
+        name = r.get("name") if isinstance(r, dict) else str(r)
+        branch = (r.get("default_branch") if isinstance(r, dict) else None) or "main"
+        if not name:
+            continue
+        tree, _ = _get("%s/repos/%s/%s/git/trees/%s?recursive=1"
+                       % (API, "LinzeColin", name, branch), token)
+        if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list):
+            continue
+        scanned += 1
+        tops, gov, marks = set(), set(), {}
+        for node in tree["tree"]:
+            path = node.get("path") or ""
+            if "/" not in path:
+                if node.get("type") == "tree" and not path.startswith("."):
+                    tops.add(path)
+                continue
+            head = path.split("/", 1)[0]
+            if path.endswith("docs/governance/project.yaml") or \
+               path.endswith("docs/governance/flow.yaml"):
+                gov.add(head if path.count("/") > 2 else ".")
+            base = path.rsplit("/", 1)[-1]
+            if base in _PROJECT_MARKERS and path.count("/") == 1:
+                marks.setdefault(head, set()).add(base)
+        for d in sorted(tops):
+            if d in _NOT_A_PROJECT or d in gov:
+                continue
+            if (name, d) in gset or (name, d) in NOT_PROJECT:
+                continue
+            if not marks.get(d):
+                continue                      # 连 README/AGENTS/VERSION 都没有,不像项目
+            out.append({"repo": name, "dir": d,
+                        "markers": sorted(marks[d]),
+                        "why": "有 %s 但没有 docs/governance/project.yaml —— "
+                               "本站看不到它的任何业务状态" % "/".join(sorted(marks[d]))})
+    return {"items": out, "scanned": scanned, "count": len(out),
+            "exempt": [{"repo": k[0], "dir": k[1], "why": v}
+                       for k, v in sorted(NOT_PROJECT.items())]}
+
+
 def discover_projects(token, repos):
     """扫全部仓,找出所有带治理文件的项目 —— **新项目自动纳入,不用改代码**。
 
@@ -1170,6 +1239,9 @@ def gather_deep(token):
     #   新建项目一有 docs/governance/project.yaml 就自动进这张表 —— 不用改代码。
     #   没发布 flow.yaml 的会直接落进 unregistered(红),而**不是隐形**。
     disc_list, disc_meta = discover_projects(token, repo_rows)
+    # ★ 第二层:长得像项目却完全没治理文件的目录。没有这一层，新项目在写出
+    #   治理文件之前对本站是彻底隐形的 —— 隐形不会让任何指标变红。
+    ungov = discover_ungoverned(token, repo_rows, disc_list)
     return {"repos": out, "subprojects": subs, "capability": cap,
             "actions": gather_actions(token, repo_rows),
             "throughput": gather_throughput(token),
@@ -1179,6 +1251,7 @@ def gather_deep(token):
             "commit_days": _recent_days(chist),
             "features": gather_features(token),
             "flows": gather_flows(token, disc_list, disc_meta),
+            "ungoverned": ungov,
             "account": {"login": login, "name": (me or {}).get("name", "")}}
 
 

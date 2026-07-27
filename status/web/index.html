@@ -1747,7 +1747,7 @@ function vFlow(){
   const f=S.flow;
   if(!f)return `<div class="warnbox">业务流采集尚未产出</div>`;
   if(!f.available)return `<div class="warnbox" style="margin-bottom:16px">${esc(f.note||'')}</div>
-    ${discoveryHTML(f.discovery)}${unregHTML(f.unregistered||[])}`;
+    ${ungovHTML(S.github&&S.github.ungoverned)}${discoveryHTML(f.discovery)}${unregHTML(f.unregistered||[])}`;
   return `<div class="grid k5" id="flKpi"></div>
   <div id="flIntegrity"></div>
   <div id="flUnreg"></div>
@@ -1834,6 +1834,24 @@ function integrityHTML(list,scope){
 
 /* 自动纳入的口径:这一轮扫了多少仓、新发现了谁、谁没扫到。
    ★ 必须能被复核 —— 否则「发现机制坏了」和「真的没有新项目」在页面上长得一模一样。 */
+/* 未纳入治理的目录：长得像项目、却连治理文件都没有 —— 本站对它彻底看不见。
+   ★ 这一层必须存在:自动纳入找的是「已经有 project.yaml 的」，
+     新项目在写出治理文件之前是隐形的，而隐形不会让任何指标变红。 */
+function ungovHTML(u){
+  if(!u||!u.count)return '';
+  return `<div class="card" style="border-left:4px solid var(--danger)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <b style="font-size:14px">未纳入治理</b>
+      <span class="pill bad">${u.count} 个目录</span></div>
+    <div style="font-size:13px;color:var(--t2);margin-top:9px;line-height:1.85">
+      下面这些目录<b>长得像项目，却一个治理文件都没有</b> —— 本站看不到它们的任何业务状态。<br>
+      <b>要么补 <code>docs/governance/project.yaml</code>，要么在白名单里写明它为什么不是项目。
+      沉默不是选项</b>——沉默正是它们过去能隐形的原因。<br><br>
+      ${u.items.map(x=>`· <b>${esc(x.repo)}/${esc(x.dir)}</b>　<span class="muted">${esc(x.why)}</span>`).join('<br>')}
+      ${(u.exempt||[]).length?`<br><br><span class="muted">已显式豁免 ${u.exempt.length} 个（各自写明了理由）：
+        ${u.exempt.map(e=>esc(e.repo)+'/'+esc(e.dir)).join('、')}</span>`:''}
+    </div></div>`;
+}
 function discoveryHTML(d){
   if(!d)return '';
   const bad = d.mode!=='discovered';
@@ -1894,7 +1912,7 @@ SYNC['flow']=function(){
       tone:(f.unregistered||[]).length?'bad':'ok'},
   ]);
   q('#flIntegrity').innerHTML=integrityHTML(f.integrity||[],'业务流');
-  q('#flUnreg').innerHTML=discoveryHTML(f.discovery)+unregHTML(f.unregistered||[]);
+  q('#flUnreg').innerHTML=ungovHTML(S.github&&S.github.ungoverned)+discoveryHTML(f.discovery)+unregHTML(f.unregistered||[]);
 
   if(!FLPROJ||!f.projects.some(p=>p.project===FLPROJ))FLPROJ=f.projects[0].project;
   const tabs=q('#flTabs');
