@@ -44,6 +44,13 @@ class RegistryCompletenessTest(unittest.TestCase):
                 self.assertTrue((p.get("owns") or {}).get("cloudflare"),
                                 "%s 跑在 Cloudflare,必须登记 CF 单元名" % p["name"])
 
+    def test_cyberboss_is_declared_with_its_linux_units(self):
+        cyberboss = next(p for p in C.PROJECTS if p["name"] == "CyberBoss")
+        self.assertEqual(cyberboss["url"], "https://cyberboss.linzezhang.com")
+        self.assertEqual(cyberboss["owns"].get("systemd"), ["cyberboss-"])
+        self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cloud.service"))
+        self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cf-tunnel.service"))
+
 
 class NoFalseAlarmTest(unittest.TestCase):
     """每一条都对应一次实测出来的误报,不是假想。"""
@@ -99,6 +106,13 @@ class NoFalseAlarmTest(unittest.TestCase):
         reg = [{"name": "Coolify 平台", "owns": {"container": ["coolify"]}}]
         self.assertIsNone(C._owner_of(
             {"kind": "container", "id": "someone-elses-app", "domain": None, "detail": "x"}, reg))
+
+    def test_cyberboss_systemd_units_are_owned_by_its_business_line(self):
+        reg = list(C.PROJECTS) + [dict(p, url="") for p in C.PLATFORM]
+        for unit_id in ("cyberboss-cloud.service", "cyberboss-cf-tunnel.service"):
+            self.assertEqual(C._owner_of(
+                {"kind": "systemd", "id": unit_id, "domain": None, "detail": "CyberBoss"}, reg),
+                "CyberBoss")
 
 
 if __name__ == "__main__":
