@@ -379,8 +379,8 @@ input,select{border-radius:8px;border:.5px solid var(--line);background:var(--bg
 .exts a.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 """
 
-_TABS = [("/#/", "总览"), ("/#/projects", "项目"), ("/#/host", "主机"), ("/#/cost", "成本"),
-         ("/#/usage", "用量"), ("/#/heal", "自愈"), ("/#/github", "GitHub")]
+# 与主页保持一致:总览 + 3 个二级入口(运行 / 成本 / GitHub)
+_TABS = [("/#/", "总览"), ("/#/runtime", "运行"), ("/#/cost", "成本"), ("/#/github", "GitHub")]
 
 
 def nav_html(active):
