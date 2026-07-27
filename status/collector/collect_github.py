@@ -1101,7 +1101,11 @@ def _parse_flow_state(raw, project):
         if st not in _LIVE_STATES:
             continue                       # 认不出的状态词直接不收,不猜
         at = _iso_ts(v.get("at") or "")
-        out[k] = {"state": st, "at": at,
+        # ★ 存 ISO **字符串**,不存 datetime 对象。
+        #   这份 dict 会被 json.dump 写进 flow_docs.json,datetime 直接 TypeError。
+        #   之前没炸是因为所有项目的 live 都是空的 —— KMFA 是第一个真吐东西的,
+        #   一吐就把这个潜伏 bug 引爆了。下游 collect.py 本来就用 _parse_ts 再解一次字符串。
+        out[k] = {"state": st, "at": (at.isoformat() if at else None),
                   "note": str(v.get("note") or "")[:120],
                   "n": v.get("n") if isinstance(v.get("n"), int) else None}
     return out, (None if out else "flow_state.json 里没有一条能用的记录")
@@ -1192,8 +1196,7 @@ def gather_flows(token, projects_list=None, discovery=None):
         live, live_why = _parse_flow_state(texts.get(live_keys[i]), name)
         live_meta = {"live": live, "live_why": live_why,
                      "live_expect": live_keys[i][1],
-                     "live_at": max([v["at"].isoformat() for v in live.values() if v["at"]]
-                                    or [""]) or None}
+                     "live_at": max([v["at"] for v in live.values() if v["at"]] or [""]) or None}
         if name in nat:
             nr, np_ = nat[name]
             raw = texts.get((nr, np_))

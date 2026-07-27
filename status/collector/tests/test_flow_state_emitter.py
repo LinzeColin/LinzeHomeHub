@@ -101,6 +101,7 @@ class ContractParityTest(unittest.TestCase):
         self.assertEqual(got["BL-X.a"]["state"], "degraded")
         self.assertEqual(got["BL-X.a"]["n"], 3)
         self.assertIsNotNone(got["BL-X.a"]["at"])
+        json.dumps(got)                      # ★ 端到端也要能落盘
 
     def test_fresh_record_is_counted_stale_one_is_not(self):
         """再往前一步：收下之后，新鲜的算实测、过期的降级成不确定。"""
@@ -113,9 +114,9 @@ class ContractParityTest(unittest.TestCase):
         got, _ = G._parse_flow_state(raw, "proj")
         C._LIVE.clear()
         C._LIVE["BL-X.a"] = {"state": got["BL-X.a"]["state"], "note": "", "n": None,
-                             "at": got["BL-X.a"]["at"]}
+                             "at": C._parse_ts(got["BL-X.a"]["at"])}
         self.assertEqual(C._pr_repo_state({"key": "BL-X.a"})[0], "healthy")
-        C._LIVE["BL-X.a"]["at"] = got["BL-X.a"]["at"] - timedelta(hours=300)
+        C._LIVE["BL-X.a"]["at"] = C._parse_ts(got["BL-X.a"]["at"]) - timedelta(hours=300)
         self.assertEqual(C._pr_repo_state({"key": "BL-X.a"})[0], "unknown",
                          "过期记录仍被当成实测通过 —— 假绿")
 

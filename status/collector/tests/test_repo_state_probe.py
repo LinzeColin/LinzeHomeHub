@@ -51,12 +51,41 @@ class ParseTest(unittest.TestCase):
         got, _ = cg._parse_flow_state(raw, "X")
         self.assertLessEqual(len(got["a.b"]["note"]), 120)
 
+    def test_parsed_output_is_json_serializable(self):
+        """★ 潜伏 bug:live 会被 json.dump 写盘,datetime 直接 TypeError。
+
+        之前从没炸,是因为**所有项目的 live 都是空的** ——
+        KMFA 第一个真吐东西,一吐就引爆。
+        测试只测了「解析对不对」,没测「存得下去吗」。
+        """
+        raw = json.dumps({"steps": {"a.b": {"state": "healthy", "at": _iso(1), "n": 3}}})
+        got, _ = cg._parse_flow_state(raw, "X")
+        json.dumps(got)                       # 炸了就说明又存了 datetime
+        self.assertIsInstance(got["a.b"]["at"], str)
+
+    def test_live_meta_block_is_serializable(self):
+        """整个要落盘的结构走一遍 json.dump,不只是单条记录。"""
+        raw = json.dumps({"steps": {"a.b": {"state": "healthy", "at": _iso(1)}}})
+        got, why = cg._parse_flow_state(raw, "X")
+        meta = {"live": got, "live_why": why, "live_expect": "x/flow_state.json",
+                "live_at": max([v["at"] for v in got.values() if v["at"]] or [""]) or None}
+        json.dumps(meta)
+
+    def test_downstream_still_parses_the_string(self):
+        """存成字符串之后,collect.py 那边必须仍然解得出时间。"""
+        raw = json.dumps({"steps": {"a.b": {"state": "healthy", "at": _iso(1)}}})
+        got, _ = cg._parse_flow_state(raw, "X")
+        collect._LIVE.clear()
+        collect._LIVE["a.b"] = {"state": got["a.b"]["state"], "note": "", "n": None,
+                                "at": collect._parse_ts(got["a.b"]["at"])}
+        self.assertEqual(collect._pr_repo_state({"key": "a.b"})[0], "healthy")
+
     def test_offset_timestamp_is_not_shifted(self):
         """带 +08:00 的时间戳不能被当成 UTC —— 那会让刚跑完的步骤看起来旧 8 小时。"""
         raw = json.dumps({"steps": {"a.b": {"state": "healthy",
                                             "at": "2026-07-27T08:00:00+08:00"}}})
         got, _ = cg._parse_flow_state(raw, "X")
-        self.assertEqual(got["a.b"]["at"].utcoffset(), timedelta(hours=8))
+        self.assertEqual(collect._parse_ts(got["a.b"]["at"]).utcoffset(), timedelta(hours=8))
 
 
 class ProbeTest(unittest.TestCase):
