@@ -22,7 +22,7 @@ interface RawNode {
   status?: string; url?: string; agent?: string; deploy?: string;
   lang?: string; commits30?: number; path?: string; count?: number;
 }
-interface RawEdge { s: string; t: string; rel: string }
+interface RawEdge { s: string; t: string; rel: string; w?: number; trend?: number; why?: string }
 interface Graph {
   generated_at: string;
   nodes: RawNode[]; edges: RawEdge[];
@@ -133,8 +133,11 @@ export function initProjectAtlas(root: HTMLElement): void {
     byId = new Map(nodes.map((n) => [n.id, n]));
     edges = g.edges;
 
+    const co = edges.filter((e) => e.rel === 'co_change').length;
     elMeta.textContent =
-      `${g.counts.nodes} 个节点 · ${g.counts.edges} 条依赖 · 更新于 ${g.generated_at} · 每分钟自动同步`;
+      `${g.counts.nodes} 个节点 · ${g.counts.edges} 条关系` +
+      (co ? ` (含 ${co} 条共变耦合)` : '') +
+      ` · 更新于 ${g.generated_at} · 每分钟自动同步`;
     elLegend.innerHTML = TOUR.concat('repo_private')
       .filter((k) => g.counts.by_kind[k])
       .map((k) => `<span class="atlas-key" data-kind="${k}"><i style="background:${styleOf(k).c}"></i>${KIND_LABEL[k] ?? k} ${g.counts.by_kind[k]}</span>`)
@@ -177,7 +180,8 @@ export function initProjectAtlas(root: HTMLElement): void {
       if (!a || !b) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.hypot(dx, dy) || 1;
-      const f = (d - 96) * 0.0016;
+      const k = e.rel === 'co_change' ? 0.4 + (e.w ?? 0) * 1.2 : e.rel === 'stack' ? 0.15 : 1;
+      const f = (d - (e.rel === 'co_change' ? 84 : 96)) * 0.0016 * k;
       a.vx += (dx / d) * f * d * 0.05; a.vy += (dy / d) * f * d * 0.05;
       b.vx -= (dx / d) * f * d * 0.05; b.vy -= (dy / d) * f * d * 0.05;
     }
@@ -217,8 +221,18 @@ export function initProjectAtlas(root: HTMLElement): void {
       ctx.moveTo(a.x, a.y);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 14;
       ctx.quadraticCurveTo(mx, my, b.x, b.y);
-      ctx.strokeStyle = on ? 'rgba(160,220,255,.75)' : 'rgba(140,160,200,.14)';
-      ctx.lineWidth = on ? 1.7 : 0.8;
+      if (e.rel === 'co_change') {
+        const tr = e.trend ?? 0;
+        const base = tr > 0.08 ? '90,220,150' : tr < -0.08 ? '235,190,110' : '150,200,255';
+        ctx.strokeStyle = `rgba(${base},${on ? 0.9 : 0.34})`;
+        ctx.lineWidth = (on ? 1.5 : 1) * (0.7 + (e.w ?? 0) * 2.6);
+      } else if (e.rel === 'stack') {
+        ctx.strokeStyle = `rgba(140,160,200,${on ? 0.5 : 0.07})`;
+        ctx.lineWidth = on ? 1.2 : 0.6;
+      } else {
+        ctx.strokeStyle = on ? 'rgba(160,220,255,.75)' : 'rgba(140,160,200,.14)';
+        ctx.lineWidth = on ? 1.7 : 0.8;
+      }
       ctx.stroke();
       if (on && !reduced) {                       // 依赖流向的流动光点
         const p = ((t / 1400) % 1);
