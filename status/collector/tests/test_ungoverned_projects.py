@@ -26,7 +26,7 @@ class Harness(unittest.TestCase):
     def tearDown(self):
         G._get = self._real
 
-    def scan(self, trees, dirs, governed=()):
+    def scan(self, trees, dirs, governed=(), archived=()):
         def fake(url, token, timeout=20):
             n = url.split("/repos/LinzeColin/")[1].split("/")[0]
             if n not in trees:
@@ -35,7 +35,8 @@ class Harness(unittest.TestCase):
                               "type": "tree" if p in dirs.get(n, ()) else "blob"}
                              for p in trees[n]]}, 200
         G._get = fake
-        return G.discover_ungoverned("t", [{"name": n} for n in trees], list(governed))
+        return G.discover_ungoverned(
+            "t", [{"name": n, "archived": n in archived} for n in trees], list(governed))
 
 
 class DetectionTest(Harness):
@@ -66,6 +67,28 @@ class DetectionTest(Harness):
         r = self.scan({"M": ["scripts", "scripts/README.md", "tests", "tests/README.md"]},
                       {"M": {"scripts", "tests"}})
         self.assertEqual(r["items"], [])
+
+
+class ScopeTest(Harness):
+    """扫描范围本身也要判对 —— 假红泛滥和假绿一样有害。"""
+
+    def test_archived_repo_is_skipped_but_recorded(self):
+        """归档仓里的目录是**已经退役的**，不是「该治理却没治理」。
+
+        混进红名单会让真正要办的事淹没在噪音里。但跳过必须留痕，不能静默 ——
+        「我没看」和「我看了没事」在产物里必须能分开。
+        """
+        r = self.scan({"Archive": ["Old", "Old/README.md"]}, {"Archive": {"Old"}},
+                      archived=("Archive",))
+        self.assertEqual(r["items"], [], "归档仓的目录不该进红名单")
+        self.assertIn("Archive", r["archived_skipped"], "跳过了却没留痕 —— 等于静默")
+        self.assertEqual(r["scanned"], 0, "跳过的仓不该算进已扫数")
+
+    def test_live_repo_still_scanned_when_another_is_archived(self):
+        r = self.scan({"Archive": ["Old", "Old/README.md"],
+                       "Live": ["New", "New/README.md"]},
+                      {"Archive": {"Old"}, "Live": {"New"}}, archived=("Archive",))
+        self.assertEqual([(x["repo"], x["dir"]) for x in r["items"]], [("Live", "New")])
 
 
 class ExemptionTest(Harness):
