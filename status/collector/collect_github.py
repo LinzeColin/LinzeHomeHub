@@ -933,6 +933,15 @@ NOT_PROJECT = {
     ("Private-Database", "Private-MetaDatabase"): "私有数据仓的数据分区,不是软件项目",
 }
 _PROJECT_MARKERS = ("README.md", "AGENTS.md", "VERSION")
+# ★ 按**约定**当归档用、但 GitHub 的 archived 标记是 false 的仓。
+#   实测:LinzeColin/Archive 的 isArchived=false,描述写着「冷归档:退役/参考项目源码」。
+#   所以只靠 GitHub 的 archived 标记会漏掉它 —— 上一版就漏了,五个退役目录照样进红名单。
+#   假红泛滥和假绿一样有害:真正要办的事会被淹没。
+#   这里按仓名显式豁免,并**写明理由**,和别的豁免同一套规矩。
+ARCHIVE_REPOS = {
+    "Archive": "冷归档仓:按约定存放退役/参考项目源码(COM1005、nab、CodexTokenMonitor 等),"
+               "GitHub 的 archived 标记是 false,只能按仓名显式豁免",
+}
 
 
 def discover_ungoverned(token, repos, governed):
@@ -960,7 +969,7 @@ def discover_ungoverned(token, repos, governed):
         # ★ 归档仓整仓跳过:里面的目录是**已经退役的**东西,不是「该治理却没治理」。
         #   把它们混进红名单会让真正要办的事淹没在噪音里 —— 假红泛滥和假绿一样有害。
         #   但跳过必须留痕,不能静默。
-        if isinstance(r, dict) and r.get("archived"):
+        if (isinstance(r, dict) and r.get("archived")) or name in ARCHIVE_REPOS:
             archived_skipped.append(name)
             continue
         tree, _ = _get("%s/repos/%s/%s/git/trees/%s?recursive=1"
@@ -995,6 +1004,7 @@ def discover_ungoverned(token, repos, governed):
                                "本站看不到它的任何业务状态" % "/".join(sorted(marks[d]))})
     return {"items": out, "scanned": scanned, "count": len(out),
             "archived_skipped": sorted(archived_skipped),
+            "archive_repos": [{"repo": k, "why": v} for k, v in sorted(ARCHIVE_REPOS.items())],
             "exempt": [{"repo": k[0], "dir": k[1], "why": v}
                        for k, v in sorted(NOT_PROJECT.items())]}
 

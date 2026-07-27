@@ -84,6 +84,22 @@ class ScopeTest(Harness):
         self.assertIn("Archive", r["archived_skipped"], "跳过了却没留痕 —— 等于静默")
         self.assertEqual(r["scanned"], 0, "跳过的仓不该算进已扫数")
 
+    def test_archive_by_convention_is_also_skipped(self):
+        """★ 上一版的洞:只认 GitHub 的 archived 标记。
+
+        实测 LinzeColin/Archive 的 isArchived=**false**（描述写着「冷归档」），
+        于是五个退役目录照样进红名单 —— 真正要办的四件事被淹没在噪音里。
+        **假红泛滥和假绿一样有害。**
+        """
+        r = self.scan({"Archive": ["Old", "Old/README.md"]}, {"Archive": {"Old"}})
+        self.assertEqual(r["items"], [], "按约定的归档仓没被跳过")
+        self.assertIn("Archive", r["archived_skipped"], "跳过了却没留痕")
+
+    def test_archive_exemptions_carry_reasons(self):
+        for repo, why in G.ARCHIVE_REPOS.items():
+            self.assertGreater(len(str(why).strip()), 10,
+                               "%s 的归档豁免没写清理由" % repo)
+
     def test_live_repo_still_scanned_when_another_is_archived(self):
         r = self.scan({"Archive": ["Old", "Old/README.md"],
                        "Live": ["New", "New/README.md"]},
