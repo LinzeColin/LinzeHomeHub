@@ -893,6 +893,57 @@ FLOW_DOCS = os.path.join(PRIVATE_DIR, "flow_docs.json")
 FLOW_PROJECTS = FEATURE_PROJECTS + [("LinzeHomeHub", "status")]
 
 
+# KMFA 已有机器可读事实档,**不要求它再多维护一份 flow.yaml** —— 两份登记必然漂移。
+# 这里放「项目 -> 自有事实档路径」的适配登记;适配层把它规范化成统一接口。
+NATIVE_FACTS = {"KMFA": ("KMOS", "KMFA/machine/facts/business_baselines.json")}
+
+
+def _adapt_business_baselines(doc, name, repo, path):
+    """把 KMFA 的 business_baselines.json 规范化成统一接口。
+
+    它的阶段键是**英文**(intake/parse/compute/verify/output/deliver),显示名在 stage_model;
+    状态用 healthy/degraded/blocked/not_built —— 全域五态沿用这套词汇,只把 blocked 拆成
+    blocked_by_policy(按规定就不该通,不需要任何人做事)与 blocked_by_input(缺输入,必须催人),
+    因为**两者的处置动作是反的**,合成一态就排不出优先级。
+    尚未拆分的裸 `blocked` 保持原样显示为「阻断(未细分)」,不替它猜。
+    """
+    sm = doc.get("stage_model") or []
+    stages = [x.get("id") for x in sm if isinstance(x, dict) and x.get("id")]
+    names = {x["id"]: x.get("name") or x["id"] for x in sm if isinstance(x, dict) and x.get("id")}
+    means = {x["id"]: x.get("meaning") or "" for x in sm if isinstance(x, dict) and x.get("id")}
+    out_bl, defects = [], []
+    for b in (doc.get("baselines") or []):
+        cells = {}
+        for k, v in (b.get("stages") or {}).items():
+            if not isinstance(v, dict):
+                continue
+            cells[k] = {"state": v.get("status"), "evidence": v.get("evidence") or "",
+                        "probe": (v.get("probe_hint") or {}).get("kind"),
+                        "args": (v.get("probe_hint") or {}).get("args") or {},
+                        "defect": v.get("defect") or ""}
+        for d in (b.get("known_defects") or []):
+            if isinstance(d, dict):
+                defects.append({"id": d.get("id") or "", "baseline": b.get("id"),
+                                "stage": d.get("stage") or "", "desc": d.get("desc") or "",
+                                "since": d.get("since") or ""})
+            elif isinstance(d, str):    # 还是裸字符串数组:如实收下,ID 留空
+                defects.append({"id": "", "baseline": b.get("id"), "stage": "",
+                                "desc": d, "since": ""})
+        out_bl.append({"id": b.get("id") or "", "name": b.get("name") or b.get("skill") or "",
+                       "priority": (b.get("priority") or "P3").upper(),
+                       "note": b.get("owner_note") or "",
+                       "upstream": b.get("upstream") or [], "downstream": b.get("downstream") or [],
+                       "cells": cells})
+    return {"schema": "adapted:" + str(doc.get("schema_version") or ""),
+            "project": name, "repo": repo, "source": "%s/%s" % (repo, path),
+            "stages": stages, "stage_names": names, "stage_meaning": means,
+            "baselines": out_bl, "defects": defects,
+            "sources": [s if isinstance(s, str) else s.get("id")
+                        for s in (doc.get("sources") or [])],
+            "coupling_rule": doc.get("coupling_rule") or "",
+            "authority": doc.get("authority") or ""}
+
+
 def gather_flows(token):
     """抓各项目登记的业务流 `flow.yaml`,并检出**有治理文件却没登记**的项目。
 
@@ -903,10 +954,23 @@ def gather_flows(token):
     """
     keys = [(r, ("" if d == "." else d + "/") + "docs/governance/flow.yaml")
             for r, d in FLOW_PROJECTS]
-    texts = _blobs(token, keys, "text", chunk=8)
+    nat = {n: (r, p) for n, (r, p) in NATIVE_FACTS.items()}
+    texts = _blobs(token, keys + [(r, p) for r, p in nat.values()], "text", chunk=8)
     projects, missing = [], []
     for i, (repo, d) in enumerate(FLOW_PROJECTS):
         name = d if d != "." else repo
+        # 有自有事实档的项目优先走适配层,不要求它再维护一份 flow.yaml
+        if name in nat:
+            nr, np_ = nat[name]
+            raw = texts.get((nr, np_))
+            if raw:
+                try:
+                    projects.append(_adapt_business_baselines(json.loads(raw), name, nr, np_))
+                    continue
+                except Exception as e:
+                    missing.append({"project": name, "repo": nr, "expect": np_,
+                                    "why": "自有事实档解析失败:%s" % str(e)[:60]})
+                    continue
         t = texts.get(keys[i])
         if not t:
             missing.append({"project": name, "repo": repo,
@@ -921,6 +985,7 @@ def gather_flows(token):
             continue
         doc["project"] = doc.get("project") or name
         doc["repo"] = repo
+        doc.setdefault("stage_names", {})
         doc["source"] = "%s/%s" % (repo, keys[i][1])
         projects.append(doc)
     return {"projects": projects, "unregistered": missing,

@@ -314,6 +314,7 @@ table.mx td.fc:hover{background:var(--soft)}
 table.mx td.fc.on{background:var(--accent-bg);box-shadow:inset 0 0 0 1px var(--accent)}
 table.mx td.fc .mm{color:var(--warn);font-weight:700;font-size:11px;margin-left:3px}
 table.mx td.fc .ds{color:var(--danger);font-weight:700;font-size:11px;margin-left:2px}
+table.mx td.fc .wk{color:var(--warn);font-weight:700;font-size:12px;margin-left:2px}
 /* ---------- 业务基线矩阵 ---------- */
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
 table.mx th{white-space:nowrap;font-size:11.5px}
@@ -1488,11 +1489,14 @@ function syncBase(){
    这边是**业务**纵向切片(一份数据从进来到送出去,中间哪一段断了)。
    ★ 阶段由每个项目自己定义,长度不限 —— KMFA 六段、Alpha 交易执行八段、status 采集五段,
      各画各的矩阵。统一的只有 schema、探针、状态语义和这套呈现语言。 */
-const CS={ok:{t:'通',c:'var(--ok)',i:'✓'},warn:{t:'有缺陷',c:'var(--warn)',i:'!'},
-  bad:{t:'断',c:'var(--danger)',i:'✕'},
-  blocked_by_policy:{t:'按规定不通',c:'var(--pro)',i:'⊘'},
-  not_implemented:{t:'未实现',c:'var(--t3)',i:'·'},
-  unknown:{t:'无法判定',c:'var(--t3)',i:'?'}};
+/* 五态。★ blocked_by_input 与 blocked_by_policy 必须分开:前者要催人,后者不需要任何人做事,
+   处置动作相反,合成一态就排不出优先级(KMFA 线程实测反馈)。 */
+const CS={healthy:{t:'通',c:'var(--ok)'},degraded:{t:'有缺陷',c:'var(--warn)'},
+  blocked_by_input:{t:'缺输入·要催人',c:'var(--danger)'},
+  blocked:{t:'阻断(未细分)',c:'var(--danger)'},
+  blocked_by_policy:{t:'按规定不通',c:'var(--pro)'},
+  not_built:{t:'未实现',c:'var(--t3)'},
+  unknown:{t:'无法判定',c:'var(--t3)'}};
 const PRC={P0:'var(--danger)',P1:'var(--warn)',P2:'var(--accent)',P3:'var(--t3)'};
 let FLPROJ=null, FLCELL=null;
 
@@ -1514,7 +1518,9 @@ function vFlow(){
   <div class="card p0 scroll"><table><thead><tr>
     <th class="s">缺陷</th><th class="s">基线</th><th class="s">阶段</th><th>说明</th><th class="s">起始</th>
   </tr></thead><tbody id="flDefect"></tbody></table></div>
-  <h2>健康趋势 <span class="hint">每格逐日归档,看得出是从哪天开始黄的</span></h2>
+  <h2>源级爆炸半径 <span class="hint">一个上游源断了,会连累哪几条业务基线</span></h2>
+  <div class="card" id="flSrc"></div>
+  <h2>健康趋势 <span class="hint">每格逐日归档,同一天取最差的一次</span></h2>
   <div class="card hov"><div class="chartbox"><canvas id="flTrend"></canvas></div></div>
   <div class="card" id="flNote" style="margin-top:14px"></div>`;
 }
@@ -1541,11 +1547,14 @@ SYNC['flow']=function(){
   const t=f.totals;
   kpiRow('#flKpi',[
     {lab:'业务基线',val:t.baselines,unit:'',sub:`${f.projects.length} 个系统 · ${t.cells} 格`},
-    {lab:'通畅率',val:t.cells?t.ok/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
-      sub:`${t.ok} 格通`,tone:'ok'},
-    {lab:'断点',val:t.bad,unit:'',sub:`另有 ${t.warn} 格有缺陷`,tone:t.bad?'bad':'ok'},
-    {lab:'自报与实测不符',val:t.mismatch,unit:'',sub:`已实测 ${t.probed} 格`,
-      tone:t.mismatch?'warn':'ok'},
+    {lab:'通畅率',val:t.cells?t.healthy/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
+      sub:`${t.healthy} 格通`,tone:'ok'},
+    {lab:'要催人',val:t.blocked_by_input+t.blocked,unit:'',
+      sub:`缺输入 ${t.blocked_by_input} · 未细分 ${t.blocked} · 另 ${t.degraded} 格有缺陷`,
+      tone:(t.blocked_by_input+t.blocked)?'bad':'ok'},
+    {lab:'可疑格',val:t.mismatch+t.coupling_violation,unit:'',
+      sub:`自报≠实测 ${t.mismatch} · 违反耦合 ${t.coupling_violation} · 已实测 ${t.probed}`,
+      tone:(t.mismatch+t.coupling_violation)?'warn':'ok'},
     {lab:'未登记',val:(f.unregistered||[]).length,unit:'',sub:'有治理文件却没登记',
       tone:(f.unregistered||[]).length?'bad':'ok'},
   ]);
@@ -1578,7 +1587,8 @@ SYNC['flow']=function(){
             title="${esc(st)}:${esc(c.v||cs.t)}">
             <span class="dot" style="background:${cs.c}"></span>
             ${c.mismatch?'<span class="mm" title="自报与实测不符">≠</span>':''}
-            ${c.downstream_of_break?'<span class="ds" title="上游已断,这一格的绿没有意义">↑</span>':''}
+            ${c.coupling_violation?'<span class="ds" title="上游已断却仍自称健康,违反耦合规则">↑</span>':''}
+            ${c.weak?'<span class="wk" title="只有弱证据(日志新鲜度),不足以判健康">~</span>':''}
           </td>`}).join('')}
         <td class="muted" data-v="${b.since||''}">${b.since||'—'}</td></tr>`).join('')}</tbody>`;
     tb.dataset.k=key;
@@ -1605,7 +1615,8 @@ SYNC['flow']=function(){
         <b>自报</b>:${c.declared?esc(CS[c.declared]?CS[c.declared].t:c.declared):'未声明'}
         · <b>本机实测</b>:${c.measured?esc(CS[c.measured]?CS[c.measured].t:c.measured):'该格未配探针'}
         ${c.mismatch?'<br><b style="color:var(--warn)">⚠ 自报与实测不符</b> —— 登记表可能已经和现实脱节,这比单纯的红更值得看':''}
-        ${c.downstream_of_break?`<br><b style="color:var(--danger)">⚠ 上游「${esc(c.downstream_of_break)}」已断</b>,这一格的绿没有意义`:''}
+        ${c.coupling_violation?`<br><b style="color:var(--danger)">⚠ 违反耦合规则</b> —— 上游 ${c.coupling_violation.map(esc).join('、')} 已断,这一格不该是健康`:''}
+        ${c.weak?'<br><b style="color:var(--warn)">⚠ 只有弱证据</b> —— 日志新鲜只证明进程在动,不证明有产出;请改用产出物条数或业务时间戳':''}
         ${def?`<br><b style="color:var(--danger)">已知缺陷 ${esc(def.id)}</b>:${esc(def.desc)}(自 ${esc(def.since||'—')})`:''}
       </div>`;
   }
@@ -1618,12 +1629,23 @@ SYNC['flow']=function(){
   const db=q('#flDefect');
   if(db&&db.dataset.k!==FLPROJ+defs.length){db.innerHTML=defs||'<tr><td colspan="5" class="muted">该项目未登记已知缺陷</td></tr>';db.dataset.k=FLPROJ+defs.length}
 
+  q('#flSrc').innerHTML=(p.sources||[]).length?(p.sources||[]).map(x=>{
+    const pct=Math.round(x.n/Math.max(1,p.baselines.length)*100);
+    return `<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:13px">
+      <span style="font-family:ui-monospace,monospace">${esc(x.id)}</span><b>${x.n} 条基线</b></div>
+      <div style="height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin-top:4px">
+        <i style="display:block;height:100%;width:${pct}%;border-radius:3px;background:var(--warn);
+          transition:width .6s var(--ease)"></i></div>
+      <div class="muted" style="font-size:11.5px;margin-top:3px">${x.lines.map(esc).join('、')}</div></div>`;
+  }).join('')+(p.coupling_rule?`<div class="muted" style="font-size:11.5px;margin-top:10px;
+      padding-top:9px;border-top:1px solid var(--line)">耦合规则:${esc(p.coupling_rule)}</div>`:'')
+    :'<div class="muted">该项目未声明上游源</div>';
   const tr=f.trend||[];
   chart('flTrend',{type:'line',data:{labels:tr.map(x=>x.d.slice(5)),datasets:[
-    {label:'通',data:tr.map(x=>x.ok),borderColor:'#0f8a4d',backgroundColor:'rgba(15,138,77,.14)',
+    {label:'通',data:tr.map(x=>x.healthy),borderColor:'#0f8a4d',backgroundColor:'rgba(15,138,77,.14)',
       borderWidth:2,pointRadius:0,tension:.3,fill:true},
-    {label:'有缺陷',data:tr.map(x=>x.warn),borderColor:'#c98500',borderWidth:2,pointRadius:0,tension:.3},
-    {label:'断',data:tr.map(x=>x.bad),borderColor:'#cf3a3a',borderWidth:2,pointRadius:0,tension:.3}]},
+    {label:'有缺陷',data:tr.map(x=>x.degraded),borderColor:'#c98500',borderWidth:2,pointRadius:0,tension:.3},
+    {label:'阻断',data:tr.map(x=>x.bad),borderColor:'#cf3a3a',borderWidth:2,pointRadius:0,tension:.3}]},
     options:baseOpt({plugins:{legend:{display:true,labels:{color:ink,boxWidth:9,font:{size:10}}},tooltip:{}},
       scales:{x:{ticks:{color:ink,maxTicksLimit:7},grid:{display:false}},
         y:{ticks:{color:ink},grid:{color:grid},beginAtZero:true}}})});

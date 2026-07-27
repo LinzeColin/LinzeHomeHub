@@ -9,6 +9,7 @@
 另一半是诚实:没有探针的格子必须标 unknown 而不是当成通过;
 `blocked_by_policy` / `not_implemented` 是人的决定,机器测不出来,必须尊重自报值。
 """
+import json
 import os
 import sys
 import unittest
@@ -85,10 +86,84 @@ class HonestyTest(unittest.TestCase):
         self.assertEqual(state, "unknown")
         self.assertIn("异常", ev)
 
-    def test_four_state_vocabulary_includes_policy_block(self):
-        """少了 blocked_by_policy 这一态,KMFA 的「禁群」会立刻变成 4 个假红。"""
-        for s in ("ok", "warn", "bad", "blocked_by_policy", "not_implemented", "unknown"):
-            self.assertIn(s, C.FLOW_STATES)
+    def test_five_state_vocabulary(self):
+        """★ blocked 必须拆成 by_policy / by_input —— 处置动作相反(KMFA 线程实测反馈):
+        by_policy 不需要任何人做事,by_input 必须催人。合成一态就排不出优先级。"""
+        for st in ("healthy", "degraded", "blocked_by_policy", "blocked_by_input",
+                   "not_built", "unknown"):
+            self.assertIn(st, C.FLOW_STATES, "状态 %s 缺失" % st)
+        self.assertNotEqual(C._SEV["blocked_by_input"], C._SEV["blocked_by_policy"],
+                            "两种阻断的严重度必须不同,否则总览排不出优先级")
+        self.assertLess(C._SEV["blocked_by_input"], C._SEV["blocked_by_policy"],
+                        "缺输入要催人,必须排在按规定不通之前")
+
+    def test_log_freshness_alone_cannot_declare_healthy(self):
+        """★ KMFA 实测:cron 只跑校验器从没调真归档程序 —— 日志新鲜、退出码 0、
+        但一个文件都没取回来。拿日志新鲜度判健康,页面就会系统性说谎。"""
+        self.assertIn("log_recent", C.WEAK_PROBES)
+        import tempfile, os as _os, time as _t
+        d = tempfile.mkdtemp()
+        f = _os.path.join(d, "x.log")
+        open(f, "w").write("ok\n")
+        orig = C.FLOW_ROOTS
+        C.FLOW_ROOTS = (d,)
+        try:
+            state, ev = C._pr_log_recent({"path": f, "max_age_h": 24})
+        finally:
+            C.FLOW_ROOTS = orig
+        self.assertNotEqual(state, "healthy",
+                            "日志新鲜度绝不能单独判 healthy —— 这正是假绿的来源")
+
+    def test_artifact_probe_reports_zero_output_as_blocked(self):
+        """有产出才算通:进程在跑但没产出,必须是阻断而不是健康。"""
+        import tempfile
+        d = tempfile.mkdtemp()
+        orig = C.FLOW_ROOTS
+        C.FLOW_ROOTS = (d,)
+        try:
+            state, ev = C._pr_artifact_rows({"dir": d, "suffix": ".json", "min": 1})
+        finally:
+            C.FLOW_ROOTS = orig
+        self.assertEqual(state, "blocked")
+        self.assertIn("没产出", ev)
+
+
+class PublicMaskTest(unittest.TestCase):
+    """公开面永不出现私有仓名 —— 即使来源仓是 public。
+
+    实测抓到过:KMFA 的 business_baselines.json(在 public 的 KMOS 里)evidence 文案含
+    `Private-Database`,原样搬进本站公开快照就破了这条不变量。
+    这条不变量是本站自己的,**不随上游可见性放松**。
+    """
+
+    def test_flow_state_actually_applies_the_mask(self):
+        """★ 必须走 **flow_state 的真实产出**,不能只测 _mask_private 本身。
+
+        第一版就是只测了工具函数:把 flow_state 里的调用删掉,守卫依然全绿 ——
+        断言没钉在「产物」上,就挡不住「忘了调用」。这是同一天内第二次踩装饰性断言。
+        """
+        import tempfile
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "private"), exist_ok=True)
+        os.makedirs(os.path.join(d, "data"), exist_ok=True)
+        json.dump({"projects": [{"project": "T", "repo": "R", "stages": ["intake"],
+                                 "baselines": [{"id": "B1", "name": "线", "priority": "P0",
+                                                "cells": {"intake": {
+                                                    "state": "healthy",
+                                                    "evidence": "写入 Private-Database 分区"}}}],
+                                 "defects": []}],
+                   "unregistered": [{"project": "X", "repo": "KMFA-App-State-Backup",
+                                     "expect": "p", "why": "w"}], "at": 0},
+                  open(os.path.join(d, "private", "flow_docs.json"), "w"), ensure_ascii=False)
+        app, data = C.APP_DIR, C.DATA_DIR
+        C.APP_DIR, C.DATA_DIR = d, os.path.join(d, "data")
+        try:
+            out = json.dumps(C.flow_state(), ensure_ascii=False)
+        finally:
+            C.APP_DIR, C.DATA_DIR = app, data
+        for name in ("Private-Database", "KMFA-App-State-Backup"):
+            self.assertNotIn(name, out, "%s 出现在 flow_state 的产出里" % name)
+        self.assertIn("私有库", out, "脱敏后语义不该丢失")
 
 
 if __name__ == "__main__":
