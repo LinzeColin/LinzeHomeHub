@@ -9,6 +9,7 @@
 另一半是诚实:没有探针的格子必须标 unknown 而不是当成通过;
 `blocked_by_policy` / `not_implemented` 是人的决定,机器测不出来,必须尊重自报值。
 """
+import contextlib
 import json
 import os
 import sys
@@ -16,6 +17,18 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import collect as C                                          # noqa: E402
+
+
+@contextlib.contextmanager
+def _fetch_returns(result):
+    """替掉真实网络调用。注意替的是**模块级**的 _FETCH ——
+    探针的 args 来自 flow.yaml,绝不能在 args 里留注入点。"""
+    old = C._FETCH
+    C._FETCH = lambda url, **kw: result
+    try:
+        yield
+    finally:
+        C._FETCH = old
 
 
 class PathSandboxTest(unittest.TestCase):
@@ -210,6 +223,106 @@ class SelfReportIsNotVerifiedTest(unittest.TestCase):
                       "按规定不通也会让下游拿不到数,必须算阻断上游")
         self.assertNotIn("blocked_by_policy", C.FLOW_BAD,
                          "但它不需要处置,不能计进待办")
+
+
+
+class HttpFactSourceTest(unittest.TestCase):
+    """被测方公开的只读健康摘要(KMFA PR #218 的 /public-api/技能健康)。
+
+    这条路是它自己提出来的:它那边四条取证路全断,静态文件又会过期,
+    而**过期的绿比没有绿更糟**。所以本站去读它的端点 —— 但端点地址与取值路径
+    都写在仓库文件里,对这台主机仍然是不可信输入。
+    """
+
+    def test_only_own_estate_hosts(self):
+        """★ 主机名不设限,等于任何能改仓库文件的人都能把采集器变成对外发请求的信标。"""
+        for bad in ("http://kmfa.linzezhang.com/x",          # 非 https
+                    "https://evil.com/x",
+                    "https://linzezhang.com.evil.com/x",     # 后缀伪装
+                    "https://kmfa.linzezhang.com/../../etc", # 穿越
+                    "https://kmfa.linzezhang.com/x?u=http://evil"):
+            doc, err = C._fetch_json(bad)
+            self.assertIsNone(doc, "%s 不该被放行" % bad)
+            self.assertIn("拒绝", err or "", "%s 应被主机名/协议白名单拒绝" % bad)
+
+    def test_json_path_is_not_an_expression_engine(self):
+        """只认两种形状。任何带函数、算术、通配、嵌套过滤的写法都必须被拒,
+        且必须是**明确拒绝**,不能悄悄降级成模糊匹配。"""
+        doc = {"技能": [{"技能": "upstream-archive", "运行次数": 3}]}
+        for bad in ("技能[?技能=='a' && x=='b'].y",
+                    "技能[*].运行次数",
+                    "技能[?运行次数>`0`].技能",
+                    "sort_by(技能,&运行次数)[0].技能",
+                    "技能[0].运行次数",
+                    "__class__.__init__"):
+            val, err = C._json_pick(doc, bad)
+            self.assertIsNone(val, "%s 不该取到值" % bad)
+            self.assertTrue(err, "%s 必须给出明确的拒绝理由" % bad)
+
+    def test_json_path_supported_shape_works(self):
+        doc = {"技能": [{"技能": "a", "运行次数": 0}, {"技能": "upstream-archive", "运行次数": 7}]}
+        self.assertEqual(C._json_pick(doc, "技能[?技能=='upstream-archive'].运行次数"), (7, None))
+        self.assertEqual(C._json_pick(doc, "台账可读")[0], None)
+
+    def test_redirect_may_not_leave_the_estate(self):
+        """★ 光校验首个 URL 不够:端点回一个 302 就能把采集器牵到任意地址。
+        (这条守卫是补上来的 —— 一开始没有它,把跳转校验改成恒真,44 条测试照样全绿。)"""
+        host = "kmfa.linzezhang.com"
+        self.assertTrue(C._redirect_ok("https://kmfa.linzezhang.com/b", host))
+        for bad in ("https://evil.com/b", "http://kmfa.linzezhang.com/b",
+                    "https://kmfa.linzezhang.com.evil.com/b", "//evil.com/b", ""):
+            self.assertFalse(C._redirect_ok(bad, host), "%s 不该被跟随" % bad)
+
+    def test_json_path_plain_shape_is_not_a_catch_all(self):
+        """`a.b.c` 那条形状不能变成「什么都收」——它必须只走显式的逐段取键。"""
+        doc = {"a": {"b": 1}}
+        self.assertEqual(C._json_pick(doc, "a.b"), (1, None))
+        val, err = C._json_pick(doc, "a[?x=='y'].b")     # 形状合法但 a 不是数组
+        self.assertIsNone(val)
+        self.assertIn("不是数组", err)
+
+    def test_zero_runs_is_blocked_not_degraded(self):
+        """★ 「运行次数 0」= 从未跑完过一次。日志再新鲜、退出码再正常都不算数。
+        这正是 KMFA 实测过的那种假绿,必须判阻断。"""
+        with _fetch_returns(({"技能": [{"技能": "s", "运行次数": 0}]}, None)):
+            st, ev = C._pr_artifact_rows({"http": "https://kmfa.linzezhang.com/public-api/技能健康",
+                                          "json_path": "技能[?技能=='s'].运行次数", "min": 1})
+        self.assertEqual(st, "blocked")
+        self.assertIn("从未跑完过一次", ev)
+
+    def test_unreachable_endpoint_is_blocked_not_unknown(self):
+        """「问不出来」是坏消息,不是「暂无数据」——不拿没有坏消息当好消息。"""
+        with _fetch_returns((None, "端点返回 HTTP 404")):
+            st, _ = C._pr_artifact_rows({"http": "u", "json_path": "y"})
+            self.assertEqual(st, "blocked")
+            st, _ = C._pr_business_ts({"http": "u", "json_path": "y"})
+            self.assertEqual(st, "blocked")
+
+
+class TimestampOffsetTest(unittest.TestCase):
+    """★ 实测错过一次:`raw[:19]` 截断 + 「带 T 就按 UTC」,
+    会把 `2026-07-27T08:00:00+08:00` 当成 UTC —— **正好差 8 小时,方向还让它显得更旧**,
+    于是刚跑完的技能被报成超期。带偏移的必须按偏移算。"""
+
+    def test_explicit_offset_is_honoured(self):
+        a = C._parse_ts("2026-07-27T08:00:00+08:00")
+        b = C._parse_ts("2026-07-27T08:00:00Z")
+        self.assertIsNotNone(a)
+        self.assertIsNotNone(b)
+        # 同一串数字,一个带 +08:00 一个带 Z,必须差整 8 小时 —— 相等就说明偏移压根没被读
+        self.assertEqual(int(b.timestamp() - a.timestamp()), 8 * 3600,
+                         "显式时区偏移没有被解析")
+
+    def test_naive_falls_back_to_beijing(self):
+        naive = C._parse_ts("2026-07-27 08:00")
+        cn = C._parse_ts("2026-07-27T08:00:00+08:00")
+        self.assertEqual(int(naive.timestamp()), int(cn.timestamp()),
+                         "无偏移的时间戳应按北京时间解释")
+
+    def test_no_seconds_still_parses(self):
+        """本站快照的 updated_at 是「2026-07-27 12:54」,没有秒。"""
+        self.assertIsNotNone(C._parse_ts("2026-07-27 12:54"))
+
 
 
 if __name__ == "__main__":

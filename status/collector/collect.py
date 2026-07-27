@@ -15,6 +15,8 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.parse
+import urllib.error
 from datetime import datetime, timezone, timedelta
 
 CN = timezone(timedelta(hours=8))          # 北京时间
@@ -946,6 +948,131 @@ def _pr_file_fresh(a):
             "%s · %.1f 小时前更新(阈值 %.0fh)" % (os.path.basename(p), age, mx))
 
 
+# ---------- 只读 HTTP 事实源(被测方自己暴露的健康摘要) ----------
+# ★ 背景:KMFA 那边四条取证路全断(Coolify exec 不支持、logs 为空、健康接口在 Access
+#   后面、私有归档从未成功过),所以改由被测方在**公开命名空间**暴露一个只读健康摘要,
+#   本站去读。零新增凭据 —— 这是它选 HTTP 端点而不是落静态文件的理由:
+#   静态文件会过期,而**过期的绿比没有绿更糟**。
+#
+# ★★ 安全:URL 与 json_path 都来自仓库文件,对这台主机是**不可信输入**。
+#    ① 主机名限本 estate。否则任何能改仓库文件的人,就能把采集器变成对外发请求的信标。
+#    ② json_path **绝不上表达式引擎**(JMESPath / eval / 任何求值器)。只认下面这一种
+#       受限形状,自己解析、显式遍历。多一分表达能力,就多一片攻击面。
+_HOST_OK = re.compile(r"^https://[a-z0-9-]+(\.[a-z0-9-]+)*\.linzezhang\.com(/[^\s?#]*)?$")
+# 形状:  数组字段[?键=='字面量'].取值字段   |   a.b.c
+_JP_FILTER = re.compile(r"^([^\[\].]+)\[\?([^\[\]=']+)=='([^']{1,64})'\]\.([^\[\].]+)$")
+_JP_PLAIN = re.compile(r"^[^\[\]?'\"]+(\.[^\[\]?'\"]+)*$")
+
+
+def _redirect_ok(newurl, host):
+    """跳转不得跨主机,也不得降级到 http —— 否则主机名白名单形同虚设:
+    被测方(或任何能改它那个端点的人)只要回一个 302,就能把采集器牵到任意地址去。"""
+    sp = urllib.parse.urlsplit(newurl or "")
+    return sp.scheme == "https" and sp.netloc == host
+
+
+def _fetch_json(url, cap=262144, timeout=8):
+    """只读取本 estate 的 https JSON。返回 (doc, 错误说明)。"""
+    if not isinstance(url, str) or not _HOST_OK.match(url) or ".." in url:
+        return None, "URL 非法或不在本 estate,拒绝探测"
+    # 路径里可能有中文(KMFA 的端点就是 /public-api/技能健康),自己 percent-encode
+    sp = urllib.parse.urlsplit(url)
+    safe = urllib.parse.urlunsplit((sp.scheme, sp.netloc,
+                                    urllib.parse.quote(sp.path, safe="/"), "", ""))
+    host = sp.netloc
+
+    class _Redir(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+            if not _redirect_ok(newurl, host):
+                return None
+            return super().redirect_request(req, fp, code, msg, hdrs, newurl)
+
+    try:
+        op = urllib.request.build_opener(_Redir)
+        with op.open(urllib.request.Request(safe, headers={"Accept": "application/json"}),
+                     timeout=timeout) as r:
+            return json.loads(r.read(cap).decode("utf-8", "replace")), None
+    except urllib.error.HTTPError as e:
+        return None, "端点返回 HTTP %s" % e.code
+    except (urllib.error.URLError, socket.timeout, ValueError, json.JSONDecodeError) as e:
+        return None, "端点不可达或不是 JSON(%s)" % type(e).__name__
+
+
+_FETCH = _fetch_json          # 测试替换点(见上方注释)
+
+
+def _json_pick(doc, path):
+    """受限取值。**只**支持两种形状,其余一律拒绝(不猜、不降级成模糊匹配):
+         技能[?技能=='upstream-archive'].运行次数
+         a.b.c
+    返回 (值, 错误说明)。"""
+    if not isinstance(path, str) or len(path) > 200:
+        return None, "json_path 非法"
+    m = _JP_FILTER.match(path)
+    if m:
+        arr_k, key, lit, val_k = m.groups()
+        node = doc
+        for part in arr_k.split("."):
+            if not isinstance(node, dict):
+                return None, "json_path 中 %s 之前不是对象" % part
+            node = node.get(part)
+        if not isinstance(node, list):
+            return None, "%s 不是数组" % arr_k
+        for it in node:
+            if isinstance(it, dict) and str(it.get(key)) == lit:
+                return it.get(val_k), None
+        return None, "数组里没有 %s=='%s' 的条目" % (key, lit)
+    if _JP_PLAIN.match(path):
+        node = doc
+        for part in path.split("."):
+            if not isinstance(node, dict):
+                return None, "json_path 中 %s 之前不是对象" % part
+            node = node.get(part)
+        return node, None
+    return None, "json_path 形状不支持(只认 `数组[?键=='值'].字段` 与 `a.b.c`)"
+
+
+def _http_value(a):
+    """按 http+json_path 取一个值。**取不到一律算坏消息**,不算 unknown ——
+    「端点活着但问不出我要的东西」本身就是一个坏消息,不能拿「没有坏消息」当好消息。"""
+    # 走模块级间接引用,测试可以替换掉真实网络调用。
+    # ★ 刻意**不**做成 args 里的注入点(比如 `_stub` 键):args 来自 flow.yaml,
+    #   那等于给不可信输入开了一个「自己声明探测结果」的后门。
+    doc, err = _FETCH(a.get("http") or "")
+    if err:
+        return None, err
+    val, perr = _json_pick(doc, a.get("json_path") or "")
+    if perr:
+        # 把顶层的标量字段带出来:被测方用 `台账可读: false` + 原因说明问题时,
+        # 原因就在这里如实显示,不需要本站硬编码它的字段名
+        top = "; ".join("%s=%s" % (k, v) for k, v in (doc or {}).items()
+                        if isinstance(v, (str, int, float, bool)))[:180]
+        return None, perr + (" · 端点自述:%s" % top if top else "")
+    return val, None
+
+
+def _parse_ts(raw):
+    """解析时间戳,**认显式时区偏移**。
+
+    ★ KMFA 线程提醒后实测确认的错:原来是 `raw[:19]` 截断 + 「带 T 就按 UTC」。
+      它的 `2026-07-27T08:00:00+08:00` 会被切成 `2026-07-27T08:00:00` 再当 UTC ——
+      正好差 8 小时,而且方向是让它显得**更旧**,会把刚跑完的技能报成超期。
+      带偏移的按偏移算;没有偏移的才回落到北京时间(本站自己的产出都是北京时间)。
+    """
+    s = str(raw or "").strip().replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)                    # 直接吃 ISO 8601(含偏移)
+        return dt if dt.tzinfo else dt.replace(tzinfo=CN)
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s[:19], fmt).replace(tzinfo=CN)
+        except ValueError:
+            continue
+    return None
+
+
 def _pr_artifact_rows(a):
     """产出物条数 —— **这才是健康信号**。
 
@@ -953,6 +1080,22 @@ def _pr_artifact_rows(a):
       日志有输出、时间戳新鲜、退出码 0,**但一个文件都没取回来过**。
       「进程有没有动」和「有没有产出」是两回事;拿前者当健康,页面就会系统性说谎。
     """
+    if a.get("http"):
+        # 被测方自报的产出计数(它自己的台账)。★ 0 = **从未跑完过一次**,判阻断;
+        #   取不到也判阻断 —— 不给「新接入的抖动」留任何平滑余地,第一轮探到什么就是什么。
+        val, err = _http_value(a)
+        if err:
+            return "blocked", "取不到产出计数:%s" % err
+        try:
+            n = int(val)
+        except (TypeError, ValueError):
+            return "blocked", "产出计数不是数字(值=%r)" % (str(val)[:40],)
+        lo = int(a.get("min") or 1)
+        if n < lo:
+            return "blocked", ("**产出计数 %d,要求 ≥%d** —— 从未跑完过一次;"
+                               "日志再新鲜、退出码再正常都不算数" % (n, lo)) if n == 0 else \
+                              "**产出计数 %d,要求 ≥%d**" % (n, lo)
+        return "healthy", "产出计数 %d(要求 ≥%d) · 来自被测方公开健康摘要" % (n, lo)
     p = _safe_path(a.get("dir") or "")
     if not p or not os.path.isdir(p):
         return "unknown", "目录不可达,无法核验产出"
@@ -980,6 +1123,17 @@ def _pr_business_ts(a):
       来源 file: JSON 文件里的某个顶层字段(字段名过白名单,不做任意路径求值)
     """
     mx = float(a.get("max_age_h") or 26)
+    if a.get("http"):
+        val, err = _http_value(a)
+        if err:
+            return "blocked", "取不到业务时间戳:%s" % err
+        ts = _parse_ts(val)
+        if ts is None:
+            return "blocked", "业务时间戳解析不了(值=%r)" % (str(val)[:40],)
+        age = (time.time() - ts.timestamp()) / 3600
+        return (("healthy" if age <= max(0.1, mx) else "degraded"),
+                "业务时间戳 %s · %.1f 小时前(阈值 %.0fh) · 来自被测方公开健康摘要"
+                % (str(val)[:32], age, mx))
     if a.get("container"):
         st, ev = _pr_db_rows(dict(a, min_rows=int(a.get("min_rows") or 1)))
         return st, ev
@@ -992,23 +1146,15 @@ def _pr_business_ts(a):
     try:
         with open(p) as f:
             doc = json.load(f)
-        raw = str((doc or {}).get(fld) or "")[:19]
-        ts = None
-        # 实测:快照的 updated_at 是「2026-07-27 12:54」**没有秒**,只认带秒的格式会判成 unknown
-        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-            try:
-                ts = datetime.strptime(raw, fmt)
-                break
-            except ValueError:
-                continue
+        raw = str((doc or {}).get(fld) or "")
+        ts = _parse_ts(raw)          # 统一解析:认显式偏移,无偏移才当北京时间
         if ts is None:
             raise ValueError(raw)
     except (OSError, ValueError, json.JSONDecodeError):
         return "unknown", "取不到 %s 字段的时间戳(值=%r)" % (fld, str((doc or {}).get(fld))[:24] if isinstance(doc, dict) else "")
-    tz = timezone.utc if "T" in raw else CN      # 本站产出的时间戳统一北京时间,ISO 带 T 的按 UTC
-    age = (time.time() - ts.replace(tzinfo=tz).timestamp()) / 3600
+    age = (time.time() - ts.timestamp()) / 3600
     return (("healthy" if age <= max(0.1, mx) else "degraded"),
-            "业务时间戳 %s · %.1f 小时前(阈值 %.0fh)" % (raw, age, mx))
+            "业务时间戳 %s · %.1f 小时前(阈值 %.0fh)" % (raw[:32], age, mx))
 
 
 def _pr_glob_count(a):
@@ -1214,7 +1360,9 @@ def flow_state():
                              "v": ev or (spec or {}).get("evidence") or "",
                              "declared": declared, "measured": measured,
                              "weak": weak, "mismatch": mism,
-                             "defect": (spec or {}).get("defect") or ""}
+                             # ★ 缺失用 None,不用 ""(见 collect_github 适配层同名注释:
+                             #   "" 会和 "" 相等,把一条缺陷挂到全部格子上)
+                             "defect": (spec or {}).get("defect") or None}
                 tot["cells"] += 1
                 tot[final if final in tot else "unknown"] += 1
                 if mism:
@@ -1812,12 +1960,17 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
 
         bad = sum(1 for k, _ in STAGES if cells[k]["s"] == "bad")
         warn = sum(1 for k, _ in STAGES if cells[k]["s"] == "warn")
+        # ★ na(不适用)不扣分**也不该被当成达标**:ADP 跑在 CF 边缘,九段里四段是 na,
+        #   照旧是满分,于是 17 条线全 100 —— 分数对谁都一样就等于没有分数。
+        #   这里把「实际判过几段」一起送出去,页面按覆盖率如实呈现。
+        na = sum(1 for k, _ in STAGES if cells[k]["s"] == "na")
         lines.append({
             "name": e["name"], "kind": "platform" if is_platform else "business",
             "url": e.get("url") or "", "repo": repo or "", "role": e.get("role") or "",
             "host": e.get("host") or "OVH VPS-1", "agent": e.get("agent") or "—",
             "cells": cells, "units": len(mine),
             "unit_ids": [u["id"] for u in mine][:8],
+            "na": na, "judged": len(STAGES) - na, "stages_total": len(STAGES),
             "score": max(0, 100 - bad * 26 - warn * 8),
             "state": "bad" if bad else ("warn" if warn else "ok"),
         })
