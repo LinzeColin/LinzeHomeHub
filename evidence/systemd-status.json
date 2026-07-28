@@ -1,0 +1,47 @@
+{
+  "drift_fixed": {
+    "fix": {
+      "installer": "装之前先校验 ExecStart 可执行、WorkingDirectory 存在、User 存在、ReadWritePaths 存在、ExecStart 在本次部署根下 —— 不一致直接拒绝安装,而不是装一个必然失败的 timer",
+      "scripts": "REPO_ROOT 默认值改为从脚本自身位置推导(<REPO_ROOT>/status/deploy/control-plane/ 往上三层),不是把一个硬编码换成另一个;仍可用 REPO_ROOT 环境变量覆盖",
+      "unit": "WorkingDirectory/ExecStart/ReadWritePaths 对齐 /srv/linze/apps;User/Group 改为 ubuntu(与每分钟跑采集的 cron 同一个,也与 runtime/data 属主一致);刻意不挂 .secrets/control-plane.env(0600 root:root,ubuntu 读不到,而投影不需要密钥);UMask 0077->0002 让产物保持 664,否则 nginx 容器读不到"
+    },
+    "guard": "tests/status-control-plane/unit/test_deploy_root_is_consistent.py(6 条)",
+    "measured_reality": [
+      "/srv/linze-home-hub 不存在",
+      "linze-status 用户不存在",
+      "/etc/linze/ 不存在",
+      "生产实际部署根是 /srv/linze/apps",
+      "runtime/data 属主为 ubuntu:ubuntu",
+      "生产此前一个 systemd timer 都没装,9 个定时任务全在 /etc/cron.d/"
+    ],
+    "mutation_verified": [
+      "单元改回 /srv/linze-home-hub -> 红",
+      "REPO_ROOT 写死回去 -> 红",
+      "ExecStart 指向不存在的脚本 -> 红",
+      "复原 -> 绿"
+    ],
+    "what": "任务包带来的单元与三个脚本全部写死 /srv/linze-home-hub",
+    "why_it_mattered": "照原样装上去,timer 每次触发都会 cd 失败或 ExecStart 找不到文件,而且**失败在 timer 里是安静的** —— 看板上只表现为「投影一直不更新」"
+  },
+  "first_run": {
+    "ExecMainStatus": 0,
+    "artifact": "/srv/linze/apps/status/data/agent-governance.json",
+    "output": "{\"state\":\"PROJECTED\",\"release_state\":\"UNKNOWN\"}",
+    "owner_mode": "ubuntu:ubuntu 664(nginx 只读挂载可读)"
+  },
+  "host": "OVH vps-83b882b4 (139.99.61.6)",
+  "installed": [
+    "status-agent-governance-project.service",
+    "status-agent-governance-project.timer"
+  ],
+  "schema_version": 1,
+  "state": "PASS",
+  "task_id": "T04-04",
+  "timer": {
+    "OnBootSec": "2min",
+    "OnUnitActiveSec": "5min",
+    "Persistent": true,
+    "is_active": "active",
+    "is_enabled": "enabled"
+  }
+}
