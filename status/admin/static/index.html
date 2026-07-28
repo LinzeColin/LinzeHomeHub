@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>价格设置 · 云平台总览</title>
+  <link rel="stylesheet" href="/admin/assets/admin.css">
+  <script src="/admin/assets/prices.js" defer></script>
+</head>
+<body>
+  <main class="wrap">
+    <nav><a href="/">总览</a><a class="active" href="/admin">价格设置</a><a href="/admin/github">GitHub 私有全量</a></nav>
+    <header><h1>价格设置</h1><p>本地 SQLite 只承担事务与 Outbox；完成事实同步到 Private-Database。</p></header>
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="items" aria-label="开支项"></section>
+    <div class="actions">
+      <button id="add" type="button">新增开支项</button>
+      <button id="save" class="primary" type="button">保存</button>
+    </div>
+  </main>
+</body>
+</html>

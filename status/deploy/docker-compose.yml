@@ -1,6 +1,9 @@
 services:
   status:
-    image: nginx:1.27-alpine
+    # 摘要固定:`1.27-alpine` 这个标签是会动的(补丁版一发布它就指向新镜像),
+    # 光写标签等于让「部署的是哪个 nginx」随时间漂移。加 @sha256 之后标签只剩可读性,
+    # 真正决定拉哪个镜像的是摘要。摘要取自生产实跑镜像的 RepoDigest。
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     container_name: linze-status
     restart: unless-stopped
     volumes:
@@ -24,7 +27,11 @@ services:
 
   admin:
     build: ../admin
-    image: linze-status-admin:latest
+    # 本地构建的镜像没有 registry digest,所以标签取**构建上下文的内容哈希**:
+    # 源码不变则标签不变(重复部署幂等),源码一变标签必变(不可能同名不同物)。
+    # 由 deploy/control-plane/admin-image-tag.py --check 守着,改了 admin/ 忘了重算会红。
+    # 原来是 :latest —— 两次不同的构建可以顶着同一个名字,「部署的是哪一版」无法回答。
+    image: linze-status-admin:864bfb3a94aa
     container_name: linze-status-admin
     restart: unless-stopped
     user: "1000:1000"

@@ -1,0 +1,4 @@
+# Playwright 的运行产物 —— 每次跑都会重生成,不进版本库。
+# 提交它们会让 diff 里全是噪音,而且报告里含本机绝对路径。
+playwright-report/
+test-results/

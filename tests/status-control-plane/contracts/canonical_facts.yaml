@@ -1,0 +1,225 @@
+api_version: status.linzezhang.com/canonical-facts/v1
+product:
+  name: status.linzezhang.com
+  ui_name_zh: 云平台总览
+  taskpack_version: v0.0.0.1
+  taskpack_state: FROZEN_FOR_EXECUTION
+  target_repository: LinzeColin/LinzeHomeHub
+  target_area: status
+  repository_development_mode: continuously_evolving
+  freeze_main: false
+  language: zh-CN
+approval:
+  owner_authorized_final_delivery: true
+  authorized_at: '2026-07-27'
+  codex_may_create_or_change_version: false
+  scope_and_acceptance_frozen: true
+runtime_invariants:
+  production_agent_dependency: false
+  production_llm_calls: 0
+  production_token_consumption: 0
+  macos_launchd_allowed: false
+  local_machine_persistent_runtime_allowed: false
+  chat_session_dependency_allowed: false
+  real_time_soak_required: false
+  background_wait_required: false
+authorities:
+  code_and_governance: LinzeHomeHub/status
+  long_term_structured_facts: Private-Database
+  runtime_compute: OVH
+  runtime_cache_journal_idempotency_outbox: OVH SQLite
+  cold_backup_and_large_private_objects: Cloudflare R2
+  optional_rebuildable_query_index: Cloudflare D1
+  geographic_backup: OCI Object Storage
+data_rules:
+  github_is_not_for:
+  - low_latency_transactions
+  - locks
+  - queues
+  - cursors
+  - high_frequency_logs
+  - reconstructable_runtime_state
+  private_database_contains:
+  - structured_operational_summaries
+  - release_facts
+  - incident_conclusions
+  - recovery_facts
+  - object_references
+  - content_hashes
+  - schema_versions
+  r2_contains:
+  - large_files
+  - binary_files
+  - privacy_sensitive_objects
+  - cold_repository_backups
+  d1_default_enabled: false
+  no_new_fact_no_git_commit: true
+  default_batch_sync: daily
+  immediate_sync_events:
+  - release
+  - incident
+  - recovery
+execution_subjects:
+  research_observation:
+    mutable: true
+    formal_evidence_subject: false
+  integration_base:
+    binding: latest_origin_main_at_execution_start
+    immutable_within_worktree: true
+  candidate_subject:
+    binding: post_reconciliation_commit
+    immutable: true
+    formal_verifier_subject: true
+  deployment_subject:
+    binding: deployed_artifact_digest
+    immutable: true
+    must_match_candidate_artifact: true
+reconciliation_states:
+- ALREADY_SATISFIED
+- APPLY_CLEAN
+- ADAPT_REQUIRED
+- UPSTREAM_EQUIVALENT
+- CONTRACT_CONFLICT
+- ENVIRONMENT_BLOCKED
+- OBSOLETE
+condition_semantics:
+  truth_values:
+  - true
+  - false
+  - UNKNOWN
+  non_pass_states:
+  - UNKNOWN
+  - UNAVAILABLE
+  - STALE
+  - UNVERIFIED
+  - NOT_RUN
+  - ABSTAIN
+  portfolio_health_dimensions:
+  - coverage_health
+  - runtime_health
+capability_axes:
+- declared
+- implemented
+- verified
+- packaged
+- deployed
+- operational
+- recoverable
+canonical_entities:
+- business_line
+- project
+- repository
+- component
+- runtime
+- capability
+- dependency
+- intent
+- task
+- run
+- session
+- commit
+- artifact
+- deployment
+- evidence
+- probe
+- backup
+- recovery
+- skill
+- policy
+current_public_observation:
+  observed_at: '2026-07-27'
+  repository_package_version_seen: 0.4.0
+  existing_capabilities_to_preserve:
+  - docker_systemd_cron_coolify_runtime_discovery
+  - nine_stage_business_baseline
+  - github_engineering_collection
+  - public_private_projection
+  - derived_project_graph
+  - cron_driven_self_heal
+  - unit_churn_ledger_with_removed_unit_evidence
+  known_gaps_to_reconcile_not_blindly_overwrite:
+  - static_declared_project_denominator
+  - hard_coded_external_green_without_probe
+  - mutable_cross_repository_workflow_reference
+  - backup_age_used_as_recoverability_proxy
+  - legacy_github_release_to_oci_backup_path
+  - admin_write_path_uses_json_projection
+  - incomplete_subject_bound_evidence_freshness
+  - command_execution_and_self_heal_truthfulness
+  observation_commit: 0e147109ea6bc82237a3e099b4599db33595dee9
+  observation_commit_message: 'feat(status): 单元增减流水 —— 消失必须留痕 (#37)'
+  observation_is_execution_base: false
+private_and_runtime_access_during_pack_build:
+  private_database_authenticated: false
+  ovh_authenticated: false
+  cloudflare_authenticated: false
+  oci_authenticated: false
+  resolution: deterministic_stage_0_read_only_capture
+  ordinary_differences_block_phase_2: false
+  red_drift_only_blocks_affected_slice: true
+scope:
+  include:
+  - three_inventory_reconciliation
+  - coverage_and_runtime_health
+  - stable_ids_and_conditions
+  - capability_axes_evidence_lease_and_provenance
+  - four_derived_governance_views
+  - chinese_business_line_matrix
+  - admin_security_revision_idempotency_transaction_outbox
+  - private_database_authority_sync
+  - r2_cold_backup_and_oci_recovery
+  - deterministic_self_heal_and_operator_commands
+  - fake_clock_replay_failure_injection_and_browser_tests
+  - moving_base_reconciliation_and_subject_binding
+  exclude:
+  - new_brand
+  - new_repository
+  - second_long_term_authority
+  - backstage_port_opslevel_cortex_platform
+  - langfuse_or_independent_otel_backend
+  - graph_database
+  - complete_deadreckon_clone
+  - agent_fleet_orchestration
+  - production_agent_or_model_reviewer
+  - automatic_skill_installation
+  - automatic_profile_enforcement
+  - real_time_soak_or_wait_gate
+third_party_policy:
+  prefer_official_or_mature_thin_adapter: true
+  mutable_main_reference_allowed: false
+  record_license_and_reuse_scope: true
+  selected:
+  - name: GitHub Actions checkout
+    version: v7.0.1
+    license: MIT
+    use: repository_checkout_in_ci
+  - name: GitHub Actions setup-python
+    version: v7.0.0
+    license: MIT
+    use: deterministic_python_ci
+  - name: Playwright Test
+    version: 1.62.0
+    license: Apache-2.0
+    use: browser_accessibility_and_security_tests
+  - name: Gatus
+    license: Apache-2.0
+    use: retain_existing_deterministic_endpoint_probes
+  - name: PyJWT
+    version: 2.13.0
+    license: MIT
+    use: Cloudflare_Access_JWT_verification
+  - name: cryptography
+    version: 49.0.0
+    license: Apache-2.0 OR BSD-3-Clause
+    use: RS256_backend
+review_and_remediation:
+  maximum_remediation_rounds: 2
+  independent_rereview_rounds: 1
+  blind_sets: 1
+  dynamic_acceptance_expansion_allowed: false
+  formal_external_subagent_proof_available_during_pack_build: false
+  review_mode: role_separated_same_model
+verdicts:
+  taskpack_build: PASS
+  implemented_product: NOT_RUN
+  deployed_product: NOT_RUN

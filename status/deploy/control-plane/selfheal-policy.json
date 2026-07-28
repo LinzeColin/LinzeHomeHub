@@ -1,0 +1,9 @@
+{
+  "target_id": "status-web",
+  "probe_argv": ["curl", "--fail", "--silent", "--show-error", "--max-time", "8", "https://status.linzezhang.com/data/snapshot.json"],
+  "action_argv": ["docker", "restart", "linze-status"],
+  "timeout_seconds": 30,
+  "cooldown_seconds": 300,
+  "maximum_actions_per_window": 3,
+  "window_seconds": 3600
+}

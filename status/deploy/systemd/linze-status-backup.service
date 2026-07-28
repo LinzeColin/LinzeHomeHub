@@ -1,0 +1,14 @@
+[Unit]
+Description=Back up Private-Database authority to R2 and OCI with readback
+After=network-online.target linze-status-authority-sync.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/srv/linze/apps/status/.secrets/control-plane.env
+WorkingDirectory=/srv/linze/apps/status
+ExecStart=/srv/linze/apps/status/deploy/control-plane/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+TimeoutStartSec=1800

@@ -412,12 +412,41 @@ def externals():
             return None
     cf = status_api("https://www.cloudflarestatus.com/api/v2/status.json")
     gh = status_api("https://www.githubstatus.com/api/v2/status.json")
+    # ★ 没探过的必须是 None(未知),不能写死 True。
+    #   原来 NitroSend 是 {"ok": True, "note": "已接入·免费"} —— 从来没有任何探测,
+    #   不管它真实死活,页面上永远一个绿点。看的人会读成「已核实在线」,
+    #   实际只是有人在代码里打了个 True。这是假绿。
+    #   三态渲染(web/index.html 的 e.ok===true?'ok':(e.ok===false?'bad':'unk'))
+    #   本来就支持 null → 灰色 unk,缺的只是一个诚实的值。
+    #   NitroSend 没有公开状态页,而生产运行期禁止调 agent/带 token 的接口,
+    #   所以这里能给出的最强真话就是「未探测」,并且把原因写在 note 里 ——
+    #   note 必须自己说清状态,不能只靠那个点的颜色(颜色只当辅助)。
     return [
         {"name": "Cloudflare", "ok": cf, "note": "DNS+代理" if cf else "查不到状态"},
         {"name": "GitHub", "ok": gh, "note": "运行正常" if gh else "查不到状态"},
-        {"name": "NitroSend", "ok": True, "note": "已接入·免费"},
-        {"name": "OVH VPS-1", "ok": True, "note": "主机在线"},
+        {"name": "NitroSend", "ok": None, "note": "未探测 · 无公开状态页,不代表异常"},
     ]
+
+
+def ovh_self_state(host):
+    """OVH VPS-1 的状态 —— 从**真实读到的**本机指标派生,读不到就是未知。
+
+    这台机器不是「外部状态页」,是采集器自己跑着的那台主机,所以它的死活不该去问
+    OVH 的官网,而应该看我们这一轮真的读到了什么。/proc/uptime 读得出来,
+    就确实证明了采集这一刻主机是活的;读不出来就只能说未知,不能替它打绿。
+
+    返回 (ok, note),供「外部服务」列表与「供应商卡」共用 —— 只有一个判定来源,
+    两处才不可能互相矛盾。
+    """
+    if not host or host.get("uptime_days") is None:
+        return None, "取不到主机指标 · 状态未知"
+    dp, mp = host.get("disk_pct"), host.get("mem_pct")
+    tight = [f"{lab} {v}%" for lab, v in (("磁盘", dp), ("内存", mp))
+             if v is not None and v >= 95]
+    note = "在线 %s 天 · 负载 %s" % (host["uptime_days"], host.get("load1") or "—")
+    if tight:
+        return False, note + " · 资源吃紧(" + "、".join(tight) + ")"
+    return True, note
 
 
 # ---------- 项目实时状态 ----------
@@ -700,12 +729,19 @@ def cert_cached(prev):
     return c
 
 
-def externals_cached(prev):
-    """外部状态页缓存 5 分钟。"""
+def externals_cached(prev, host=None):
+    """外部状态页缓存 5 分钟;本机派生的那条**不进缓存**。
+
+    OVH VPS-1 是从本轮 host_metrics() 派生的,而供应商卡是每轮现算的 ——
+    如果把它一起缓存 5 分钟,同一个页面上两处会显示互相矛盾的主机状态。
+    """
     pe, pat = prev.get("externals"), prev.get("externals_at")
     if pe and pat and age_min(pat) < 5:
-        return pe, pat
-    return externals(), fmt(now_cn())
+        out, at = [e for e in pe if e.get("name") != "OVH VPS-1"], pat
+    else:
+        out, at = externals(), fmt(now_cn())
+    ok, note = ovh_self_state(host)
+    return out + [{"name": "OVH VPS-1", "ok": ok, "note": note}], at
 
 
 # ---------- 资产总览(按供应商:状态/成本/风险/健康)----------
@@ -743,7 +779,9 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
         cost_ovh += " · 下次 %s(%s天)" % (ovh["date"], ovh.get("days", "—"))
     cards.append({
         "key": "ovh", "name": "OVH VPS-1", "role": "云服务器 · 所有程序 + 自建数据库都在这台跑",
-        "status": {"ok": True, "note": "在线 %s 天 · 负载 %s" % (host.get("uptime_days", "—"), host.get("load1", "—"))},
+        # 与「外部服务」列表共用 ovh_self_state():读得到指标才判绿,读不到就是未知。
+        # 原来这里写死 "ok": True —— note 里的数字是真的,那个绿点却不是。
+        "status": dict(zip(("ok", "note"), ovh_self_state(host))),
         "cost": cost_ovh, "risks": r,
         "health": [
             {"label": "内存", "value": ("%d%%" % mp) if mp is not None else "—"},
@@ -812,7 +850,15 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
     h.append({"label": "角色", "value": "备份的备份"})
     cards.append({
         "key": "oci", "name": "OCI(甲骨文云)", "role": "备份的备份 · 每周日再抄一份异地副本",
-        "status": {"ok": True, "note": "离机副本 · 只写保险柜"},
+        # ★ 这条腿是 PAR 单向预授权链接:只能写进去,结构上读不回来。
+        #   原来写死 "ok": True + "离机备份 · 只写保险柜",页面上是个绿点 ——
+        #   看的人会读成「异地备份没问题」,但从来没有任何回读证明它能恢复。
+        #   「投递成功」不等于「可恢复」,这正是 OP-003 要分开的两件事。
+        #   按 owner 授权的 DA-004 修订(docs/governance/TASKPACK_V0001_ACCEPTANCE_AMENDMENT.md
+        #   §4「反假绿约束」第 1 条):OCI 只记投递回执,永不并入「已验证恢复」。
+        #   所以它的状态**结构性地**只能是未知 —— 不是这次没测出来,是这个通道
+        #   本身就不提供可验证性。要变绿只能换成可读的异地存储(需 owner 决定)。
+        "status": {"ok": None, "note": "单向投递 · 读不回来,无法验证可恢复"},
         "cost": "免费额度内 · A$0", "risks": r, "health": h})
     return cards
 
@@ -2634,7 +2680,7 @@ def main():
     host = host_metrics()
     fx = fx_cached(prev)
     cert = cert_cached(prev)
-    ext, ext_at = externals_cached(prev)
+    ext, ext_at = externals_cached(prev, host)
 
     # 内存/磁盘历史:分层留存(1分钟粒度留 24h;小时粒度留 31 天)供多时段趋势
     hist = load_json(os.path.join(DATA_DIR, "history.json"), {})

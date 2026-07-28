@@ -1,0 +1,125 @@
+api_version: status.linzezhang.com/blind-fixtures/v1alpha1
+document_version: v0.0.0.1
+state: FROZEN_FOR_EXECUTION
+blind_set_count: 1
+fixtures:
+- id: BF-001
+  risk: false_green
+  scenario: Source inventory API returns empty while last credible inventory is non-empty.
+  expected: Coverage becomes UNKNOWN or DEGRADED; last-known-good remains visibly stale.
+  acceptance_refs:
+  - INV-005
+  - FE-002
+  - DA-002
+- id: BF-002
+  risk: unregistered_runtime
+  scenario: A healthy runtime unit exists but is absent from declared inventory.
+  expected: DEPLOYED_UNREGISTERED is displayed and portfolio coverage is not healthy.
+  acceptance_refs:
+  - FE-002
+  - DA-002
+- id: BF-003
+  risk: stale_evidence
+  scenario: Implementation commit or lockfile changes after a passing verification.
+  expected: Evidence lease becomes stale and capability cannot remain VERIFIED_FRESH.
+  acceptance_refs:
+  - INV-005
+  - DA-003
+- id: BF-004
+  risk: deployment_drift
+  scenario: Deployed artifact digest differs from candidate evidence.
+  expected: DEPLOYMENT_DRIFT and release stop.
+  acceptance_refs:
+  - INV-006
+  - GO-002
+- id: BF-005
+  risk: jwt_boundary
+  scenario: JWT has a valid signature but wrong issuer, audience or owner identity.
+  expected: Request is rejected without leaking token or identity details.
+  acceptance_refs:
+  - BE-001
+- id: BF-006
+  risk: stored_xss
+  scenario: Private repository name, URL and note contain script, event handler and javascript URL payloads.
+  expected: Payload remains inert and no non-allowlisted request is made.
+  acceptance_refs:
+  - FE-005
+  - BE-004
+- id: BF-007
+  risk: replay_and_concurrency
+  scenario: Duplicate idempotency key and stale expected revision arrive concurrently.
+  expected: Exactly one fact commits; stale write is rejected; projection remains consistent.
+  acceptance_refs:
+  - BE-002
+  - BE-003
+- id: BF-008
+  risk: partial_transaction
+  scenario: Process fails between accepted mutation, journal and outbox writes.
+  expected: No partial accepted state exists after restart.
+  acceptance_refs:
+  - BE-003
+- id: BF-009
+  risk: privacy_projection
+  scenario: Canonical snapshot includes private path, email, prompt, repository name and secret-like field.
+  expected: Public snapshot contains none of the seeded values or unknown fields.
+  acceptance_refs:
+  - BE-004
+- id: BF-010
+  risk: runtime_agent_dependency
+  scenario: A model SDK, model API domain or runtime Agent command is seeded.
+  expected: Zero-Agent assurance check fails closed.
+  acceptance_refs:
+  - INV-001
+  - AR-001
+- id: BF-011
+  risk: self_heal_false_success
+  scenario: Restart command fails or post-probe remains unhealthy.
+  expected: State is ACTION_FAILED or FAILED, never RECOVERED.
+  acceptance_refs:
+  - OP-002
+- id: BF-012
+  risk: backup_not_recoverable
+  scenario: Backup file is fresh but corrupt, unreadable or uses a missing key.
+  expected: Backup may exist but restore state is not verified and deletion guard remains active.
+  acceptance_refs:
+  - DA-004
+  - OP-003
+- id: BF-013
+  risk: moving_base_equivalent
+  scenario: Main implements the same desired behavior in a different module before task application.
+  expected: Task is UPSTREAM_EQUIVALENT or ALREADY_SATISFIED; upstream implementation is preserved.
+  acceptance_refs:
+  - AR-002
+  - GO-002
+- id: BF-014
+  risk: moving_base_contract_conflict
+  scenario: Main changes authority or permission semantics incompatibly.
+  expected: Only the affected slice stops with CONTRACT_CONFLICT and a minimum decision record.
+  acceptance_refs:
+  - AR-002
+  - GO-002
+- id: BF-015
+  risk: no_empty_commit
+  scenario: The same completed-fact batch is synchronized twice.
+  expected: Second synchronization creates no Git commit or object delta.
+  acceptance_refs:
+  - DA-005
+- id: BF-016
+  risk: dependency_outage
+  scenario: GitHub, Private-Database, R2 and OCI fail one at a time.
+  expected: No authority corruption; unrelated monitoring continues; affected state is explicit.
+  acceptance_refs:
+  - AR-003
+- id: BF-017
+  risk: mobile_accessibility
+  scenario: Unknown and recovery views are used at mobile width with keyboard and reduced motion.
+  expected: No critical accessibility violation, unintended overflow or inaccessible status detail.
+  acceptance_refs:
+  - FE-004
+- id: BF-018
+  risk: mutable_supply_chain
+  scenario: Workflow uses a floating cross-repository ref or unpinned runtime image.
+  expected: Supply-chain policy fails unless explicitly approved and recorded.
+  acceptance_refs:
+  - AR-004
+taskpack_version: v0.0.0.1

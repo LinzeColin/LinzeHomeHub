@@ -1,0 +1,1550 @@
+{
+  "schema_version": 1,
+  "taskpack_version": "v0.0.0.1",
+  "requirement_count": 32,
+  "requirements": [
+    {
+      "requirement_id": "INV-001",
+      "domain": "global",
+      "requirement": "Production runtime has no Agent or LLM dependency and consumes zero model tokens.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "runtime dependency, domain, configuration and request scan",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-010",
+          "scenario": "A model SDK, model API domain or runtime Agent command is seeded.",
+          "expected": "Zero-Agent assurance check fails closed."
+        }
+      ],
+      "artifacts": [
+        "policy_test_suite"
+      ]
+    },
+    {
+      "requirement_id": "INV-002",
+      "domain": "global",
+      "requirement": "LinzeHomeHub/status owns code and governance; Private-Database is the sole long-term structured fact authority.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "authority and write-path scan",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T2",
+          "outputs": [
+            "authority_sync_adapter",
+            "outbox_worker",
+            "sync_manifest"
+          ],
+          "rollback": "disable sync adapter and retain unsent outbox",
+          "stop_condition": "authority path conflict or permission denial"
+        },
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "authority_sync_adapter",
+        "outbox_worker",
+        "policy_test_suite",
+        "sync_manifest"
+      ]
+    },
+    {
+      "requirement_id": "INV-003",
+      "domain": "global",
+      "requirement": "OVH SQLite is rebuildable runtime cache, journal, idempotency and outbox only.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "delete-and-rebuild fixture plus authority comparison",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T1",
+          "outputs": [
+            "runtime_schema",
+            "migration",
+            "repository_adapter"
+          ],
+          "rollback": "restore prior schema and replay accepted authority facts",
+          "stop_condition": "destructive migration without verified recovery"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "migration",
+        "repository_adapter",
+        "runtime_schema"
+      ]
+    },
+    {
+      "requirement_id": "INV-004",
+      "domain": "global",
+      "requirement": "No macOS launchd or persistent local-machine runtime resource is introduced.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "runtime and packaging scan",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "policy_test_suite"
+      ]
+    },
+    {
+      "requirement_id": "INV-005",
+      "domain": "global",
+      "requirement": "UNKNOWN, UNAVAILABLE, STALE, UNVERIFIED, NOT_RUN and ABSTAIN never aggregate to PASS or green.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "seeded state aggregation fixtures",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S2-T2",
+          "outputs": [
+            "condition_engine",
+            "coverage_snapshot"
+          ],
+          "rollback": "revert condition engine and preserve prior snapshot",
+          "stop_condition": "blind false-green fixture passes as healthy"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-001",
+          "scenario": "Source inventory API returns empty while last credible inventory is non-empty.",
+          "expected": "Coverage becomes UNKNOWN or DEGRADED; last-known-good remains visibly stale."
+        },
+        {
+          "fixture_id": "BF-003",
+          "scenario": "Implementation commit or lockfile changes after a passing verification.",
+          "expected": "Evidence lease becomes stale and capability cannot remain VERIFIED_FRESH."
+        }
+      ],
+      "artifacts": [
+        "condition_engine",
+        "coverage_snapshot",
+        "deterministic_fixture_suite"
+      ]
+    },
+    {
+      "requirement_id": "INV-006",
+      "domain": "global",
+      "requirement": "Main may continue changing; only the final candidate and deployment subject are immutable evidence subjects.",
+      "baseline": "frozen invariant",
+      "target": "must remain true",
+      "oracle": "subject manifest and moving-base integration fixture",
+      "threshold": "blocking invariant",
+      "evidence": [
+        "policy scan",
+        "candidate manifest",
+        "deployment subject"
+      ],
+      "tasks": [
+        {
+          "task_id": "S0-T1",
+          "outputs": [
+            "execution_context_capture",
+            "integration_base_identity"
+          ],
+          "rollback": "delete isolated capture output only",
+          "stop_condition": "RED drift in authority, permissions or deployment topology"
+        },
+        {
+          "task_id": "S0-T3",
+          "outputs": [
+            "isolated_worktree",
+            "execution_manifest"
+          ],
+          "rollback": "remove worktree and branch",
+          "stop_condition": "dirty or unverifiable integration base"
+        },
+        {
+          "task_id": "S6-T1",
+          "outputs": [
+            "candidate_subject",
+            "drift_report"
+          ],
+          "rollback": "discard candidate worktree",
+          "stop_condition": "RED contract conflict or two remediation rounds exhausted"
+        },
+        {
+          "task_id": "S6-T3",
+          "outputs": [
+            "deployment_subject",
+            "release_record"
+          ],
+          "rollback": "deploy previous accepted artifact",
+          "stop_condition": "deployed digest differs from accepted candidate artifact"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-004",
+          "scenario": "Deployed artifact digest differs from candidate evidence.",
+          "expected": "DEPLOYMENT_DRIFT and release stop."
+        }
+      ],
+      "artifacts": [
+        "candidate_subject",
+        "deployment_subject",
+        "drift_report",
+        "execution_context_capture",
+        "execution_manifest",
+        "integration_base_identity",
+        "isolated_worktree",
+        "release_record"
+      ]
+    },
+    {
+      "requirement_id": "FE-001",
+      "domain": "frontend",
+      "requirement": "All user-visible product text, status explanations and recovery guidance are Chinese.",
+      "baseline": "Existing status is primarily Chinese but all new states are not yet defined.",
+      "target": "No unexplained English state or operator instruction in public and admin views.",
+      "input": "golden, degraded, unknown, stale and recovery snapshots",
+      "oracle": "DOM text scan and approved terminology dictionary",
+      "threshold": "zero unapproved user-visible English status strings",
+      "evidence": [
+        "playwright report and DOM snapshot"
+      ],
+      "tasks": [
+        {
+          "task_id": "S3-T2",
+          "outputs": [
+            "frontend_views",
+            "terminology_dictionary"
+          ],
+          "rollback": "restore previous static assets",
+          "stop_condition": "UNKNOWN or STALE can render as healthy"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "frontend_views",
+        "terminology_dictionary"
+      ]
+    },
+    {
+      "requirement_id": "FE-002",
+      "domain": "frontend",
+      "requirement": "Coverage Health and Runtime Health are shown independently.",
+      "baseline": "Portfolio health can be derived from a static declared denominator.",
+      "target": "Unknown inventory denominator cannot produce an all-healthy portfolio.",
+      "input": "declared/source/runtime inventory fixtures",
+      "oracle": "state matrix assertion",
+      "threshold": "all blind inventory-loss cases produce UNKNOWN or DEGRADED coverage",
+      "evidence": [
+        "snapshot diff and assertion log"
+      ],
+      "tasks": [
+        {
+          "task_id": "S2-T1",
+          "outputs": [
+            "inventory_adapters",
+            "stable_entity_ids"
+          ],
+          "rollback": "disable new adapters and retain last-known-good snapshot",
+          "stop_condition": "inventory cannot distinguish unavailable from empty"
+        },
+        {
+          "task_id": "S2-T2",
+          "outputs": [
+            "condition_engine",
+            "coverage_snapshot"
+          ],
+          "rollback": "revert condition engine and preserve prior snapshot",
+          "stop_condition": "blind false-green fixture passes as healthy"
+        },
+        {
+          "task_id": "S3-T2",
+          "outputs": [
+            "frontend_views",
+            "terminology_dictionary"
+          ],
+          "rollback": "restore previous static assets",
+          "stop_condition": "UNKNOWN or STALE can render as healthy"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-001",
+          "scenario": "Source inventory API returns empty while last credible inventory is non-empty.",
+          "expected": "Coverage becomes UNKNOWN or DEGRADED; last-known-good remains visibly stale."
+        },
+        {
+          "fixture_id": "BF-002",
+          "scenario": "A healthy runtime unit exists but is absent from declared inventory.",
+          "expected": "DEPLOYED_UNREGISTERED is displayed and portfolio coverage is not healthy."
+        }
+      ],
+      "artifacts": [
+        "condition_engine",
+        "coverage_snapshot",
+        "frontend_views",
+        "inventory_adapters",
+        "stable_entity_ids",
+        "terminology_dictionary"
+      ]
+    },
+    {
+      "requirement_id": "FE-003",
+      "domain": "frontend",
+      "requirement": "Architecture, capability, evidence and provenance views derive from one canonical snapshot.",
+      "baseline": "Existing graph and status data are separate projections with partial overlap.",
+      "target": "All four views expose the same entity IDs and observed revision.",
+      "input": "canonical snapshot fixture",
+      "oracle": "cross-view entity and revision equality",
+      "threshold": "100 percent of displayed entities resolve to one canonical ID",
+      "evidence": [
+        "cross-view consistency report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S2-T3",
+          "outputs": [
+            "capability_registry",
+            "evidence_lease",
+            "provenance_snapshot"
+          ],
+          "rollback": "revert derived views; authority records remain unchanged",
+          "stop_condition": "evidence cannot bind current subject and contract"
+        },
+        {
+          "task_id": "S2-T4",
+          "outputs": [
+            "business_matrix",
+            "architecture_graph"
+          ],
+          "rollback": "remove generated projections",
+          "stop_condition": "graph shrink or empty result without explicit source failure"
+        },
+        {
+          "task_id": "S3-T2",
+          "outputs": [
+            "frontend_views",
+            "terminology_dictionary"
+          ],
+          "rollback": "restore previous static assets",
+          "stop_condition": "UNKNOWN or STALE can render as healthy"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "architecture_graph",
+        "business_matrix",
+        "capability_registry",
+        "evidence_lease",
+        "frontend_views",
+        "provenance_snapshot",
+        "terminology_dictionary"
+      ]
+    },
+    {
+      "requirement_id": "FE-004",
+      "domain": "frontend",
+      "requirement": "Desktop, mobile, keyboard, reduced-motion and dark-mode paths remain usable.",
+      "baseline": "No frozen status-specific cross-viewport acceptance suite.",
+      "target": "No critical a11y violation or unintended horizontal overflow.",
+      "input": "1440x900 and 390x844, keyboard-only, reduced-motion and dark mode",
+      "oracle": "Playwright, accessibility tree and browser logs",
+      "threshold": "zero critical violations, zero uncaught console errors, zero unintended overflow",
+      "evidence": [
+        "screenshots, trace and accessibility report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S3-T3",
+          "outputs": [
+            "frontend_test_suite"
+          ],
+          "rollback": "remove test-only artifacts",
+          "stop_condition": "critical accessibility or seeded execution failure remains"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-017",
+          "scenario": "Unknown and recovery views are used at mobile width with keyboard and reduced motion.",
+          "expected": "No critical accessibility violation, unintended overflow or inaccessible status detail."
+        }
+      ],
+      "artifacts": [
+        "frontend_test_suite"
+      ]
+    },
+    {
+      "requirement_id": "FE-005",
+      "domain": "frontend",
+      "requirement": "Dynamic fields and URLs cannot execute injected content.",
+      "baseline": "Admin/private data rendering requires a unified safe-rendering contract.",
+      "target": "Seeded HTML, JavaScript, URL-scheme and Unicode-confusable payloads remain inert.",
+      "input": "blind XSS and URL fixtures",
+      "oracle": "DOM mutation and network observation",
+      "threshold": "zero script execution and zero non-allowlisted navigation",
+      "evidence": [
+        "Playwright trace and CSP report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S3-T1",
+          "outputs": [
+            "admin_auth_patch",
+            "admin_api_contract",
+            "safe_renderer"
+          ],
+          "rollback": "restore previous admin image and configuration",
+          "stop_condition": "owner access cannot be preserved or negative JWT fixture is accepted"
+        },
+        {
+          "task_id": "S3-T3",
+          "outputs": [
+            "frontend_test_suite"
+          ],
+          "rollback": "remove test-only artifacts",
+          "stop_condition": "critical accessibility or seeded execution failure remains"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-006",
+          "scenario": "Private repository name, URL and note contain script, event handler and javascript URL payloads.",
+          "expected": "Payload remains inert and no non-allowlisted request is made."
+        }
+      ],
+      "artifacts": [
+        "admin_api_contract",
+        "admin_auth_patch",
+        "frontend_test_suite",
+        "safe_renderer"
+      ]
+    },
+    {
+      "requirement_id": "BE-001",
+      "domain": "backend",
+      "requirement": "Cloudflare Access identity is verified by signature, issuer, audience, expiry and owner policy.",
+      "baseline": "Current public code does not expose a frozen full negative JWT test matrix.",
+      "target": "Only the intended identity and application token are accepted.",
+      "input": "valid, expired, wrong issuer, wrong audience, wrong user and malformed tokens",
+      "oracle": "HTTP contract tests",
+      "threshold": "valid fixture accepted; every negative fixture rejected",
+      "evidence": [
+        "request/response matrix without raw token values"
+      ],
+      "tasks": [
+        {
+          "task_id": "S3-T1",
+          "outputs": [
+            "admin_auth_patch",
+            "admin_api_contract",
+            "safe_renderer"
+          ],
+          "rollback": "restore previous admin image and configuration",
+          "stop_condition": "owner access cannot be preserved or negative JWT fixture is accepted"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-005",
+          "scenario": "JWT has a valid signature but wrong issuer, audience or owner identity.",
+          "expected": "Request is rejected without leaking token or identity details."
+        }
+      ],
+      "artifacts": [
+        "admin_api_contract",
+        "admin_auth_patch",
+        "safe_renderer"
+      ]
+    },
+    {
+      "requirement_id": "BE-002",
+      "domain": "backend",
+      "requirement": "Admin mutations are schema-validated, revision-checked and idempotent.",
+      "baseline": "File-level locking does not fully define cross-process revision and replay behavior.",
+      "target": "Duplicate commands do not duplicate facts; stale revisions cannot overwrite newer state.",
+      "input": "duplicate, concurrent and out-of-order commands",
+      "oracle": "transaction and replay fixture",
+      "threshold": "one committed fact per idempotency key; stale write rejected",
+      "evidence": [
+        "journal/outbox state report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T1",
+          "outputs": [
+            "runtime_schema",
+            "migration",
+            "repository_adapter"
+          ],
+          "rollback": "restore prior schema and replay accepted authority facts",
+          "stop_condition": "destructive migration without verified recovery"
+        },
+        {
+          "task_id": "S3-T1",
+          "outputs": [
+            "admin_auth_patch",
+            "admin_api_contract",
+            "safe_renderer"
+          ],
+          "rollback": "restore previous admin image and configuration",
+          "stop_condition": "owner access cannot be preserved or negative JWT fixture is accepted"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-007",
+          "scenario": "Duplicate idempotency key and stale expected revision arrive concurrently.",
+          "expected": "Exactly one fact commits; stale write is rejected; projection remains consistent."
+        }
+      ],
+      "artifacts": [
+        "admin_api_contract",
+        "admin_auth_patch",
+        "migration",
+        "repository_adapter",
+        "runtime_schema",
+        "safe_renderer"
+      ]
+    },
+    {
+      "requirement_id": "BE-003",
+      "domain": "backend",
+      "requirement": "Runtime journal and outbox commit atomically with the accepted mutation.",
+      "baseline": "Current JSON projection is not the required long-term authority path.",
+      "target": "Fault at any transaction point leaves either a complete commit or no commit.",
+      "input": "fault injection at each transaction boundary",
+      "oracle": "SQLite integrity, row set and outbox comparison",
+      "threshold": "zero partial accepted mutations",
+      "evidence": [
+        "fault-injection report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T1",
+          "outputs": [
+            "runtime_schema",
+            "migration",
+            "repository_adapter"
+          ],
+          "rollback": "restore prior schema and replay accepted authority facts",
+          "stop_condition": "destructive migration without verified recovery"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-007",
+          "scenario": "Duplicate idempotency key and stale expected revision arrive concurrently.",
+          "expected": "Exactly one fact commits; stale write is rejected; projection remains consistent."
+        },
+        {
+          "fixture_id": "BF-008",
+          "scenario": "Process fails between accepted mutation, journal and outbox writes.",
+          "expected": "No partial accepted state exists after restart."
+        }
+      ],
+      "artifacts": [
+        "migration",
+        "repository_adapter",
+        "runtime_schema"
+      ]
+    },
+    {
+      "requirement_id": "BE-004",
+      "domain": "backend",
+      "requirement": "Public and private projections use explicit allowlists and fail closed.",
+      "baseline": "Existing privacy filtering is distributed across collectors and rendering.",
+      "target": "Unknown fields never enter the public snapshot.",
+      "input": "seeded private repo names, paths, PII, prompts and secret-like values",
+      "oracle": "recursive public snapshot scan",
+      "threshold": "zero seeded private values and zero undeclared fields",
+      "evidence": [
+        "redaction and schema report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S3-T1",
+          "outputs": [
+            "admin_auth_patch",
+            "admin_api_contract",
+            "safe_renderer"
+          ],
+          "rollback": "restore previous admin image and configuration",
+          "stop_condition": "owner access cannot be preserved or negative JWT fixture is accepted"
+        },
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-006",
+          "scenario": "Private repository name, URL and note contain script, event handler and javascript URL payloads.",
+          "expected": "Payload remains inert and no non-allowlisted request is made."
+        },
+        {
+          "fixture_id": "BF-009",
+          "scenario": "Canonical snapshot includes private path, email, prompt, repository name and secret-like field.",
+          "expected": "Public snapshot contains none of the seeded values or unknown fields."
+        }
+      ],
+      "artifacts": [
+        "admin_api_contract",
+        "admin_auth_patch",
+        "policy_test_suite",
+        "safe_renderer"
+      ]
+    },
+    {
+      "requirement_id": "DA-001",
+      "domain": "data",
+      "requirement": "Private-Database remains the only long-term structured authority.",
+      "baseline": "Some mutable status facts currently originate from OVH JSON projections.",
+      "target": "Completed facts sync idempotently to Private-Database; local files remain rebuildable projections.",
+      "input": "accepted admin mutation, release, incident and recovery fixtures",
+      "oracle": "authority record and projection reconstruction comparison",
+      "threshold": "all completed facts represented once in authority; projection rebuild is lossless",
+      "evidence": [
+        "sync manifest and reconstruction report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T1",
+          "outputs": [
+            "runtime_schema",
+            "migration",
+            "repository_adapter"
+          ],
+          "rollback": "restore prior schema and replay accepted authority facts",
+          "stop_condition": "destructive migration without verified recovery"
+        },
+        {
+          "task_id": "S1-T2",
+          "outputs": [
+            "authority_sync_adapter",
+            "outbox_worker",
+            "sync_manifest"
+          ],
+          "rollback": "disable sync adapter and retain unsent outbox",
+          "stop_condition": "authority path conflict or permission denial"
+        },
+        {
+          "task_id": "S1-T3",
+          "outputs": [
+            "migration_report",
+            "compatibility_projection"
+          ],
+          "rollback": "restore prior projection and preserve migration journal",
+          "stop_condition": "record loss, ambiguous authority or checksum mismatch"
+        },
+        {
+          "task_id": "S6-T5",
+          "outputs": [
+            "authority_release_fact",
+            "r2_backup_fact",
+            "oci_backup_fact"
+          ],
+          "rollback": "record failure and preserve outbox without fabricating completion",
+          "stop_condition": "fact or object digest cannot be verified"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "authority_release_fact",
+        "authority_sync_adapter",
+        "compatibility_projection",
+        "migration",
+        "migration_report",
+        "oci_backup_fact",
+        "outbox_worker",
+        "r2_backup_fact",
+        "repository_adapter",
+        "runtime_schema",
+        "sync_manifest"
+      ]
+    },
+    {
+      "requirement_id": "DA-002",
+      "domain": "data",
+      "requirement": "Declared, Source and Runtime inventories reconcile without silent shrink.",
+      "baseline": "Static declarations and dynamic discovery use different coverage semantics.",
+      "target": "Empty or sharply shrinking observation cannot overwrite a credible inventory without an explicit reason.",
+      "input": "empty API, partial API, retired asset, orphan runtime and new repository fixtures",
+      "oracle": "inventory reconciliation state machine",
+      "threshold": "all fixtures produce the expected explicit difference state",
+      "evidence": [
+        "inventory diff report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S2-T1",
+          "outputs": [
+            "inventory_adapters",
+            "stable_entity_ids"
+          ],
+          "rollback": "disable new adapters and retain last-known-good snapshot",
+          "stop_condition": "inventory cannot distinguish unavailable from empty"
+        },
+        {
+          "task_id": "S2-T2",
+          "outputs": [
+            "condition_engine",
+            "coverage_snapshot"
+          ],
+          "rollback": "revert condition engine and preserve prior snapshot",
+          "stop_condition": "blind false-green fixture passes as healthy"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-001",
+          "scenario": "Source inventory API returns empty while last credible inventory is non-empty.",
+          "expected": "Coverage becomes UNKNOWN or DEGRADED; last-known-good remains visibly stale."
+        },
+        {
+          "fixture_id": "BF-002",
+          "scenario": "A healthy runtime unit exists but is absent from declared inventory.",
+          "expected": "DEPLOYED_UNREGISTERED is displayed and portfolio coverage is not healthy."
+        }
+      ],
+      "artifacts": [
+        "condition_engine",
+        "coverage_snapshot",
+        "deterministic_fixture_suite",
+        "inventory_adapters",
+        "stable_entity_ids"
+      ]
+    },
+    {
+      "requirement_id": "DA-003",
+      "domain": "data",
+      "requirement": "Capability evidence expires when its subject, contract, environment or TTL changes.",
+      "baseline": "Path existence and historical evidence can outlive the current implementation.",
+      "target": "Commit, lockfile, contract, artifact, environment and fake-clock mutations invalidate the lease.",
+      "input": "one mutation per invalidation cause",
+      "oracle": "evidence lease evaluator",
+      "threshold": "100 percent of invalidation fixtures become STALE or UNVERIFIED",
+      "evidence": [
+        "lease transition report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T3",
+          "outputs": [
+            "migration_report",
+            "compatibility_projection"
+          ],
+          "rollback": "restore prior projection and preserve migration journal",
+          "stop_condition": "record loss, ambiguous authority or checksum mismatch"
+        },
+        {
+          "task_id": "S2-T3",
+          "outputs": [
+            "capability_registry",
+            "evidence_lease",
+            "provenance_snapshot"
+          ],
+          "rollback": "revert derived views; authority records remain unchanged",
+          "stop_condition": "evidence cannot bind current subject and contract"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-003",
+          "scenario": "Implementation commit or lockfile changes after a passing verification.",
+          "expected": "Evidence lease becomes stale and capability cannot remain VERIFIED_FRESH."
+        }
+      ],
+      "artifacts": [
+        "capability_registry",
+        "compatibility_projection",
+        "deterministic_fixture_suite",
+        "evidence_lease",
+        "migration_report",
+        "provenance_snapshot"
+      ]
+    },
+    {
+      "requirement_id": "DA-004",
+      "domain": "data",
+      "requirement": "R2 stores cold backups and large/private objects; OCI holds an independently recoverable offsite copy.",
+      "baseline": "Public code reflects a legacy GitHub Release and OCI-oriented backup path.",
+      "target": "Object upload, readback, digest, encryption metadata and restore evidence are recorded.",
+      "input": "small deterministic encrypted object set",
+      "oracle": "R2 and OCI readback/decrypt/restore comparison",
+      "threshold": "all restored object digests and expected facts match",
+      "evidence": [
+        "backup and restore manifests"
+      ],
+      "tasks": [
+        {
+          "task_id": "S4-T2",
+          "outputs": [
+            "backup_adapters",
+            "restore_manifest",
+            "retention_policy"
+          ],
+          "rollback": "retain prior backups and disable new deletion path",
+          "stop_condition": "no verified readback or restore digest mismatch"
+        },
+        {
+          "task_id": "S6-T5",
+          "outputs": [
+            "authority_release_fact",
+            "r2_backup_fact",
+            "oci_backup_fact"
+          ],
+          "rollback": "record failure and preserve outbox without fabricating completion",
+          "stop_condition": "fact or object digest cannot be verified"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-012",
+          "scenario": "Backup file is fresh but corrupt, unreadable or uses a missing key.",
+          "expected": "Backup may exist but restore state is not verified and deletion guard remains active."
+        }
+      ],
+      "artifacts": [
+        "authority_release_fact",
+        "backup_adapters",
+        "oci_backup_fact",
+        "r2_backup_fact",
+        "restore_manifest",
+        "retention_policy"
+      ]
+    },
+    {
+      "requirement_id": "DA-005",
+      "domain": "data",
+      "requirement": "No new fact produces no Git commit.",
+      "baseline": "Daily synchronization policy requires explicit empty-change handling.",
+      "target": "Repeated identical sync leaves the authority tree unchanged.",
+      "input": "two identical completed-fact batches",
+      "oracle": "Git tree and commit comparison",
+      "threshold": "second batch creates zero commit and zero object delta",
+      "evidence": [
+        "sync execution record"
+      ],
+      "tasks": [
+        {
+          "task_id": "S1-T2",
+          "outputs": [
+            "authority_sync_adapter",
+            "outbox_worker",
+            "sync_manifest"
+          ],
+          "rollback": "disable sync adapter and retain unsent outbox",
+          "stop_condition": "authority path conflict or permission denial"
+        },
+        {
+          "task_id": "S6-T5",
+          "outputs": [
+            "authority_release_fact",
+            "r2_backup_fact",
+            "oci_backup_fact"
+          ],
+          "rollback": "record failure and preserve outbox without fabricating completion",
+          "stop_condition": "fact or object digest cannot be verified"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-015",
+          "scenario": "The same completed-fact batch is synchronized twice.",
+          "expected": "Second synchronization creates no Git commit or object delta."
+        }
+      ],
+      "artifacts": [
+        "authority_release_fact",
+        "authority_sync_adapter",
+        "oci_backup_fact",
+        "outbox_worker",
+        "r2_backup_fact",
+        "sync_manifest"
+      ]
+    },
+    {
+      "requirement_id": "AR-001",
+      "domain": "architecture",
+      "requirement": "Production dependency graph contains no Agent, model API or chat-session dependency.",
+      "baseline": "Repository rules prohibit these dependencies but require machine enforcement.",
+      "target": "Source, lockfile, config, container and outbound-domain scans all pass.",
+      "input": "clean tree plus seeded forbidden dependency and domain fixtures",
+      "oracle": "static/runtime dependency scanner",
+      "threshold": "clean tree passes; every seeded violation fails",
+      "evidence": [
+        "zero-Agent assurance report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-010",
+          "scenario": "A model SDK, model API domain or runtime Agent command is seeded.",
+          "expected": "Zero-Agent assurance check fails closed."
+        }
+      ],
+      "artifacts": [
+        "policy_test_suite"
+      ]
+    },
+    {
+      "requirement_id": "AR-002",
+      "domain": "architecture",
+      "requirement": "The implementation extends the latest main through semantic reconciliation rather than replacing upstream work.",
+      "baseline": "The repository changes continuously.",
+      "target": "Already-satisfied and upstream-equivalent tasks are skipped; compatible drift is adapted.",
+      "input": "moving-base fixtures with no overlap, equivalent overlap and conflicting overlap",
+      "oracle": "task reconciliation classifier plus frozen acceptance",
+      "threshold": "all fixtures receive the expected state and no equivalent upstream implementation is overwritten",
+      "evidence": [
+        "drift and reconciliation report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S0-T2",
+          "outputs": [
+            "task_reconciliation_report"
+          ],
+          "rollback": "no mutation",
+          "stop_condition": "unclassifiable blocking task"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        },
+        {
+          "task_id": "S6-T1",
+          "outputs": [
+            "candidate_subject",
+            "drift_report"
+          ],
+          "rollback": "discard candidate worktree",
+          "stop_condition": "RED contract conflict or two remediation rounds exhausted"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-013",
+          "scenario": "Main implements the same desired behavior in a different module before task application.",
+          "expected": "Task is UPSTREAM_EQUIVALENT or ALREADY_SATISFIED; upstream implementation is preserved."
+        },
+        {
+          "fixture_id": "BF-014",
+          "scenario": "Main changes authority or permission semantics incompatibly.",
+          "expected": "Only the affected slice stops with CONTRACT_CONFLICT and a minimum decision record."
+        }
+      ],
+      "artifacts": [
+        "candidate_subject",
+        "deterministic_fixture_suite",
+        "drift_report",
+        "task_reconciliation_report"
+      ]
+    },
+    {
+      "requirement_id": "AR-003",
+      "domain": "architecture",
+      "requirement": "Status, GitHub, Private-Database, R2 and OCI failures are isolated.",
+      "baseline": "Collectors already retain some last-known-good data but cross-plane behavior is not frozen.",
+      "target": "Failure of one dependency cannot corrupt authority or stop unrelated monitoring.",
+      "input": "one dependency outage at a time",
+      "oracle": "fault-injection state and data comparison",
+      "threshold": "no authority corruption; unrelated critical path continues; affected state is explicit",
+      "evidence": [
+        "failure isolation report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S2-T4",
+          "outputs": [
+            "business_matrix",
+            "architecture_graph"
+          ],
+          "rollback": "remove generated projections",
+          "stop_condition": "graph shrink or empty result without explicit source failure"
+        },
+        {
+          "task_id": "S4-T3",
+          "outputs": [
+            "operator_commands",
+            "operations_runbook"
+          ],
+          "rollback": "restore prior operator scripts",
+          "stop_condition": "command is destructive on repeat or rollback cannot restore prior release"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        },
+        {
+          "task_id": "S6-T4",
+          "outputs": [
+            "post_deploy_report",
+            "restore_report",
+            "rollback_report"
+          ],
+          "rollback": "execute frozen rollback command",
+          "stop_condition": "core path, privacy, authority or recovery check fails"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-016",
+          "scenario": "GitHub, Private-Database, R2 and OCI fail one at a time.",
+          "expected": "No authority corruption; unrelated monitoring continues; affected state is explicit."
+        }
+      ],
+      "artifacts": [
+        "architecture_graph",
+        "business_matrix",
+        "deterministic_fixture_suite",
+        "operations_runbook",
+        "operator_commands",
+        "post_deploy_report",
+        "restore_report",
+        "rollback_report"
+      ]
+    },
+    {
+      "requirement_id": "AR-004",
+      "domain": "architecture",
+      "requirement": "Third-party workflows, actions, images and reused code are versioned immutably where supported.",
+      "baseline": "Current workflows include mutable cross-repository and major-tag references.",
+      "target": "Approved full SHA/digest/tag and license record exist for each runtime/build dependency.",
+      "input": "dependency and workflow inventory",
+      "oracle": "supply-chain policy scanner",
+      "threshold": "zero unapproved mutable execution dependency",
+      "evidence": [
+        "dependency and license ledger"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T1",
+          "outputs": [
+            "workflow_patch",
+            "dependency_license_record"
+          ],
+          "rollback": "restore prior workflow after preserving evidence",
+          "stop_condition": "required dependency cannot be pinned or licensed acceptably"
+        },
+        {
+          "task_id": "S5-T2",
+          "outputs": [
+            "policy_test_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "seeded violation is not detected"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-018",
+          "scenario": "Workflow uses a floating cross-repository ref or unpinned runtime image.",
+          "expected": "Supply-chain policy fails unless explicitly approved and recorded."
+        }
+      ],
+      "artifacts": [
+        "dependency_license_record",
+        "policy_test_suite",
+        "workflow_patch"
+      ]
+    },
+    {
+      "requirement_id": "OP-001",
+      "domain": "operations",
+      "requirement": "Collection, status generation, self-heal, backup and recovery run on OVH without Agent or local-machine dependency.",
+      "baseline": "Current design uses cron/systemd but runtime facts require Stage-0 confirmation.",
+      "target": "All recurring jobs map to OVH units/timers/cron and expose last success/error.",
+      "input": "read-only runtime inventory",
+      "oracle": "unit, process and scheduler reconciliation",
+      "threshold": "zero required recurring job depends on an Agent, chat or local machine",
+      "evidence": [
+        "runtime inventory report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S0-T1",
+          "outputs": [
+            "execution_context_capture",
+            "integration_base_identity"
+          ],
+          "rollback": "delete isolated capture output only",
+          "stop_condition": "RED drift in authority, permissions or deployment topology"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "execution_context_capture",
+        "integration_base_identity"
+      ]
+    },
+    {
+      "requirement_id": "OP-002",
+      "domain": "operations",
+      "requirement": "Self-heal is singleton, bounded, exact-targeted and reports recovery only after a successful post-probe.",
+      "baseline": "Current shell flow requires stronger action-result semantics.",
+      "target": "Failed restart, cooldown, lock contention and repeated failure are represented truthfully.",
+      "input": "restart success/failure, lock contention, cooldown and no-progress fixtures",
+      "oracle": "self-heal state machine",
+      "threshold": "zero false RECOVERED state; retry budget never exceeded",
+      "evidence": [
+        "self-heal fixture report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S4-T1",
+          "outputs": [
+            "self_heal_state_machine",
+            "self_heal_fixtures"
+          ],
+          "rollback": "restore prior self-heal script and disable new timer",
+          "stop_condition": "false RECOVERED state or unbounded retry"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-011",
+          "scenario": "Restart command fails or post-probe remains unhealthy.",
+          "expected": "State is ACTION_FAILED or FAILED, never RECOVERED."
+        }
+      ],
+      "artifacts": [
+        "deterministic_fixture_suite",
+        "self_heal_fixtures",
+        "self_heal_state_machine"
+      ]
+    },
+    {
+      "requirement_id": "OP-003",
+      "domain": "operations",
+      "requirement": "Backup existence and restore verification are separate conditions.",
+      "baseline": "File age can be mistaken for recoverability.",
+      "target": "Deletion or green recovery requires fresh offsite readback and deterministic restore evidence.",
+      "input": "fresh, stale, corrupt, missing-key and offsite-unavailable fixtures",
+      "oracle": "fake clock, decrypt, digest and reconstruction",
+      "threshold": "only the fully verified fixture is RESTORE_VERIFIED",
+      "evidence": [
+        "restore lease report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S4-T2",
+          "outputs": [
+            "backup_adapters",
+            "restore_manifest",
+            "retention_policy"
+          ],
+          "rollback": "retain prior backups and disable new deletion path",
+          "stop_condition": "no verified readback or restore digest mismatch"
+        },
+        {
+          "task_id": "S5-T3",
+          "outputs": [
+            "deterministic_fixture_suite"
+          ],
+          "rollback": "test-only change",
+          "stop_condition": "critical failure path has no deterministic oracle"
+        },
+        {
+          "task_id": "S6-T4",
+          "outputs": [
+            "post_deploy_report",
+            "restore_report",
+            "rollback_report"
+          ],
+          "rollback": "execute frozen rollback command",
+          "stop_condition": "core path, privacy, authority or recovery check fails"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-012",
+          "scenario": "Backup file is fresh but corrupt, unreadable or uses a missing key.",
+          "expected": "Backup may exist but restore state is not verified and deletion guard remains active."
+        }
+      ],
+      "artifacts": [
+        "backup_adapters",
+        "deterministic_fixture_suite",
+        "post_deploy_report",
+        "restore_manifest",
+        "restore_report",
+        "retention_policy",
+        "rollback_report"
+      ]
+    },
+    {
+      "requirement_id": "OP-004",
+      "domain": "operations",
+      "requirement": "Start, stop, doctor, backup, restore and rollback commands are idempotent and immediately testable.",
+      "baseline": "Existing scripts are not one frozen cross-domain operator contract.",
+      "target": "Repeated execution has the same accepted end state and no destructive duplicate effect.",
+      "input": "two consecutive runs plus injected partial failure",
+      "oracle": "command exit, state and artifact comparison",
+      "threshold": "second run is no-op or safe convergence; partial failure is recoverable",
+      "evidence": [
+        "operator command report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S4-T3",
+          "outputs": [
+            "operator_commands",
+            "operations_runbook"
+          ],
+          "rollback": "restore prior operator scripts",
+          "stop_condition": "command is destructive on repeat or rollback cannot restore prior release"
+        },
+        {
+          "task_id": "S6-T4",
+          "outputs": [
+            "post_deploy_report",
+            "restore_report",
+            "rollback_report"
+          ],
+          "rollback": "execute frozen rollback command",
+          "stop_condition": "core path, privacy, authority or recovery check fails"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "operations_runbook",
+        "operator_commands",
+        "post_deploy_report",
+        "restore_report",
+        "rollback_report"
+      ]
+    },
+    {
+      "requirement_id": "GO-001",
+      "domain": "governance",
+      "requirement": "Requirement, task, test, oracle, evidence and artifact traceability is complete.",
+      "baseline": "Existing governance assets are distributed across repositories and views.",
+      "target": "Every blocking requirement resolves through one acyclic execution path.",
+      "input": "acceptance contract, task DAG, fixture catalog and artifact manifest",
+      "oracle": "traceability checker",
+      "threshold": "100 percent of blocking requirements mapped; zero orphan critical task",
+      "evidence": [
+        "traceability matrix"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T4",
+          "outputs": [
+            "ci_jobs",
+            "package_finalizer",
+            "traceability_checker"
+          ],
+          "rollback": "restore prior CI and retain reports",
+          "stop_condition": "DAG, path, syntax or traceability check cannot fail closed"
+        },
+        {
+          "task_id": "S6-T2",
+          "outputs": [
+            "verifier_verdict",
+            "evidence_bundle"
+          ],
+          "rollback": "no production mutation",
+          "stop_condition": "verdict is not PASS"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "ci_jobs",
+        "evidence_bundle",
+        "package_finalizer",
+        "traceability_checker",
+        "verifier_verdict"
+      ]
+    },
+    {
+      "requirement_id": "GO-002",
+      "domain": "governance",
+      "requirement": "The taskpack reconciles against latest main without freezing repository development.",
+      "baseline": "A fixed research snapshot becomes stale as upstream work continues.",
+      "target": "Integration base, candidate and deployment subjects are recorded separately.",
+      "input": "moving-base fixture and execution manifest",
+      "oracle": "subject identity checker",
+      "threshold": "all formal evidence binds candidate or deployment subject, never an unqualified moving main",
+      "evidence": [
+        "subject manifest"
+      ],
+      "tasks": [
+        {
+          "task_id": "S0-T1",
+          "outputs": [
+            "execution_context_capture",
+            "integration_base_identity"
+          ],
+          "rollback": "delete isolated capture output only",
+          "stop_condition": "RED drift in authority, permissions or deployment topology"
+        },
+        {
+          "task_id": "S0-T2",
+          "outputs": [
+            "task_reconciliation_report"
+          ],
+          "rollback": "no mutation",
+          "stop_condition": "unclassifiable blocking task"
+        },
+        {
+          "task_id": "S0-T3",
+          "outputs": [
+            "isolated_worktree",
+            "execution_manifest"
+          ],
+          "rollback": "remove worktree and branch",
+          "stop_condition": "dirty or unverifiable integration base"
+        },
+        {
+          "task_id": "S2-T3",
+          "outputs": [
+            "capability_registry",
+            "evidence_lease",
+            "provenance_snapshot"
+          ],
+          "rollback": "revert derived views; authority records remain unchanged",
+          "stop_condition": "evidence cannot bind current subject and contract"
+        },
+        {
+          "task_id": "S6-T1",
+          "outputs": [
+            "candidate_subject",
+            "drift_report"
+          ],
+          "rollback": "discard candidate worktree",
+          "stop_condition": "RED contract conflict or two remediation rounds exhausted"
+        },
+        {
+          "task_id": "S6-T3",
+          "outputs": [
+            "deployment_subject",
+            "release_record"
+          ],
+          "rollback": "deploy previous accepted artifact",
+          "stop_condition": "deployed digest differs from accepted candidate artifact"
+        }
+      ],
+      "fixtures": [
+        {
+          "fixture_id": "BF-004",
+          "scenario": "Deployed artifact digest differs from candidate evidence.",
+          "expected": "DEPLOYMENT_DRIFT and release stop."
+        },
+        {
+          "fixture_id": "BF-013",
+          "scenario": "Main implements the same desired behavior in a different module before task application.",
+          "expected": "Task is UPSTREAM_EQUIVALENT or ALREADY_SATISFIED; upstream implementation is preserved."
+        },
+        {
+          "fixture_id": "BF-014",
+          "scenario": "Main changes authority or permission semantics incompatibly.",
+          "expected": "Only the affected slice stops with CONTRACT_CONFLICT and a minimum decision record."
+        }
+      ],
+      "artifacts": [
+        "candidate_subject",
+        "capability_registry",
+        "deployment_subject",
+        "drift_report",
+        "evidence_lease",
+        "execution_context_capture",
+        "execution_manifest",
+        "integration_base_identity",
+        "isolated_worktree",
+        "provenance_snapshot",
+        "release_record",
+        "task_reconciliation_report"
+      ]
+    },
+    {
+      "requirement_id": "GO-003",
+      "domain": "governance",
+      "requirement": "Codex and the development Agent remain last-mile executors.",
+      "baseline": "Without a frozen contract, an Agent could restart research or expand scope.",
+      "target": "Execution contract forbids market research, new version creation, acceptance expansion and complex re-review.",
+      "input": "taskpack instruction and execution log",
+      "oracle": "scope and command audit",
+      "threshold": "zero unapproved scope, version or acceptance mutation",
+      "evidence": [
+        "execution compliance report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T1",
+          "outputs": [
+            "workflow_patch",
+            "dependency_license_record"
+          ],
+          "rollback": "restore prior workflow after preserving evidence",
+          "stop_condition": "required dependency cannot be pinned or licensed acceptably"
+        },
+        {
+          "task_id": "S6-T3",
+          "outputs": [
+            "deployment_subject",
+            "release_record"
+          ],
+          "rollback": "deploy previous accepted artifact",
+          "stop_condition": "deployed digest differs from accepted candidate artifact"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "dependency_license_record",
+        "deployment_subject",
+        "release_record",
+        "workflow_patch"
+      ]
+    },
+    {
+      "requirement_id": "GO-004",
+      "domain": "governance",
+      "requirement": "Final package passes deterministic content, syntax, path, DAG and hash validation.",
+      "baseline": "No final package is authorized yet.",
+      "target": "One clean ZIP contains no prior version, cache, unresolved conflict or placeholder.",
+      "input": "final candidate package",
+      "oracle": "package finalizer",
+      "threshold": "all finalizer checks PASS",
+      "evidence": [
+        "signed/hash manifest and finalizer report"
+      ],
+      "tasks": [
+        {
+          "task_id": "S5-T4",
+          "outputs": [
+            "ci_jobs",
+            "package_finalizer",
+            "traceability_checker"
+          ],
+          "rollback": "restore prior CI and retain reports",
+          "stop_condition": "DAG, path, syntax or traceability check cannot fail closed"
+        },
+        {
+          "task_id": "S6-T2",
+          "outputs": [
+            "verifier_verdict",
+            "evidence_bundle"
+          ],
+          "rollback": "no production mutation",
+          "stop_condition": "verdict is not PASS"
+        }
+      ],
+      "fixtures": [],
+      "artifacts": [
+        "ci_jobs",
+        "evidence_bundle",
+        "package_finalizer",
+        "traceability_checker",
+        "verifier_verdict"
+      ]
+    }
+  ]
+}

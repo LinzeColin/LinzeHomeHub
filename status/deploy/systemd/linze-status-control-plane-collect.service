@@ -1,0 +1,15 @@
+[Unit]
+Description=Linze status canonical control-plane collector
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/srv/linze/apps/status/.secrets/control-plane.env
+Environment=PYTHONPATH=/srv/linze/apps/status
+WorkingDirectory=/srv/linze/apps
+ExecStart=/usr/bin/python3 -m controlplane collect --repo /srv/linze/apps
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0027
+TimeoutStartSec=120
