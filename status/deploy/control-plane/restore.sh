@@ -96,9 +96,13 @@ openssl enc -d -aes-256-cbc -pbkdf2 -in "$ENC" -out "$BUNDLE" \
   -pass file:"$STATUS_BACKUP_ENCRYPTION_KEY_FILE" || {
   write_status false "解密失败" ""; echo '解密失败' >&2; exit 74; }
 
-git bundle verify "$BUNDLE" >/dev/null || {
-  write_status false "git bundle 校验失败" ""; echo 'bundle 校验失败' >&2; exit 74; }
+# ★ 先建仓再 verify:`git bundle verify` 必须在一个仓的上下文里跑,
+#   否则报 "need a repository to verify a bundle"。原来 verify 在 init 之前、
+#   又没有 -C,于是恢复链每次都停在这一步 —— backup.sh 里是同一个 bug,
+#   两处都踩了,说明这不是笔误而是我对这个命令的理解一开始就错了。
 git init --bare "$TMP/recovered.git" >/dev/null
+git -C "$TMP/recovered.git" bundle verify "$BUNDLE" >/dev/null || {
+  write_status false "git bundle 校验失败" ""; echo 'bundle 校验失败' >&2; exit 74; }
 git -C "$TMP/recovered.git" fetch "$BUNDLE" '+refs/*:refs/*' >/dev/null
 git -C "$TMP/recovered.git" fsck --full --strict >/dev/null || {
   write_status false "fsck 失败" ""; echo 'fsck 失败' >&2; exit 74; }
