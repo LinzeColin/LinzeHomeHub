@@ -96,10 +96,29 @@ if [[ -z "$RELEASE_ID" ]]; then
     "https://api.github.com/repos/$BACKUP_REPO/releases" \
     | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')"
 fi
-ASSET_ID="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN_VALUE" \
-  -H 'Content-Type: application/octet-stream' --data-binary @"$LOCAL" \
+# ★ 必须**流式**上传,不能用 --data-binary @file:那个选项会把整个文件读进内存,
+#   Private-Database 的加密档 1.2 GB,在这台 VPS 上直接
+#   `curl: option --data-binary: out of memory`。
+#   早先那次 BACKUP_READBACK_PASS 是拿小对象测的,所以没暴露 ——
+#   「小样本过了」不等于「真实体积下能跑」,这条路径此前从未在真实大小上验证过。
+#   -T 从磁盘流式读,内存占用与文件大小无关;GitHub 的上传端点要 POST,
+#   所以配 -X POST 显式指定方法。
+TMP_ASSET="$(mktemp "$TMP_ROOT/asset.XXXXXX")"
+trap 'rm -f "$TMP_META" "$PLAIN" "$LOCAL" "$READBACK" "$TMP_ASSET"' EXIT
+UPLOAD_CODE="$(curl -sS -o "$TMP_ASSET" -w '%{http_code}' \
+  -X POST -T "$LOCAL" \
+  -H "Authorization: Bearer $GH_TOKEN_VALUE" \
+  -H 'Content-Type: application/octet-stream' \
   "https://uploads.github.com/repos/$BACKUP_REPO/releases/$RELEASE_ID/assets?name=$OBJECT" \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')"
+  2>/dev/null || echo '000')"
+# ★ 先判「上传成没成」再解析 JSON。第一版把两件事挤在一条管道里,
+#   上传一失败,python 就对着空输入抛 JSONDecodeError —— 仍然是 fail-closed,
+#   但看的人根本不知道发生了什么。守卫必须自己把话说清楚。
+if [[ ! "$UPLOAD_CODE" =~ ^2 ]]; then
+  echo "上传备份对象失败(HTTP $UPLOAD_CODE):$(head -c 200 "$TMP_ASSET")" >&2
+  exit 74
+fi
+ASSET_ID="$(python3 -c 'import sys,json;print(json.load(open(sys.argv[1]))["id"])' "$TMP_ASSET")"
 curl -fsSL -H "Authorization: Bearer $GH_TOKEN_VALUE" \
   -H 'Accept: application/octet-stream' \
   "https://api.github.com/repos/$BACKUP_REPO/releases/assets/$ASSET_ID" -o "$READBACK"
