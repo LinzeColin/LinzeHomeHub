@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "record_id": "chatgpt-status-acceptance-v0.0.0.1-2026-07-28",
+  "generated_at": "2026-07-28T10:26:13+00:00",
+  "public_safe": true,
+  "page_runtime": {
+    "agent_dependency": false,
+    "llm_calls": 0,
+    "token_consumption": 0,
+    "macos_launchd": false,
+    "description": "验收页只读取静态 JSON，不调用任何模型或 Agent。"
+  },
+  "reviewer": {
+    "display_name": "ChatGPT",
+    "provider": "OpenAI",
+    "model": "GPT-5.6 Pro",
+    "role": "研究、工程与正式验收复审",
+    "review_date": "2026-07-28",
+    "is_human": false,
+    "is_runtime_component": false,
+    "review_mode": [
+      "任务包本地确定性校验",
+      "公开 GitHub 仓库只读复验",
+      "公开 CI 状态观察"
+    ],
+    "limitations": [
+      "本次没有 authenticated 读取 Private-Database",
+      "本次没有 authenticated 登录 OVH",
+      "本次没有 authenticated 读取 Cloudflare R2",
+      "本次没有 authenticated 读取或恢复 OCI",
+      "因此私有运行证据保持 UNVERIFIED，未用开发 Agent 自述代替独立证据"
+    ]
+  },
+  "subject": {
+    "product": "status.linzezhang.com",
+    "repository": "LinzeColin/LinzeHomeHub",
+    "taskpack_version": "v0.0.0.1",
+    "taskpack_sha256": "996664cc4cbe3d0f3d189d9d5ff19633f86669a6618461076fa42a4b7af4e5dc",
+    "review_package_sha256": "cab3940653576e8d04531aeca7a10234a5e5d82c42a2a89b20326c5ab3f859c1",
+    "documented_candidate_commit": "5840ccd244518d5dd403ebb45014f41f6f620113",
+    "documented_tree": "ca890623561226404d27a79fb76a80d9d0d89794",
+    "documented_artifact_sha256": "b68af28ec99838467ca8fa7dc5d454382d6c92d80ba4ea8d1a598165294e3be6",
+    "moving_main_policy": "main 可以持续推进；正式证据必须绑定不可变 candidate 与 deployment subject。"
+  },
+  "verdict": {
+    "status": "FAIL",
+    "product_complete": false,
+    "can_claim_fully_accepted": false,
+    "summary": "代码、CI、候选部署、主通道恢复和回滚已有真实成果，但原始 R2 冷备与可独立恢复 OCI 的硬性合同没有完成，因此不能判定全部做完。",
+    "pass_rule": "只有全部 P0 阻断关闭、六域均 PASS、candidate 与 deployment 制品一致、R2/OCI 恢复证据真实可重放时，才可改为 PASS。"
+  },
+  "domain_verdicts": [
+    {
+      "domain": "前端",
+      "status": "PASS_WITH_RISKS",
+      "reason": "Browser CI 有证据；仍需在验收页持续展示证据与限制。"
+    },
+    {
+      "domain": "后端",
+      "status": "PASS_WITH_RISKS",
+      "reason": "Admin、JWT、SQLite/Outbox 已落库并有测试；私有运行态未独立核验。"
+    },
+    {
+      "domain": "数据",
+      "status": "FAIL",
+      "reason": "R2 缺失，OCI 不能独立 readback/restore。"
+    },
+    {
+      "domain": "架构",
+      "status": "FAIL",
+      "reason": "实际备份架构偏离冻结合同，且未找到可核验 Owner 降级授权。"
+    },
+    {
+      "domain": "运维",
+      "status": "FAIL",
+      "reason": "主通道恢复与回滚有证据，但异地恢复硬门失败。"
+    },
+    {
+      "domain": "治理",
+      "status": "PASS_WITH_RISKS",
+      "reason": "任务包、DAG、CI 完整；README 与验收修订仍有漂移风险。"
+    }
+  ],
+  "accepted": [
+    "任务包 ZIP、Manifest、SHA-256、语法、DAG 和 Blind Fixture Catalog 的机械完整性",
+    "TaskPack v0.0.0.1 的主要实现已经进入公开仓",
+    "公开 status-control-plane deterministic/browser CI 有成功记录",
+    "仓库记录了候选部署、HTTP smoke、主通道恢复与 rollback 证据"
+  ],
+  "blocking_findings": [
+    {
+      "id": "P0-001",
+      "title": "Cloudflare R2 冷备没有按原合同实施",
+      "closure": "实现加密上传、readback、digest、retention/lock 与恢复证据。"
+    },
+    {
+      "id": "P0-002",
+      "title": "OCI 当前是单向投递，不能独立回读和恢复",
+      "closure": "建立可读回、可解密、可恢复的 OCI 异地副本并真实执行恢复 fixture。"
+    },
+    {
+      "id": "P0-003",
+      "title": "验收降级缺少可核验的 Owner 明确授权",
+      "closure": "继续执行原合同；除非 Owner 在明确上下文中授权变更，不得由仓库文档自行降级。"
+    },
+    {
+      "id": "P0-004",
+      "title": "Private-Database、OVH、R2、OCI 的 authenticated 证据包未闭环",
+      "closure": "生成绑定同一 candidate/deployment subject 的私有证据摘要、对象 digest、restore 和 runtime 状态。"
+    }
+  ],
+  "owner_acceptance_steps": [
+    "打开 status.linzezhang.com，在顶栏看见“验收 · FAIL”入口；点击后进入 /acceptance.html。",
+    "确认页面显示 ChatGPT、OpenAI、GPT-5.6 Pro、验收日期、TaskPack v0.0.0.1 和完整 SHA-256。",
+    "确认当前裁决明确为 FAIL/未做完；UNKNOWN、UNVERIFIED 或 PASS_WITH_RISKS 不得被显示成绿色 PASS。",
+    "逐项查看六域状态与 P0 阻断；任何一个 P0 未关闭都不能验收通过。",
+    "开发 Agent 修复后，要求它更新同一 JSON、绑定最新 candidate/deployment digest，并提供 R2 readback、OCI restore、Private-Database 和 OVH 证据。",
+    "重新打开页面；只有裁决变为 PASS、六域全部 PASS、阻断为 0、证据更新时间与制品一致，才确认做完。"
+  ],
+  "developer_commands": [
+    "pip install -r tests/status-control-plane/requirements.txt",
+    "python3 tests/status-control-plane/run_all.py --repo .",
+    "python3 tests/status-control-plane/run_all.py --repo . --browser",
+    "bash -n status/deploy/control-plane/*.sh",
+    "python3 tools/verify_patch.py --repo /path/to/LinzeHomeHub"
+  ],
+  "evidence_links": [
+    {
+      "label": "公开目标仓库",
+      "url": "https://github.com/LinzeColin/LinzeHomeHub"
+    },
+    {
+      "label": "status 源码目录",
+      "url": "https://github.com/LinzeColin/LinzeHomeHub/tree/main/status"
+    },
+    {
+      "label": "status-control-plane Workflow",
+      "url": "https://github.com/LinzeColin/LinzeHomeHub/actions/workflows/status-control-plane.yml"
+    }
+  ],
+  "update_contract": {
+    "source_file": "status/data/acceptance/chatgpt_latest.json",
+    "truth_rule": "该文件只展示正式验收结论，不从页面猜测 PASS。",
+    "unknown_rule": "文件缺失、解析失败或证据过期时页面必须显示 UNKNOWN，不得隐藏入口或沿用绿色。",
+    "security_rule": "只允许公开安全字段；禁止私有仓名、IP、路径、Prompt、PII、token、secret 和原始 transcript。",
+    "change_rule": "每次正式验收更新 record_id、generated_at、subject、verdict、domain_verdicts、blocking_findings 与 evidence。"
+  }
+}
