@@ -1,7 +1,7 @@
 """验收中心的公开面隐私守卫。
 
-补丁包在 `status/data/acceptance/` 下新增了一个**会被公网直接访问**的 JSON
-(https://status.linzezhang.com/data/acceptance/chatgpt_latest.json)。
+补丁包在 `status/web/acceptance/` 下新增了一个**会被公网直接访问**的 JSON
+(https://status.linzezhang.com/acceptance/chatgpt_latest.json)。
 它自己带了一个 `"public_safe": true` 字段 —— 但那只是**声明**,
 仓里原有的隐私守卫覆盖的是快照投影路径,**够不到这个新路径**。
 
@@ -23,7 +23,7 @@ import unittest
 from test_support import locate
 
 REPO, _, _ = locate()
-PUBLIC_ACCEPTANCE_DIR = REPO / "status" / "data" / "acceptance"
+PUBLIC_ACCEPTANCE_DIR = REPO / "status" / "web" / "acceptance"
 
 # 只存在于私有面的东西 —— 出现在公开目录里即违规
 FORBIDDEN = [
