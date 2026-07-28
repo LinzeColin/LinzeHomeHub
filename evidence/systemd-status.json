@@ -34,6 +34,14 @@
     "status-agent-governance-project.service",
     "status-agent-governance-project.timer"
   ],
+  "periodicity_proved": {
+    "conclusion": "timer 真的在周期触发 —— 「enabled」不等于「在跑」,这里用产物变化证明了在跑",
+    "configured": "OnUnitActiveSec=5min",
+    "delta_seconds": 301,
+    "first_fire_mtime": 1785281855,
+    "how": "连续观察产物 mtime,而不是只看 systemctl is-active",
+    "second_fire_mtime": 1785282156
+  },
   "schema_version": 1,
   "state": "PASS",
   "task_id": "T04-04",
