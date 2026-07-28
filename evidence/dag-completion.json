@@ -1,0 +1,50 @@
+{
+  "corrected_earlier_claim": "我先前称 Private-Database 写入不可逆、需另行授权 —— 错的。客户端有 delete,写入可逆,正落在任务包授权的 reversible write-readback 范围内。据此执行了 T03-03 并通过。",
+  "executed_to": "S5-T04(冻结 Verifier)。S6 被冻结合同自己拦住,不是被略过。",
+  "frozen_verdict": {
+    "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+    "reason": "ORACLE_INCOMPLETE",
+    "subject_commit": "1e5257052fa9e688a8292fb962e777deb6cd41bc",
+    "verdict": "BLOCKED",
+    "verdict_id": "gate:1b8ab1463f9b29a77b57a80b02875c66"
+  },
+  "nodes": {
+    "S0": "T00-01..05 全执行(T00-05 = ENVIRONMENT_BLOCKED,实测)",
+    "S1": "T01-01..04 全执行,全通过",
+    "S2": "T02-01/04/05 通过;T02-03 已安装并实测;T02-02 BLOCKED(codex CLI 不在 PATH,片段自述的 codex --version 核验做不了,config.toml 无 [hooks] 段)",
+    "S3": "T03-01/02/03 执行(gate=BLOCKED、盲测 0 false PASS、权威 readback 逐字节一致);T03-04/05 ENVIRONMENT_BLOCKED;T03-06 在输入不全时正确拒绝生成清单",
+    "S4": "T04-01/02 通过;T04-03 仓内无该脚本且需生产 HTTP;T04-04 需 OVH systemd",
+    "S5": "T05-01/02/03/04 全执行;冻结 Verifier = BLOCKED / ORACLE_INCOMPLETE",
+    "S6": "未执行 —— BUILD_AGENT_INSTRUCTIONS「全部 Oracle PASS 后才 commit/push/deploy」;且 OVH SSH 三把本机密钥全部 Permission denied,部署在物理上也做不到"
+  },
+  "oracle_tally": {
+    "FAIL": 0,
+    "NOT_RUN": 2,
+    "PASS": 10,
+    "UNKNOWN": 3
+  },
+  "oracles": {
+    "OR-AUTHORITY": "PASS",
+    "OR-CAPTURE": "UNKNOWN",
+    "OR-CHINESE-UI": "PASS",
+    "OR-DEPLOY-ASSET": "NOT_RUN",
+    "OR-FALSE-PASS": "UNKNOWN",
+    "OR-NO-AUTO-SKILL": "PASS",
+    "OR-NO-CLONE": "PASS",
+    "OR-NO-DAEMON": "PASS",
+    "OR-PUBLIC-ZERO-MODEL": "UNKNOWN",
+    "OR-REDACT-BEFORE-PERSIST": "PASS",
+    "OR-REDACTION": "PASS",
+    "OR-RESTORE": "NOT_RUN",
+    "OR-RUNTIME-ZERO": "PASS",
+    "OR-SUBJECT-BINDING": "PASS",
+    "OR-UNKNOWN-STALE": "PASS"
+  },
+  "schema_version": 1,
+  "verified_environment_boundaries": {
+    "codex_cli": "不在 PATH",
+    "ovh_ssh": "22 端口可达;alpha_oracle_ed25519 / id_ed25519_codexproject / codespaces.auto 三把密钥全部 Permission denied(publickey);ssh-agent 未运行",
+    "playwright": "node_modules 未安装",
+    "rclone": "未安装,且 ~/.config/rclone/rclone.conf 不存在 —— R2/OCI remote 与加密密钥不在本机"
+  }
+}
