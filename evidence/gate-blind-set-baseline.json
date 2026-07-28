@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "taskpack_version": "v0.0.0.1",
+  "declared_blind_set_count": 1,
+  "actual_fixture_count": 18,
+  "counts": {
+    "PASS": 12,
+    "FAIL": 0,
+    "NOT_RUN": 6
+  },
+  "verdict": "INCOMPLETE",
+  "fixtures": [
+    {
+      "id": "BF-001",
+      "risk": "false_green",
+      "status": "PASS",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.004s /  / OK",
+      "acceptance_refs": [
+        "INV-005",
+        "FE-002",
+        "DA-002"
+      ]
+    },
+    {
+      "id": "BF-002",
+      "risk": "unregistered_runtime",
+      "status": "PASS",
+      "detail": "1 个冻结用例:Ran 1 test in 0.000s /  / OK",
+      "acceptance_refs": [
+        "FE-002",
+        "DA-002"
+      ]
+    },
+    {
+      "id": "BF-003",
+      "risk": "stale_evidence",
+      "status": "PASS",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.000s /  / OK",
+      "acceptance_refs": [
+        "INV-005",
+        "DA-003"
+      ]
+    },
+    {
+      "id": "BF-004",
+      "risk": "deployment_drift",
+      "status": "NOT_RUN",
+      "detail": "还没有 candidate-subject.json(S6-T1 未产出),无法执行",
+      "acceptance_refs": [
+        "INV-006",
+        "GO-002"
+      ]
+    },
+    {
+      "id": "BF-005",
+      "risk": "jwt_boundary",
+      "status": "NOT_RUN",
+      "detail": "本环境没有 PyJWT,无法执行",
+      "acceptance_refs": [
+        "BE-001"
+      ]
+    },
+    {
+      "id": "BF-006",
+      "risk": "stored_xss",
+      "status": "NOT_RUN",
+      "detail": "stored XSS 需要真实浏览器;由 Playwright 套件承担(run_all.py --browser)(本轮未跑浏览器套件)",
+      "acceptance_refs": [
+        "FE-005",
+        "BE-004"
+      ]
+    },
+    {
+      "id": "BF-007",
+      "risk": "replay_and_concurrency",
+      "status": "PASS",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.009s /  / OK",
+      "acceptance_refs": [
+        "BE-002",
+        "BE-003"
+      ]
+    },
+    {
+      "id": "BF-008",
+      "risk": "partial_transaction",
+      "status": "PASS",
+      "detail": "1 个冻结用例:Ran 1 test in 0.005s /  / OK",
+      "acceptance_refs": [
+        "BE-003"
+      ]
+    },
+    {
+      "id": "BF-009",
+      "risk": "privacy_projection",
+      "status": "PASS",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.000s /  / OK | 种子检查:种入 token 形状值后扫描器 fail-closed",
+      "acceptance_refs": [
+        "BE-004"
+      ]
+    },
+    {
+      "id": "BF-010",
+      "risk": "runtime_agent_dependency",
+      "status": "PASS",
+      "detail": "种入模型 API 域名种子后扫描器 fail-closed 并指名违规;移除后恢复干净",
+      "acceptance_refs": [
+        "INV-001",
+        "AR-001"
+      ]
+    },
+    {
+      "id": "BF-011",
+      "risk": "self_heal_false_success",
+      "status": "PASS",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.003s /  / OK",
+      "acceptance_refs": [
+        "OP-002"
+      ]
+    },
+    {
+      "id": "BF-012",
+      "risk": "backup_not_recoverable",
+      "status": "PASS",
+      "detail": "1 个冻结用例:Ran 1 test in 0.003s /  / OK",
+      "acceptance_refs": [
+        "DA-004",
+        "OP-003"
+      ]
+    },
+    {
+      "id": "BF-013",
+      "risk": "moving_base_equivalent",
+      "status": "NOT_RUN",
+      "detail": "没有 reconciliation.json,无法执行",
+      "acceptance_refs": [
+        "AR-002",
+        "GO-002"
+      ]
+    },
+    {
+      "id": "BF-014",
+      "risk": "moving_base_contract_conflict",
+      "status": "NOT_RUN",
+      "detail": "未提供 TASKPACK_ROOT,找不到 reconcile_tasks.py,无法执行",
+      "acceptance_refs": [
+        "AR-002",
+        "GO-002"
+      ]
+    },
+    {
+      "id": "BF-015",
+      "risk": "no_empty_commit",
+      "status": "PASS",
+      "detail": "1 个冻结用例:Ran 1 test in 0.440s /  / OK",
+      "acceptance_refs": [
+        "DA-005"
+      ]
+    },
+    {
+      "id": "BF-016",
+      "risk": "dependency_outage",
+      "status": "PASS",
+      "detail": "权威不可达显式拒绝且无半截写入;断掉的依赖显式为 'blocked'(HTTP 000(期望 200/301/302/308));无关探针仍为 healthy",
+      "acceptance_refs": [
+        "AR-003"
+      ]
+    },
+    {
+      "id": "BF-017",
+      "risk": "mobile_accessibility",
+      "status": "NOT_RUN",
+      "detail": "移动端与无障碍需要真实浏览器;由 Playwright 套件承担(run_all.py --browser)(本轮未跑浏览器套件)",
+      "acceptance_refs": [
+        "FE-004"
+      ]
+    },
+    {
+      "id": "BF-018",
+      "risk": "mutable_supply_chain",
+      "status": "PASS",
+      "detail": "全部执行依赖不可变 —— status: 摘要固定; admin: 内容派生标签已校验一致",
+      "acceptance_refs": [
+        "AR-004"
+      ]
+    }
+  ]
+}

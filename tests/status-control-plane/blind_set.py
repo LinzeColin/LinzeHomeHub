@@ -391,11 +391,15 @@ def bf_dependency_outage() -> tuple[bool, str]:
     findings = []
 
     # ① 权威不可达 -> 必须显式拒绝,且不留半截写入
+    # v0.0.0.2:合同从「克隆私有仓 + git commit」换成「private_db_client put/get」,
+    # sync_events 不再收 commit_message,「权威不可达」也从「不是 git 仓」变成
+    # 「拿不到可用的 private_db_client」。**这里只跟着改调用形状,断言一个字没松**:
+    # 仍然要求显式抛 AuthoritySyncError,仍然要求不留半截文件。
     with tempfile.TemporaryDirectory() as td:
-        broken = Path(td) / "not-a-git-repo"
+        broken = Path(td) / "no-authority-client-here"
         broken.mkdir()
         try:
-            sync_events(broken, [{"id": "x", "kind": "test"}], commit_message="should not happen")
+            sync_events(broken, [{"id": "x", "kind": "test"}])
             findings.append("★ 权威不可达时 sync_events 没有拒绝")
         except AuthoritySyncError:
             leftovers = [p for p in broken.rglob("*") if p.is_file()]
@@ -475,8 +479,11 @@ BINDINGS: dict[str, dict] = {
         "test_backup.BackupTests.test_restore_requires_digest_match"]},
     "BF-013": {"kind": "inline", "fn": bf_reconcile_states},
     "BF-014": {"kind": "inline", "fn": bf_contract_conflict_reachable},
+    # v0.0.0.2:authority 换成免 clone 合同后,「不产生第二个 commit」的等价物是
+    # 「同一事实幂等:同路径、同摘要、只有一份产物」。**断言强度不变,只是换了名字**
+    # (旧名断言 git HEAD 不动,新名断言产物不变;两者都是同一个幂等性质)。
     "BF-015": {"kind": "unittest", "cases": [
-        "test_authority.AuthorityTests.test_identical_fact_creates_no_second_commit"]},
+        "test_authority.AuthorityTests.test_identical_fact_is_idempotent_and_creates_no_second_object"]},
     "BF-016": {"kind": "inline", "fn": bf_dependency_outage},
     "BF-017": {"kind": "browser", "reason":
                "移动端与无障碍需要真实浏览器;由 Playwright 套件承担(run_all.py --browser)"},
