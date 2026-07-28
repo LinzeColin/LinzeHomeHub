@@ -1,0 +1,24 @@
+{
+  "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+  "artifact_digest": "sha256:eb3479f1b2ec0ee761a2a09b28cc9171e692aae3f53b31565b5c273674e2febd",
+  "required_oracles": [
+    "OR-RUNTIME-ZERO",
+    "OR-NO-CLONE",
+    "OR-AUTHORITY",
+    "OR-RESTORE",
+    "OR-REDACTION",
+    "OR-CAPTURE",
+    "OR-REDACT-BEFORE-PERSIST",
+    "OR-FALSE-PASS",
+    "OR-SUBJECT-BINDING",
+    "OR-UNKNOWN-STALE",
+    "OR-DEPLOY-ASSET",
+    "OR-CHINESE-UI",
+    "OR-NO-AUTO-SKILL",
+    "OR-NO-DAEMON",
+    "OR-PUBLIC-ZERO-MODEL"
+  ],
+  "run_id": "run:uiux-version-merge-v0002",
+  "subject_commit": "3dffd6bb56c1bbc2888f31a894294175a3998410",
+  "verifier_version": "0.0.2.2"
+}
