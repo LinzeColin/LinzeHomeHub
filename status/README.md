@@ -17,7 +17,20 @@
 
 ## 部署
 
-**host-direct rsync**，不走 Golden Path / Coolify 自动部署 —— 改完要手动同步到主机。
+**合并进 `main` 即自动部署**（`.github/workflows/status-deploy.yml`，触发路径 `status/**`）。
+不走 Golden Path / Coolify —— 那条线部署的是 `home.linzezhang.com` 门户，与 status 无关。
+
+CI 用的是一把**受限**密钥：在主机 `authorized_keys` 里绑了
+`command=".../ci-deploy-gate.sh",restrict`，只能 rsync 写入 `/srv/linze/apps/status`
+（`rrsync -wo` 强制）和执行 `deploy-finalize`。拿不到 shell、不能 sudo、碰不到该目录以外任何东西。
+**不要**把 `_protected/alpha_deploy_private/linze_ovh_production_ed25519` 放进 GitHub Secrets ——
+ubuntu 在这台机器上是 NOPASSWD ALL，那等于把 root 交出去。
+
+部署后 CI 会做两级验收：主机内直连容器验内容，公网比对仓内与线上的 sha256。
+★ **不能看状态码**：nginx 的 `try_files … /index.html` 让任何路径都返回 200，
+实测 `/this-does-not-exist-xyz` 的 digest 与 index.html 完全相同。
+
+需要手动同步时（例如回滚）仍可用：
 
 ⚠️ **必须排除 `data/`**：`data/prices.json` 是线上通过 `/admin` 编辑的活数据，仓内那份只是初始快照，
 整目录同步会把你在后台改过的价格库覆盖回旧值。主机上的 `private/`、`.secrets/` 同理，仓内根本没有。
