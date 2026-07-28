@@ -1,0 +1,13 @@
+{
+  "browser_verified": "真实浏览器:5 段分页可切、基础设施段渲染 5 个权威层、verdict 行带 subject_commit+artifact_digest+acceptance_hash、顶栏角标同步",
+  "files_present": [
+    "status/web/agent-governance.html",
+    "status/web/agent-governance.css",
+    "status/web/agent-governance.js"
+  ],
+  "frozen_ui_contract": "tests/status-agent-governance/test_ui_contract.py 通过(lang=zh-CN / 证据不足 / escapeHtml / focus-visible / min-height: 44px / 零 CDN)",
+  "node_check": "status/web/agent-governance.js 语法通过",
+  "schema_version": 1,
+  "state": "PASS",
+  "task_id": "T04-02"
+}

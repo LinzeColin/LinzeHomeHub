@@ -1,0 +1,33 @@
+{
+  "T03-04_primary_leg": {
+    "alias": "restore.sh r2 -> primary(GitHub Release 资产)",
+    "chain": "GitHub Release 下载 -> openssl-aes-256-cbc-pbkdf2 解密 -> sha256 精确匹配 -> git bundle verify -> 从空目录恢复出 16 个 ref",
+    "object": "private-database-20260728T093002Z-e67cd654e6b387f6fbbc4cc19c68c1f0b9ef09e4.bundle.enc",
+    "result": "RESTORE_VERIFIED source=primary refs=16",
+    "sha256": "494d546e02aefcd92d9bb5517f44c177f74069a959ca6cefcfa72b4d8704182c",
+    "state": "PASS"
+  },
+  "T03-05_offsite_leg": {
+    "alias": "restore.sh oci -> offsite",
+    "anti_false_green": "脚本对 offsite 是**明确拒绝并留痕**而不是静默跳过。静默跳过会让调用方以为两条腿都验过了,那正是「备份存在冒充恢复已验证」的假绿。",
+    "production_self_report": "backup-status.json 里 offsite_readback_supported=false、restore_verified=false —— 生产自己就没把它记成绿",
+    "result": "RESTORE_NOT_POSSIBLE source=offsite reason=one_way_par_channel",
+    "state": "RESTORE_NOT_POSSIBLE",
+    "why": "OCI PAR 是只写预授权链接,结构上读不回来 —— 不是权限没配好"
+  },
+  "executed_on": "OVH 生产节点 vps-83b882b4(139.99.61.6),经 _protected/alpha_deploy_private 的 linze_ovh_production_ed25519 登录",
+  "oracle_impact": {
+    "OR-RESTORE": "UNKNOWN —— 主腿已 RESTORE_VERIFIED,异地腿结构上不可恢复。v0.0.0.2 封印的 AC-004 字面要求「R2 与 OCI 可独立恢复」;owner 的修订是针对 v0.0.0.1 签的,是否顺延到 v0.0.0.2 只能由 owner 决定 —— 执行方不得自行修改冻结 Acceptance,所以这里保持非 PASS。"
+  },
+  "schema_version": 1,
+  "task_ids": [
+    "T03-04",
+    "T03-05"
+  ],
+  "topology_reality": {
+    "owner_amendment": "status/docs/governance/TASKPACK_V0001_ACCEPTANCE_AMENDMENT.md —— owner(Linze)2026-07-28 书面决定,触发 STOP_CONDITIONS 第 3 条,选择方案 B「适配现有通道,不新建云资源、不新增凭据」",
+    "production_actually_is": "主通道 GitHub Release 资产(可回读) + 异地腿 OCI PAR(只写)",
+    "rclone_on_ovh": "二进制已装 v1.74.4,但 ubuntu 与 root 都**没有 rclone.conf**,零 remote",
+    "taskpack_v0002_assumes": "LINZE_R2_CRYPT_REMOTE + LINZE_OCI_CRYPT_REMOTE 两个 rclone crypt remote"
+  }
+}

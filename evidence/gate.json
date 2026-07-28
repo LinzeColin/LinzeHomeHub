@@ -1,0 +1,62 @@
+{
+  "T03-01_independent_gate": {
+    "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+    "acceptance_hash_verified": "与任务包 VERIFIER_TASKPACK_VERDICT 声明的 frozen_acceptance_sha256 逐字节一致",
+    "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+    "binding_errors": [],
+    "immutability_observed": "输出已存在时拒绝覆盖(gate output already exists)—— 结论不可改写",
+    "meaning": "这是系统按设计给出的正确结论,不是失败。BUILD_AGENT_INSTRUCTIONS 要求「全部 Oracle PASS 后才 commit/push/deploy」,BLOCKED 即 S6 被冻结合同自己拦住。",
+    "not_pass_oracles": {
+      "OR-AUTHORITY": "NOT_RUN —— Private-Database 是 append-only、内容寻址、对象永不覆盖,真实写入不可撤销,未单独授权不做",
+      "OR-CAPTURE": "UNKNOWN —— fixture 侧 100%,但验收要求真实 run >=95%,尚无足够真实样本",
+      "OR-DEPLOY-ASSET": "NOT_RUN —— 需要生产 HTTP 与部署清单比对,尚未部署",
+      "OR-FALSE-PASS": "UNKNOWN —— 盲测集 6 条 NOT_RUN,0 false PASS 未被完整证明",
+      "OR-PUBLIC-ZERO-MODEL": "UNKNOWN —— 源码扫描 0 模型调用,但生产网络扫描那一半需要线上",
+      "OR-RESTORE": "NOT_RUN —— rclone 未安装且 ~/.config/rclone/rclone.conf 不存在;R2/OCI 的 remote 与加密密钥在本机根本不存在,不是权限问题"
+    },
+    "oracle_states": {
+      "FAIL": 0,
+      "NOT_RUN": 3,
+      "PASS": 9,
+      "UNKNOWN": 3
+    },
+    "reason": "ORACLE_INCOMPLETE",
+    "run_id": "run:uiux-version-merge-v0002",
+    "subject_commit": "6d4e91478df8226b9d314f23a618de84f10b4ffc",
+    "verdict": "BLOCKED",
+    "verdict_id": "gate:f4c94c39eaf31fe186a538f7b505697c"
+  },
+  "T03-02_blind_set": {
+    "baseline_parity": "与基线 c02f3a6 完全一致(12/0/6)",
+    "counts": {
+      "FAIL": 0,
+      "NOT_RUN": 6,
+      "PASS": 12
+    },
+    "false_pass_count": 0,
+    "regression_found_and_fixed": {
+      "fix": "只跟着合同改调用形状与引用名,断言一个字没松",
+      "mutation_proof": {
+        "复原": "两条恢复 PASS,verdict 回到 INCOMPLETE",
+        "破坏幂等(relative_path 每次不同)": "BF-015 变 FAIL ✓",
+        "让 _validate_client 在客户端缺失时静默放行": "BF-016 变 FAIL ✓"
+      },
+      "root_cause": "两条用例钉在旧 authority 合同上:BF-015 按**名字**引用了被重命名的测试;BF-016 用旧签名调 sync_events(commit_message=...) 得到 TypeError 而非 AuthoritySyncError",
+      "what": "BF-015 与 BF-016 在基线是 PASS,本次改动后变 FAIL —— 我引入的真回归",
+      "why_this_is_not_self_passing": "盲测集正是用来抓 Builder 的。改它必须证明没放水 —— 上面两个突变证明它仍然抓得住真缺陷。"
+    },
+    "still_not_run": [
+      "BF-004 缺 candidate-subject.json",
+      "BF-005 缺 PyJWT",
+      "BF-006/BF-017 需真实浏览器(Playwright 未装)",
+      "BF-013/BF-014 缺 reconciliation.json / TASKPACK_ROOT"
+    ],
+    "verdict": "INCOMPLETE"
+  },
+  "end_to_end_traceability_observed": "治理页实测显示:verdict 行带 subject_commit / artifact_digest / acceptance_hash,run 行带执行器与验收结论,顶栏角标同步为「暂不可发布」",
+  "schema_version": 1,
+  "task_ids": [
+    "T03-01",
+    "T03-02"
+  ]
+}

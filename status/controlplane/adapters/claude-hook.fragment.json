@@ -1,0 +1,4 @@
+{
+  "description": "Merge against the installed Claude Code hook schema after version verification.",
+  "command": "python3 -m status.controlplane.agent_hook --provider claude --output status/runtime/agent-hook-events.jsonl"
+}

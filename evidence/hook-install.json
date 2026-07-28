@@ -1,0 +1,28 @@
+{
+  "T02-02_codex_hook": {
+    "not_waived": "BLOCKED 不是豁免也不是跳过;按 unknown_policy 它不会转成 PASS",
+    "reason": "任务包片段自述的前置条件客观不成立:codex CLI 不在 PATH(无法 codex --version),且 ~/.codex/config.toml 无 [hooks] 段(没有已安装 schema 可合并)",
+    "state": "BLOCKED",
+    "unblock_procedure": "status/docs/agent-governance/HOOK_INSTALL.md"
+  },
+  "T02-03_claude_hook": {
+    "fail_safe_verified": {
+      "inside_governed_run": "rc=0,落 1 行,adapter_state=NORMALIZED_REDACTED,植入秘密未泄漏",
+      "module_absent": "rc=0,不写盘",
+      "outside_governed_run": "rc=0,不读 stdin、不写盘",
+      "system_python": "/usr/bin/python3 3.9.6 实测通过(hook 实际使用的解释器)"
+    },
+    "post_install_observation": "安装后本会话继续正常工作;未产生任何 agent-hook-events.jsonl(应有行为)",
+    "provider_version_check": "claude CLI 不在 PATH(桌面版会话);schema 由实测确认 —— PostToolUse[].hooks[].{type,command},安装后 JSON 合法且会话无异常",
+    "repo_root_binding": "STATUS_AGENT_REPO_ROOT,默认主工作树而非临时 worktree",
+    "settings_backup": "~/.claude/settings.json.bak-20260729-uiux-merge",
+    "state": "INSTALLED",
+    "wrapper": "~/.claude/hooks/status-agent-hook.sh(0755)"
+  },
+  "hook_robustness_fix": {
+    "guard": "tests/status-control-plane/unit/test_agent_hook_is_inert_outside_session.py(5 条)",
+    "what": "agent_hook 缺 session 绑定时由「抛 missing run_id」改为「静默退 0」,且判断前不导入 capture/redaction",
+    "why": "全局 hook 会在本机每一次工具调用上被拉起。原行为等于让每次调用都报错;顶层导入等于每次调用都白花一次模块导入"
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,22 @@
+{
+  "required_paths": [
+    "facts.json"
+  ],
+  "json_assertions": [
+    {
+      "path": "facts.json",
+      "pointer": "/schema_version",
+      "expected": 1
+    },
+    {
+      "path": "facts.json",
+      "pointer": "/record_count",
+      "minimum": 1
+    },
+    {
+      "path": "facts.json",
+      "pointer": "/critical_fact",
+      "expected": "present"
+    }
+  ]
+}

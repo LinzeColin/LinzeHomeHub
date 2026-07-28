@@ -1,0 +1,18 @@
+[Unit]
+Description=status.linzezhang.com Agent 开发治理只读投影
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=linze-status
+Group=linze-status
+WorkingDirectory=/srv/linze-home-hub
+EnvironmentFile=-/etc/linze/status-agent-governance.env
+ExecStart=/srv/linze-home-hub/status/deploy/control-plane/agent-governance-project.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/linze-home-hub/status/runtime /srv/linze-home-hub/status/data
+UMask=0077

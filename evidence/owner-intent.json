@@ -1,0 +1,27 @@
+{
+  "agent_responsibilities": {
+    "build_agent": "只完成最后一公里:真实凭据绑定、测试、提交、推送、部署、恢复验证与证据回写",
+    "independent_gate": "独立持有验收结论;Builder 自评不构成 PASS",
+    "verifier": "只评估冻结候选"
+  },
+  "hard_constraints": [
+    "生产运行 0 Agent、0 模型调用、0 Token",
+    "不新增产品名、不改变权威数据边界",
+    "禁止 clone Private-Database,禁止对其做 Git 写入",
+    "Worker 不得写 Acceptance、sealed fixture 或 verdict",
+    "UNKNOWN / NOT_RUN / WAIVED 永不转为 PASS",
+    "经验只生成候选,不自动安装 Skill"
+  ],
+  "owner": "Owner",
+  "principles": [
+    "10 秒内看到「可发布验收 / 暂不可发布 / 证据不足」",
+    "30 秒内从业务线状态钻取至意图、Agent 运行、候选提交、构建物、验收 Oracle、备份恢复和来源证据",
+    "status 只是只读投影,不是第二事实源",
+    "缺失或陈旧证据一律 fail-closed,不沿用旧绿色"
+  ],
+  "risk_policy": {
+    "kill_gate": "30 个真实 run 内出现任何已知缺陷的 false PASS 即停止扩展 Fleet",
+    "on_failed_production_acceptance": "立即 rollback",
+    "on_missing_credentials": "ENVIRONMENT_BLOCKED,不写假证据"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+  "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+  "evidence_refs": [
+    "evidence/environment-binding.json",
+    "evidence/hook-install.json",
+    "evidence/owner-intent.json",
+    "evidence/project-intent.json",
+    "evidence/repository-rules.json",
+    "evidence/run-intent.json",
+    "evidence/session-lifecycle-projection.json",
+    "evidence/session-lifecycle.json",
+    "evidence/task-contract.json",
+    "evidence/tests-and-scans.json",
+    "evidence/uiux-merge.json"
+  ],
+  "oracle_rationale": {
+    "OR-AUTHORITY": "NOT_RUN —— 需要对 Private-Database 做真实 put/get/readback。该存储是 append-only、内容寻址、对象永不覆盖,写入不可撤销,未单独授权不做",
+    "OR-CAPTURE": "UNKNOWN —— fixture 侧 100%,但验收要求「真实 run >=95%」,Claude hook 刚装、尚无真实 run 样本;Codex 侧 BLOCKED",
+    "OR-CHINESE-UI": "冻结 UI 合同测试通过;真实浏览器实测三页全中文、375px 无横向溢出",
+    "OR-DEPLOY-ASSET": "NOT_RUN —— 需要生产 HTTP 与部署清单比对,尚未部署",
+    "OR-FALSE-PASS": "UNKNOWN —— 仓内盲测集 18 条:12 PASS / 0 FAIL / 6 NOT_RUN,verdict=INCOMPLETE(与基线一致)。0 false PASS 尚未被完整证明,因为 6 条根本没跑",
+    "OR-NO-AUTO-SKILL": "候选只到 PROPOSED 且 requires_owner_approval;冻结用例覆盖",
+    "OR-NO-CLONE": "authority 源码无 git clone/add/commit/push;test_no_git_transport_is_used 逐条命令核对",
+    "OR-NO-DAEMON": "hook 单次事件单次退出,无 launchd;不在受治理 run 里静默退 0",
+    "OR-PUBLIC-ZERO-MODEL": "UNKNOWN —— 源码扫描 0 模型调用,但「生产网络扫描」这一半需要线上环境",
+    "OR-REDACT-BEFORE-PERSIST": "SQLite 落库前已归一脱敏;test_store_projection_candidate 覆盖",
+    "OR-REDACTION": "codex/claude 双 fixture 植入 secret-value-for-redaction,产物 0 泄漏",
+    "OR-RESTORE": "NOT_RUN —— rclone 未安装且 ~/.config/rclone/rclone.conf 不存在,R2/OCI 的 remote 与加密密钥在本机根本不存在(非权限问题)",
+    "OR-RUNTIME-ZERO": "policy_scan 0 违规 + doctor runtime_invariants 全零 + npm 守卫的运行期域名扫描",
+    "OR-SUBJECT-BINDING": "gate 对四个绑定字段做精确比对,任一不同即 BLOCKED;冻结用例覆盖",
+    "OR-UNKNOWN-STALE": "投影实测输出 label=证据不足 / state=UNKNOWN,blockers 含 EVIDENCE_STALE"
+  },
+  "oracles": {
+    "OR-AUTHORITY": "NOT_RUN",
+    "OR-CAPTURE": "UNKNOWN",
+    "OR-CHINESE-UI": "PASS",
+    "OR-DEPLOY-ASSET": "NOT_RUN",
+    "OR-FALSE-PASS": "UNKNOWN",
+    "OR-NO-AUTO-SKILL": "PASS",
+    "OR-NO-CLONE": "PASS",
+    "OR-NO-DAEMON": "PASS",
+    "OR-PUBLIC-ZERO-MODEL": "UNKNOWN",
+    "OR-REDACT-BEFORE-PERSIST": "PASS",
+    "OR-REDACTION": "PASS",
+    "OR-RESTORE": "NOT_RUN",
+    "OR-RUNTIME-ZERO": "PASS",
+    "OR-SUBJECT-BINDING": "PASS",
+    "OR-UNKNOWN-STALE": "PASS"
+  },
+  "run_id": "run:uiux-version-merge-v0002",
+  "subject_commit": "6d4e91478df8226b9d314f23a618de84f10b4ffc"
+}

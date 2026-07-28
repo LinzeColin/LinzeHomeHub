@@ -1,0 +1,63 @@
+{
+  "backup_transport": {
+    "crypt_remote_confirmed": false,
+    "missing": [
+      "LINZE_R2_CRYPT_REMOTE",
+      "LINZE_OCI_CRYPT_REMOTE",
+      "rclone",
+      "RCLONE_CRYPT_REMOTE_CONFIRMED=1"
+    ],
+    "rclone_available": false,
+    "remotes_configured": {
+      "LINZE_OCI_CRYPT_REMOTE": false,
+      "LINZE_R2_CRYPT_REMOTE": false
+    },
+    "state": "ENVIRONMENT_BLOCKED"
+  },
+  "binaries": {
+    "gh": true,
+    "python3": true,
+    "rclone": false,
+    "systemctl": false
+  },
+  "bindings_still_unverified": [
+    "LINZE_R2_CRYPT_REMOTE(未设置)",
+    "LINZE_OCI_CRYPT_REMOTE(未设置)",
+    "RCLONE_CRYPT_REMOTE_CONFIRMED=1(未人工确认 remote 实际加密)",
+    "rclone(本机未安装)",
+    "systemctl(macOS 无;OVH systemd 权限本地不可验证)",
+    "STATUS_DB_PATH / STATUS_AGENT_RUNTIME_ROOT / REPO_ROOT 的生产取值(本地仅临时覆盖)",
+    "OVH 主机 139.99.61.6 的 SSH/部署权限"
+  ],
+  "black_path": "凭据/远端缺失时返回 ENVIRONMENT_BLOCKED,不写假证据(TECHNICAL_DESIGN.md)",
+  "blocks_dag_tasks": [
+    "T03-04 验证 R2 独立恢复",
+    "T03-05 验证 OCI 异地恢复",
+    "T04-04 安装 OVH systemd projection timer"
+  ],
+  "checked_at": "2026-07-28T21:32:32+00:00",
+  "host": "本地 macOS 开发机(非 OVH 运行节点)",
+  "paths": {
+    "db_parent_writable": true,
+    "output_parent_writable": true
+  },
+  "private_db_client": {
+    "client_sha256": "8a26302c98a470e75122fbf01ff1d1a23381ccf5db5f26df9ed5f9e59e5c9ffa",
+    "commands": {
+      "get": true,
+      "put": true
+    },
+    "note": "该客户端不在 LinzeHomeHub 内;PRIVATE_DB_CLIENT_PATH 是环境绑定而非仓内依赖。生产(OVH)上的实际绑定路径本地不可见,保持 UNVERIFIED。",
+    "path": "~/Documents/Codex/GithubProject/AgentDatabase/OpenAIDatabase/scripts/private_db_client.py",
+    "state": "CLIENT_CONTRACT_VERIFIED"
+  },
+  "schema_version": 1,
+  "state": "ENVIRONMENT_BLOCKED",
+  "task_id": "T00-05",
+  "verified_here": [
+    "python3 可用",
+    "gh 已认证(LinzeColin,scopes 含 repo/workflow)",
+    "db/output 父目录可写",
+    "private_db_client put/get 合同已核验(word-boundary 判定,已修复 --output 假绿)"
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "candidates": [],
+  "gates": [
+    {
+      "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+      "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+      "run_id": "run:uiux-version-merge-v0002",
+      "subject_commit": "1e5257052fa9e688a8292fb962e777deb6cd41bc",
+      "verdict": "BLOCKED",
+      "verdict_id": "gate:1b8ab1463f9b29a77b57a80b02875c66",
+      "verified_at": "2026-07-28T22:26:27+00:00",
+      "verifier_version": "0.0.2.2"
+    },
+    {
+      "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+      "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+      "run_id": "run:uiux-version-merge-v0002",
+      "subject_commit": "6d4e91478df8226b9d314f23a618de84f10b4ffc",
+      "verdict": "BLOCKED",
+      "verdict_id": "gate:f4c94c39eaf31fe186a538f7b505697c",
+      "verified_at": "2026-07-28T22:18:53+00:00",
+      "verifier_version": "0.0.2.2"
+    }
+  ],
+  "generated_at": "2026-07-28T22:27:45+00:00",
+  "metrics": {
+    "candidate_count": 0,
+    "gate_count": 2,
+    "pass_count": 0,
+    "run_count": 2
+  },
+  "pipeline": [
+    "意图包",
+    "Agent 执行器",
+    "过程记录器",
+    "脱敏归一",
+    "独立验收门",
+    "证据清单",
+    "经验候选路由"
+  ],
+  "release_decision": {
+    "blockers": [
+      {
+        "code": "GATE_NOT_PASS",
+        "state": "BLOCKED",
+        "title": "运行 run:uiux-version-merge-v0002 验收状态为 BLOCKED"
+      },
+      {
+        "code": "RUN_WITHOUT_GATE",
+        "state": "UNKNOWN",
+        "title": "运行 run-smoke 未完成独立验收"
+      }
+    ],
+    "label": "暂不可发布",
+    "state": "BLOCKED"
+  },
+  "runs": [
+    {
+      "candidate_commit": "1e5257052fa9e688a8292fb962e777deb6cd41bc",
+      "gate_verdict": "BLOCKED",
+      "project_id": "status.linzezhang.com",
+      "provider": "claude",
+      "run_id": "run:uiux-version-merge-v0002",
+      "status": "RUNNING",
+      "task_id": "uiux-version-merge-v0002",
+      "updated_at": "2026-07-28T22:26:27+00:00"
+    },
+    {
+      "candidate_commit": null,
+      "gate_verdict": "UNKNOWN",
+      "project_id": "status.linzezhang.com",
+      "provider": "codex",
+      "run_id": "run-smoke",
+      "status": "RUNNING",
+      "task_id": "task-smoke",
+      "updated_at": "2026-07-28T21:37:04+00:00"
+    }
+  ],
+  "runtime_invariants": {
+    "agent_dependency": false,
+    "llm_calls": 0,
+    "macos_launchd": false,
+    "token_budget": 0
+  },
+  "schema_version": 1,
+  "source": {
+    "authority": "Private-Database",
+    "evidence_fresh": true,
+    "newest_event_at": "2026-07-29T00:00:00+00:00",
+    "projection": "status.linzezhang.com",
+    "runtime_journal": "OVH SQLite（可重建）",
+    "ttl_minutes": 30
+  }
+}

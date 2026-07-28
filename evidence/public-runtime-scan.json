@@ -1,0 +1,13 @@
+{
+  "inference_endpoint_urls": 0,
+  "note": "同宿主另有 CyberBoss 的 codex app-server 进程(/opt/cyberboss-cloud/...)。那是**另一个产品**,不属 status 运行期;status 的两个容器 linze-status / linze-status-admin 不依赖它。如实记录,不混为一谈。",
+  "outbound_connections_to_model_vendors": 0,
+  "resident_agent_in_status_runtime": 0,
+  "scanned_on": "OVH 生产节点 /srv/linze/apps/status",
+  "schema_version": 1,
+  "state": "PASS",
+  "task_id": "AC-015 / OR-PUBLIC-ZERO-MODEL",
+  "vendor_domain_files": [
+    "collector/probe_ai_balance.py(账单查询端点,按文件豁免;该文件内**没有**任何推理路径)"
+  ]
+}

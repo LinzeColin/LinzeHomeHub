@@ -1,0 +1,12 @@
+{
+  "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+  "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+  "schema_version": 1,
+  "state": "FROZEN",
+  "subject_commit": "1e5257052fa9e688a8292fb962e777deb6cd41bc",
+  "task_id": "T05-03",
+  "tracked_files_hashed": 184,
+  "tree_sha": "d7f2944503e1a466092728df06dc56828145757a",
+  "verifier_version": "0.0.2.2",
+  "working_tree_clean": true
+}

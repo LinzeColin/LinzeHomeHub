@@ -1,0 +1,12 @@
+[Unit]
+Description=定期生成 Agent 开发治理只读投影
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=status-agent-governance-project.service
+
+[Install]
+WantedBy=timers.target

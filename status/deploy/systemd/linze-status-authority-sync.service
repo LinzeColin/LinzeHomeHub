@@ -8,7 +8,10 @@ Type=oneshot
 EnvironmentFile=/srv/linze/apps/status/.secrets/control-plane.env
 Environment=PYTHONPATH=/srv/linze/apps/status
 WorkingDirectory=/srv/linze/apps
-ExecStart=/usr/bin/python3 -m controlplane sync-authority --repo /srv/linze/apps --push
+# v0.0.0.2:authority 改成 private_db_client put/get + 逐字节 readback,不再克隆私有仓,
+# 因此没有可 push 的东西 —— `--push` 已从 CLI 移除,继续传会让本单元每次都 argparse 报错退出。
+# client 路径与 area 走 EnvironmentFile 里的 PRIVATE_DB_CLIENT_PATH / PRIVATE_DB_AREA。
+ExecStart=/usr/bin/python3 -m controlplane sync-authority --repo /srv/linze/apps
 NoNewPrivileges=true
 PrivateTmp=true
 UMask=0077

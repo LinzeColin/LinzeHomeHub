@@ -1,0 +1,284 @@
+{
+  "blocking_adaptations": [],
+  "classifications": [
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/__init__.py",
+      "source_sha256": "231df0a70e3ef59922fda2bdc026c88148f138b8e0a04dc42da2367b7e053d8b"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": "2c1dbd95b6f5343055bfcd9c712ecfd4aac45a6f70dc9a2f51c3d034630f3058",
+      "path": "status/controlplane/__init__.py",
+      "source_sha256": "9ae573bb77d10aa57164963a9a8579ae0d38047aabb44e01699000584c5f20f4"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/adapters/claude-hook.fragment.json",
+      "source_sha256": "759edb7d42e48f86ca63637a7425a4aaf5676dc05ab9a7e3f74de7615f3f7ca5"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/adapters/codex-hook.fragment.toml",
+      "source_sha256": "21b5aa874d0a8052058e868d9ddc991b7e426fb24faf87caa34c5ec8a6fefbc9"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/agent_cli.py",
+      "source_sha256": "3b4e0f42fa169b47e4a8abf7dacd2ebf6575393f4df68602af5f749a7c1b8b99"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/agent_hook.py",
+      "source_sha256": "3d816943465c7f2653f24a9a2c3ecdfe14bcc1469ee97685c53a63eac7beceaf"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/agent_projection.py",
+      "source_sha256": "8fba8dca228c483030c8519a97d356c3d1e7bc88f830a154f070263ed55f4df5"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/agent_store.py",
+      "source_sha256": "782d256e9a525bd0770cea4c403c28fe90f95227e977813cab1f8cc065691c5e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": "20f35cc6c09896de861fd3888cad32d2347c804496a4e781ab6a5cee30e5bce1",
+      "path": "status/controlplane/authority.py",
+      "source_sha256": "9d6754ec305c2bac5f4565e22ca50f4ede12a0fba663df56a12c45569d84ed9e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/backup_transport.py",
+      "source_sha256": "b62adcdc4ba6e827364a5b1b9163845640530f1389bf490bbeacc8468fbe0845"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/candidate.py",
+      "source_sha256": "a59255f21472e9fb922fb8dd1135ce173f0e8196aa4a66377e72d32ae3f2b033"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/capture.py",
+      "source_sha256": "bb1d171d461ad7329bffb690c26ac215ec00237cbf1f079c492e2453f92e9a76"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": "3a4be87c855be56455d334812cf921042c4a6c370d1564f053bdfddfdbcbaec9",
+      "path": "status/controlplane/cli.py",
+      "source_sha256": "2436b4213bfbd32b407460df7bcf6d4ab9e5c316b1a9c0038a4548903223d763"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/gate.py",
+      "source_sha256": "c5cad5400a3fd3ff25a820747abfcbf6bc283fff993964636f6a641d2aaf169f"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/intent.py",
+      "source_sha256": "3bc1a19e94c03486dcb31164ba5c108c58c938816f8b0f61a37d28f78f848a6c"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/redaction.py",
+      "source_sha256": "13f638fe748ace3022f3f8e0a6bdaa02d57dad110241a155c45e28fee8667052"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/controlplane/sql/002_agent_governance.sql",
+      "source_sha256": "ef26659755a733bf0ea04fa1b0b3fe57c721945ada5be7e453ced3b072e2a20e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/data/agent-governance.json",
+      "source_sha256": "07402e26e08dae58b21d2f44ad9596e71d4d757b5cbea02f4985fb1e32cfe74e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-backup-verify.sh",
+      "source_sha256": "eb9157045e97c004a41926a67d160d3b9a03871c9dd2948f2df6c05881b82007"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-diagnose.sh",
+      "source_sha256": "09ed10cda81672a95c13194d2326a883a562e0de6678f75f0a95d11baf20332a"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-project.sh",
+      "source_sha256": "66d13a3c05eac74fca1ef6460efa32b3663aa4e087a8a9fb18d949eb9f30cedf"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-restore-verify.sh",
+      "source_sha256": "301c8abd42c5b907a26b7bde1631a605c75ae3e93eacb558d93b1b86cb71e6fd"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-rollback.sh",
+      "source_sha256": "b500a68c8ef44e9887eb53380f745ff6a49c2c5e4edb08d9658a5b3e8ed93e54"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-start.sh",
+      "source_sha256": "06a89e0fc0f56366b117f74bc114711c23fe326e067ef99a8a79ed67af978d53"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-governance-stop.sh",
+      "source_sha256": "9935c45949addecc9c159fff1dfa7caa7673f4ccba229c170e63b7f493a288f1"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-session-finalize.sh",
+      "source_sha256": "d7c76d510934cff1c7386d60462791a2555758edfe43bac567a656742be9d9aa"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/agent-session-start.sh",
+      "source_sha256": "583a05ec57fc98306f67070bed05d622a5d8f15e564763a8699005d32b5ee769"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/control-plane/install-agent-governance-systemd.sh",
+      "source_sha256": "6c107bb96745960cafde6e148c2127bb8ece43be2c10dabd5009ac6a57a2621d"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/systemd/status-agent-governance-project.service",
+      "source_sha256": "c672f55e8637db8bd79d1673b949b20bd1679651e44b4bb55e482a091b39a20d"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/deploy/systemd/status-agent-governance-project.timer",
+      "source_sha256": "8b7e58d1dd7f1f950f1df27d53897229e1f10315ebbea72fae96c4d82613becc"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/web/agent-governance.css",
+      "source_sha256": "c12ad3bba37628bf4d02b30049c1ab022ce11401b5e9816fa4c48375128ae6a6"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/web/agent-governance.html",
+      "source_sha256": "8b9ab92d5ae4aa4cdbe20a8d0bfa851d508bd0e65c68cff3fc149c358ca3082d"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "status/web/agent-governance.js",
+      "source_sha256": "650a6b1a15130886f09d37a6e7d9ede9853a6515460581fbce0990d4d260fc79"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/claude_event.json",
+      "source_sha256": "14b488eb291a5435f0a3ead07329489ebbbd67a213b5688f72f27f72cde96eea"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/codex_event.json",
+      "source_sha256": "b87e961641fd5e8b59290e3a81fed443382fe78bb6138dd41f9938f0c46a640e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/gate_contract.json",
+      "source_sha256": "ece1cbfe4a1e9821ce8ffc8479b793ddc431416509e65936add48b66c53a86d5"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/gate_observations_pass.json",
+      "source_sha256": "cabcb61979e47e7ff27e50d013b01016b7d66437aa4d82fd2bf7711487ac877e"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/gate_observations_unknown.json",
+      "source_sha256": "1d676df0b2429323602bcf7a1fb5db7cde8937005625267c3c72d813d19edf10"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/fixtures/restore_semantic_contract.json",
+      "source_sha256": "d52476861b4ea94152274cd6b0922376d54f23468338d281e95a2a38ad06d320"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_authority.py",
+      "source_sha256": "684986a5061c4e2de37240f48a271c940d3130f82f52439067766bf06539ab80"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_backup.py",
+      "source_sha256": "b05efc88f34013734a95d0c0a47ccf433b637b568c783d041bf8843b3958dac4"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_capture_redaction.py",
+      "source_sha256": "ef524d2b42140c0e7997f1e93fb73dd16c9f89aa81670191236bcf05c615f84d"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_intent_gate.py",
+      "source_sha256": "aa61b9b7b2de257ef2aa4ca4d6989fded4618bb0a1ccb8043739e2e1bd612777"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_store_projection_candidate.py",
+      "source_sha256": "6b326524245210098b72b04d8e6208a69b5f367133d34021cea03288ed50076c"
+    },
+    {
+      "classification": "apply",
+      "current_sha256": null,
+      "path": "tests/status-agent-governance/test_ui_contract.py",
+      "source_sha256": "5e2d18833e5027492dd21441238fce3e73a2559cf1318a1dc334eb11a2eb4cf1"
+    }
+  ],
+  "integration_base_required": "latest main",
+  "mode": "apply",
+  "schema_version": 1,
+  "side_effects": {
+    "commit": false,
+    "deploy": false,
+    "push": false
+  },
+  "state": "READY_FOR_TEST"
+}

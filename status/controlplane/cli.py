@@ -47,7 +47,7 @@ def cmd_doctor(args) -> int:
         },
         "environment_keys_only": sorted(
             key for key in os.environ
-            if key in {"PRIVATE_DATABASE_WORKTREE", "LINZE_R2_REMOTE", "LINZE_OCI_REMOTE", "CF_TEAM_DOMAIN", "CF_ACCESS_AUD", "OWNER_EMAIL"}
+            if key in {"PRIVATE_DB_CLIENT_PATH", "PRIVATE_DB_AREA", "LINZE_R2_REMOTE", "LINZE_OCI_REMOTE", "CF_TEAM_DOMAIN", "CF_ACCESS_AUD", "OWNER_EMAIL"}
         ),
         "runtime_invariants": {
             "agent_dependency": False,
@@ -107,9 +107,10 @@ def cmd_import_legacy_prices(args) -> int:
 def cmd_sync_authority(args) -> int:
     repo = _repo(args.repo)
     status = _status(repo)
-    worktree_value = args.authority_worktree or os.environ.get("PRIVATE_DATABASE_WORKTREE")
-    if not worktree_value:
-        print(json.dumps({"state": "ENVIRONMENT_BLOCKED", "reason": "PRIVATE_DATABASE_WORKTREE unavailable"}, ensure_ascii=False))
+    client_value = args.private_db_client or os.environ.get("PRIVATE_DB_CLIENT_PATH")
+    area = args.area or os.environ.get("PRIVATE_DB_AREA", "Private-MetaDatabase")
+    if not client_value:
+        print(json.dumps({"state": "ENVIRONMENT_BLOCKED", "reason": "PRIVATE_DB_CLIENT_PATH unavailable"}, ensure_ascii=False))
         return 4
     store = RuntimeStore(status / "runtime" / "status.db")
     store.migrate()
@@ -120,10 +121,10 @@ def cmd_sync_authority(args) -> int:
     events = [item["payload"] for item in pending]
     try:
         result = sync_events(
-            Path(worktree_value),
+            Path(client_value),
             events,
-            commit_message=f"status: sync {len(events)} completed facts",
-            push=args.push,
+            area=area,
+            prefix=args.prefix,
         )
     except AuthoritySyncError as exc:
         failed_at = datetime.now(timezone.utc)
@@ -133,11 +134,16 @@ def cmd_sync_authority(args) -> int:
             store.mark_failed(item["event_id"], "AUTHORITY_SYNC_FAILED", next_attempt)
         print(json.dumps({"state": "FAILED", "error_code": "AUTHORITY_SYNC_FAILED", "detail": str(exc)}, ensure_ascii=False))
         return 7
-    if result.get("state") in {"COMMITTED", "NO_NEW_FACT"}:
-        for item in pending:
+    sent = set(result.get("sent_event_ids") or [])
+    for item in pending:
+        if item["event_id"] in sent:
             store.mark_sent(item["event_id"])
+        else:
+            delay = min(3600, 60 * (2 ** min(int(item.get("attempts", 0)), 5)))
+            next_attempt = (datetime.now(timezone.utc) + timedelta(seconds=delay)).replace(microsecond=0).isoformat()
+            store.mark_failed(item["event_id"], "AUTHORITY_READBACK_FAILED", next_attempt)
     print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0
+    return 0 if result.get("state") in {"SYNCED", "NO_NEW_FACT"} and not result.get("failed_event_ids") else 7
 
 
 def cmd_selfheal(args) -> int:
@@ -191,9 +197,10 @@ def parser() -> argparse.ArgumentParser:
 
     sync = sub.add_parser("sync-authority")
     sync.add_argument("--repo", default=".")
-    sync.add_argument("--authority-worktree")
+    sync.add_argument("--private-db-client")
+    sync.add_argument("--area", default="Private-MetaDatabase")
+    sync.add_argument("--prefix", default="facts/status")
     sync.add_argument("--limit", type=int, default=100)
-    sync.add_argument("--push", action="store_true")
     sync.set_defaults(func=cmd_sync_authority)
 
     heal = sub.add_parser("selfheal")

@@ -1,0 +1,14 @@
+{
+  "acceptance_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "artifact_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "evidence_refs": [
+    "evidence:test-unknown"
+  ],
+  "oracles": {
+    "OR-BINDING": "UNKNOWN",
+    "OR-SECRET": "PASS",
+    "OR-UNIT": "PASS"
+  },
+  "run_id": "run:test-001",
+  "subject_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

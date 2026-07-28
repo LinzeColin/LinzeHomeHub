@@ -1,0 +1,159 @@
+{
+  "adaptations": [
+    {
+      "classification": "adapt",
+      "item": "index-link.json 补丁",
+      "why": "补丁把裸 <a class=\"more-link\"> 插进「更多」弹层,破坏既有 <b>/<span> 结构与 role=menuitem;整合后治理是顶栏一等入口"
+    },
+    {
+      "classification": "adapt",
+      "item": "status/controlplane/__init__.py",
+      "why": "overlay 会丢掉 __version__;改成两边并集"
+    },
+    {
+      "classification": "adapt",
+      "item": "hub.css",
+      "why": "自带一套深色优先的独立配色 = 站内第二套设计系统,并入共享令牌"
+    }
+  ],
+  "artifact_digests": {
+    "status/web/agent-governance.css": "1afeab39df8772ea6c597daffdedb4b669b929c51be52d2647cb96f1f760ee4b",
+    "status/web/agent-governance.html": "1e024bb57c5356ca63f462989335ec0543b7e5d5f65bdd4b3fff77a49144d236",
+    "status/web/agent-governance.js": "9cb5a5a3495df9dea581d7db5a57e3cb5b0c64d44d8761488fe47f90bbf36a3b",
+    "status/web/assets/control-plane/control-plane.css": "ed8918f67ece08414a6d87162a7898c4aa57c93ca76c0b60e734002b6bf5bab2",
+    "status/web/assets/control-plane/control-plane.js": "7277f7b9f927a222db60fe7c6e78b200807db64f44d1493298515ad47e7bc48b",
+    "status/web/assets/hub/hub.css": "0c5fe1e4b00c2afcb674c4fde5fb50413271173bc13f497feb3322d52048209e",
+    "status/web/assets/hub/hub.js": "b15c1d9b6cc4a5183f28f491a59df10b752c81debd485beb496be93883be4100",
+    "status/web/hub.html": "71c4ca77c43f95c21a5877d3d6eaf7afba8c228c1e07ff80cc944ac7252ad20c",
+    "status/web/index.html": "4cd79b0a7117c8f41ab4d1603fba2f8eb8bc84b658207b0ff5dfd82eb85368a0"
+  },
+  "baseline": {
+    "commit": "c02f3a6232ca558cee30524bab0e19024705d98f",
+    "snapshot": "_protected/uiux-snapshots/linzehomehub-status-web-20260729-c02f3a6",
+    "snapshot_verified": "12/12 与 git 逐字节一致"
+  },
+  "browser_verification": {
+    "checks": {
+      "charts_actually_painted": {
+        "cCmp": 54087,
+        "cPct": 235992,
+        "cPie": 49031,
+        "oCost": 30178,
+        "oDep": 9427,
+        "oHost": 7011,
+        "swHist": 12276
+      },
+      "charts_note": "逐张数非透明像素,不信「应该画了」—— 本项目栽过四次 rAF 空白",
+      "governance_badge_fail_closed": "证据陈旧(bootstrap 数据 evidence_fresh=false)",
+      "mobile_375_horizontal_overflow": {
+        "#/": 0,
+        "#/cost": 0,
+        "#/flow": 0,
+        "#/github": 0,
+        "#/runtime": 0,
+        "#/timeline": 0
+      },
+      "popup_menuitem_roles_intact": true,
+      "seven_nav_entries_with_icons": true,
+      "theme_toggle": "dark false↔true,ink 重算,data-theme 生效,bg #f4f7fb↔#0c1220"
+    },
+    "how": "本地 serve.py + 真实采集器产出的 66KB 快照,在真实浏览器里核对"
+  },
+  "defects_found_and_fixed": [
+    {
+      "fix": "改为词边界判定,同时排除 --put 这类标志位拼写",
+      "id": "D1",
+      "impact": "一个**写不进去**的权威客户端会拿到 CLIENT_CONTRACT_VERIFIED / doctor PASS,AC-002/AC-003 的第一道门被一个标志位骗过",
+      "proof": "同一个合成客户端修复前 PASS、修复后 FAILED;新增两条测试",
+      "what": "put/get 用子串匹配,帮助里只要出现 --output 就判定含 put",
+      "where": "status/controlplane/authority.py validate_client_contract"
+    },
+    {
+      "fix": "单元去掉 --push;新增守卫把**所有**单元的 ExecStart 喂给真正的 parser",
+      "id": "D2",
+      "impact": "argparse 直接 exit 2,权威回写 timer 每次触发都静默失败",
+      "proof": "突变:放回 --push → 红,拿掉 → 绿",
+      "what": "no-clone 改造移除了 sync-authority 的 --push,但线上 systemd 单元还在传",
+      "where": "status/deploy/systemd/linze-status-authority-sync.service"
+    },
+    {
+      "fix": "该段自己横向滚动 + 给左侧标签留位",
+      "id": "D3",
+      "impact": "375px 视口整页溢出 208px;基线 c02f3a6 同样如此(既有缺陷,非本次引入)",
+      "proof": "修后 375px 下六个视图整页溢出均为 0,标签未被裁切",
+      "what": "轨道写死 560px、行标签 right:101% 挂在轨道外,窄屏把整页顶出横向滚动",
+      "where": "status/web/index.html 订阅历史轨道"
+    },
+    {
+      "fix": "新增 backup_transport 段,三缺一即 ENVIRONMENT_BLOCKED,只记键名与布尔不记值",
+      "id": "D4",
+      "impact": "T00-05 要求 remotes 显式,少了这一项等于把「没配」读成「没问题」",
+      "proof": "新增 4 条测试;本机实测输出 ENVIRONMENT_BLOCKED",
+      "what": "报告里根本没有 R2/OCI remote 这一项,而 state=PASS 与 rclone=false 同时出现",
+      "where": "status/controlplane/agent_cli.py doctor"
+    }
+  ],
+  "design_system": {
+    "baseline_chosen": "任务包已批准冷蓝方向(ui_reference/APPROVED_UI_DIRECTION.html)",
+    "drift_guard": "tests/status-control-plane/unit/test_design_tokens_shared.py 逐令牌三作用域比对",
+    "hardcoded_hex_remapped": 66,
+    "language_identity_colors_preserved": "LANGC(Python/TS/Go/Rust…)原样不动,它们是身份色不是主题色",
+    "method": "只换令牌的值不换令牌名 —— 六个既有视图全部走 var(--x),换令牌即整体升级,内容标记零改动",
+    "unified_files": [
+      "index.html(内联)",
+      "agent-governance.css",
+      "assets/hub/hub.css",
+      "assets/control-plane/control-plane.css(var 兜底值)"
+    ]
+  },
+  "information_architecture": {
+    "added": [
+      "Agent 开发飞轮",
+      "证据与来源追溯",
+      "基础设施事实边界",
+      "执行与验收的信任边界",
+      "自动失效规则",
+      "事实流向",
+      "顶栏治理角标(fail-closed)",
+      "深浅主题手动切换"
+    ],
+    "governance_subtabs": [
+      "总览",
+      "Agent 开发",
+      "证据链",
+      "基础设施",
+      "经验候选"
+    ],
+    "preserved_exits": [
+      "中枢体检 /hub.html",
+      "运维健康 uptime.linzezhang.com",
+      "价格设置 /admin",
+      "GitHub 私有 /admin/github"
+    ],
+    "top_nav": [
+      "总览",
+      "业务流",
+      "运行",
+      "GitHub",
+      "成本",
+      "时间轴",
+      "治理"
+    ]
+  },
+  "no_information_loss": {
+    "guard": "tests/status-control-plane/unit/test_uiux_merge_no_information_loss.py",
+    "legacy_sections_asserted": 33,
+    "mutation_checked": [
+      "删掉「贡献网格」→ 红",
+      "治理入口退回裸链接 → 红",
+      "令牌漂移 → 红"
+    ]
+  },
+  "rollback": "git restore --source=c02f3a6 -- status/web；或从 _protected 快照 rsync 回写",
+  "schema_version": 1,
+  "task_ids": [
+    "T04-01",
+    "T04-02"
+  ],
+  "title": "UI/UX 版本整合:现有版本 × 任务包已批准方向"
+}

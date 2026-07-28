@@ -1,0 +1,45 @@
+{
+  "authority_model": {
+    "governance_repository": "LinzeHomeHub",
+    "large_private_objects": "Cloudflare R2 primary-objects/",
+    "offsite_cold_backup": "OCI",
+    "private_database_cold_backup": "Cloudflare R2 backups/private-database/",
+    "public_projection": "status.linzezhang.com",
+    "runtime_journal": "OVH bounded rebuildable SQLite",
+    "structured_long_term_facts": "Private-Database"
+  },
+  "non_goals": [
+    "完整 Lore",
+    "完整 Agent Fleet",
+    "Gemini/Cursor 全矩阵",
+    "Backstage",
+    "OTel 后端",
+    "完整 DeadReckon",
+    "新仓库",
+    "新品牌",
+    "新长期数据库",
+    "自动批准 Skill",
+    "生产模型调用"
+  ],
+  "product_version": "v0.0.0.2",
+  "project_id": "status-linzezhang-com",
+  "runtime_constraints": [
+    "runtime_llm_calls=0",
+    "runtime_token_budget=0",
+    "runtime_agent_dependency=False",
+    "macos_launchd=False",
+    "new_persistent_database=False"
+  ],
+  "scope": [
+    "Private-Database 免 clone、幂等、逐字节 readback 的 authority adapter",
+    "OwnerIntent / ProjectIntent / RunIntentBundle 三层意图编译",
+    "Codex 与 Claude 的 session-scoped command hook 捕获、机械脱敏和安全事件归一",
+    "OVH 有界、可重建 SQLite journal/outbox",
+    "Worker 与 Independent Gate 分权",
+    "R2 与 OCI 从空目录独立恢复并校验数量、摘要和关键事实",
+    "status 中文只读 Agent 开发治理页面;缺失和陈旧证据 fail-closed",
+    "会话经验只生成候选,不自动安装"
+  ],
+  "target_area": "status/",
+  "target_repository": "LinzeColin/LinzeHomeHub"
+}

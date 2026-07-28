@@ -1,0 +1,40 @@
+{
+  "T02-01_intent": {
+    "intent_id": "intent:status-linzezhang-com:uiux-version-merge-v0002:3c4150dd320a",
+    "intent_sha256": "40a585e66af49b5b006a98b0e84ab737c9e13955b2d3db036e41c2ed02b6e175",
+    "secret_keys_rejected": "compile_run_intent 对 secret-bearing key 直接抛 IntentError(未触发=输入无秘密键)",
+    "self_verified": true,
+    "state": "COMPILED"
+  },
+  "T02-02_codex_hook": {
+    "reason": "需要写入本机 Codex hook 配置(持久化配置变更),未获授权不执行",
+    "state": "BLOCKED_NEEDS_AUTHORIZATION"
+  },
+  "T02-03_claude_hook": {
+    "reason": "需要写入本机 Claude Code hook 配置(持久化配置变更),未获授权不执行",
+    "state": "BLOCKED_NEEDS_AUTHORIZATION"
+  },
+  "T02-04_capture_redaction": {
+    "detail": "tests/status-agent-governance 9/9 通过,含 codex/claude 双 fixture",
+    "state": "PASS"
+  },
+  "T02-05_session_lifecycle": {
+    "fail_closed_verified": "投影输出 label=证据不足 / state=UNKNOWN,blockers 含 NO_GATE_EVIDENCE、RUN_WITHOUT_GATE、EVIDENCE_STALE",
+    "finalize_result": {
+      "ingest": "INGESTED_NORMALIZED count=1",
+      "project": "PROJECTED release_state=UNKNOWN"
+    },
+    "hook_is_one_shot": "agent_hook.main() 处理单个 stdin 事件后返回并退出,无常驻进程、无 launchd",
+    "planted_secret_leaked": false,
+    "raw_object_branch": "SKIPPED(传 '-');该分支需 rclone + LINZE_R2_CRYPT_REMOTE,本机 ENVIRONMENT_BLOCKED",
+    "run_dir_mode": "700",
+    "session_env_mode": "600",
+    "state": "PASS"
+  },
+  "schema_version": 1,
+  "task_ids": [
+    "T02-01",
+    "T02-04",
+    "T02-05"
+  ]
+}

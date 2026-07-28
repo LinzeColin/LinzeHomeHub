@@ -1,0 +1,48 @@
+{
+  "candidates": [],
+  "gates": [],
+  "generated_at": "2026-07-28T00:00:00+00:00",
+  "metrics": {
+    "candidate_count": 0,
+    "gate_count": 0,
+    "pass_count": 0,
+    "run_count": 0
+  },
+  "pipeline": [
+    "意图包",
+    "Agent 执行器",
+    "过程记录器",
+    "脱敏归一",
+    "独立验收门",
+    "证据清单",
+    "经验候选路由"
+  ],
+  "release_decision": {
+    "blockers": [
+      {
+        "code": "BOOTSTRAP_NOT_CONNECTED",
+        "state": "UNKNOWN",
+        "title": "尚未连接真实运行证据"
+      }
+    ],
+    "label": "证据不足",
+    "state": "UNKNOWN"
+  },
+  "runs": [],
+  "runtime_invariants": {
+    "agent_dependency": false,
+    "llm_calls": 0,
+    "macos_launchd": false,
+    "token_budget": 0
+  },
+  "schema_version": 1,
+  "source": {
+    "authority": "Private-Database",
+    "bootstrap": true,
+    "evidence_fresh": false,
+    "newest_event_at": null,
+    "projection": "status.linzezhang.com",
+    "runtime_journal": "OVH SQLite（可重建）",
+    "ttl_minutes": 30
+  }
+}

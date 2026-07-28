@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>中枢体检 · LinzeCloud</title>
 <link rel="stylesheet" href="assets/hub/hub.css">
+<!-- 主题在 <head> 里同步应用:和 index / 治理页共用 localStorage 的 theme 键。
+     必须在样式生效前跑完,否则从深色页跳过来会先闪一下浅色。 -->
+<script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <script src="assets/hub/hub.js" defer></script>
 </head>
 <body>

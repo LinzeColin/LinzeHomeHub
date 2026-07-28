@@ -6,3 +6,8 @@ artifacts/
 .env
 .env.*
 !.env.example
+# status Agent governance: local/rebuildable only
+status/runtime/
+status/private/
+status/spool/
+.secrets/

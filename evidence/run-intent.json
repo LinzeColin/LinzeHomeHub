@@ -1,0 +1,143 @@
+{
+  "created_at": "2026-07-28T21:36:23+00:00",
+  "goal": "把现有 status 前端与任务包已批准 UI 方向整合为一套设计系统,不丢失现有任何信息,并接入 Agent 开发治理页面",
+  "intent_id": "intent:status-linzezhang-com:uiux-version-merge-v0002:3c4150dd320a",
+  "intent_sha256": "40a585e66af49b5b006a98b0e84ab737c9e13955b2d3db036e41c2ed02b6e175",
+  "owner_contract": {
+    "agent_responsibilities": {
+      "build_agent": "只完成最后一公里:真实凭据绑定、测试、提交、推送、部署、恢复验证与证据回写",
+      "independent_gate": "独立持有验收结论;Builder 自评不构成 PASS",
+      "verifier": "只评估冻结候选"
+    },
+    "hard_constraints": [
+      "生产运行 0 Agent、0 模型调用、0 Token",
+      "不新增产品名、不改变权威数据边界",
+      "禁止 clone Private-Database,禁止对其做 Git 写入",
+      "Worker 不得写 Acceptance、sealed fixture 或 verdict",
+      "UNKNOWN / NOT_RUN / WAIVED 永不转为 PASS",
+      "经验只生成候选,不自动安装 Skill"
+    ],
+    "principles": [
+      "10 秒内看到「可发布验收 / 暂不可发布 / 证据不足」",
+      "30 秒内从业务线状态钻取至意图、Agent 运行、候选提交、构建物、验收 Oracle、备份恢复和来源证据",
+      "status 只是只读投影,不是第二事实源",
+      "缺失或陈旧证据一律 fail-closed,不沿用旧绿色"
+    ],
+    "risk_policy": {
+      "kill_gate": "30 个真实 run 内出现任何已知缺陷的 false PASS 即停止扩展 Fleet",
+      "on_failed_production_acceptance": "立即 rollback",
+      "on_missing_credentials": "ENVIRONMENT_BLOCKED,不写假证据"
+    }
+  },
+  "project_contract": {
+    "authority_model": {
+      "governance_repository": "LinzeHomeHub",
+      "large_private_objects": "Cloudflare R2 primary-objects/",
+      "offsite_cold_backup": "OCI",
+      "private_database_cold_backup": "Cloudflare R2 backups/private-database/",
+      "public_projection": "status.linzezhang.com",
+      "runtime_journal": "OVH bounded rebuildable SQLite",
+      "structured_long_term_facts": "Private-Database"
+    },
+    "non_goals": [
+      "完整 Lore",
+      "完整 Agent Fleet",
+      "Gemini/Cursor 全矩阵",
+      "Backstage",
+      "OTel 后端",
+      "完整 DeadReckon",
+      "新仓库",
+      "新品牌",
+      "新长期数据库",
+      "自动批准 Skill",
+      "生产模型调用"
+    ],
+    "product_version": "v0.0.0.2",
+    "runtime_constraints": [
+      "runtime_llm_calls=0",
+      "runtime_token_budget=0",
+      "runtime_agent_dependency=False",
+      "macos_launchd=False",
+      "new_persistent_database=False"
+    ],
+    "scope": [
+      "Private-Database 免 clone、幂等、逐字节 readback 的 authority adapter",
+      "OwnerIntent / ProjectIntent / RunIntentBundle 三层意图编译",
+      "Codex 与 Claude 的 session-scoped command hook 捕获、机械脱敏和安全事件归一",
+      "OVH 有界、可重建 SQLite journal/outbox",
+      "Worker 与 Independent Gate 分权",
+      "R2 与 OCI 从空目录独立恢复并校验数量、摘要和关键事实",
+      "status 中文只读 Agent 开发治理页面;缺失和陈旧证据 fail-closed",
+      "会话经验只生成候选,不自动安装"
+    ],
+    "target_area": "status/",
+    "target_repository": "LinzeColin/LinzeHomeHub"
+  },
+  "project_id": "status-linzezhang-com",
+  "schema_version": 1,
+  "source_hashes": {
+    "owner_intent_sha256": "30b889d2da05c2286552ede222586b8f3db6d54c18205ef24b1378cfa436bcff",
+    "project_intent_sha256": "652a3403631be7472e1fe9817fe79a3f2bf2d029d7b7924fd59d47a69cbad078",
+    "task_contract_sha256": "44077c7353bd40ea7a30c8ce3f0b78e3eac83f192813d6c19c26a88b9dcd40aa"
+  },
+  "task_contract": {
+    "acceptance_ids": [
+      "AC-001",
+      "AC-002",
+      "AC-003",
+      "AC-004",
+      "AC-005",
+      "AC-006",
+      "AC-007",
+      "AC-008",
+      "AC-009",
+      "AC-010",
+      "AC-011",
+      "AC-012",
+      "AC-013",
+      "AC-014",
+      "AC-015"
+    ],
+    "allowed_paths": [
+      "status/web/",
+      "status/deploy/",
+      "tests/",
+      "evidence/"
+    ],
+    "forbidden_paths": [
+      "status/data/",
+      "status/private/",
+      "status/.secrets/",
+      ".secrets/"
+    ],
+    "non_goals": [
+      "改变数据采集口径",
+      "新增运行期外部依赖",
+      "引入第三方 CDN 资源"
+    ],
+    "resource_ceiling": {
+      "macos_launchd": false,
+      "new_persistent_database": false,
+      "runtime_agent_dependency": false,
+      "runtime_llm_calls": 0,
+      "runtime_token_budget": 0
+    },
+    "rollback": "git restore --source=c02f3a6 -- status/web；或从 _protected/uiux-snapshots/linzehomehub-status-web-20260729-c02f3a6 rsync 回写",
+    "scope": [
+      "统一设计令牌与组件语言",
+      "现有 6 个视图(总览/业务流/运行/成本/时间轴/GitHub)全部升级到新设计系统",
+      "新增 Agent 开发治理 / 证据链 / 基础设施三块信息",
+      "保留中枢体检、运维健康、价格设置、GitHub 私有等全部既有入口"
+    ],
+    "skill_allowlist": [
+      "i-have-adhd",
+      "verifier"
+    ],
+    "stop_conditions": [
+      "任一冻结 Oracle 为 FAIL / UNKNOWN / NOT_RUN / WAIVED",
+      "subject binding 漂移",
+      "现有信息在整合中丢失"
+    ]
+  },
+  "task_id": "uiux-version-merge-v0002"
+}
