@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>中枢体检 · LinzeCloud</title>
+<link rel="stylesheet" href="assets/hub/hub.css">
+<script src="assets/hub/hub.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <a class="back" href="/">← 返回总览</a>
+  <h1>中枢体检</h1>
+  <span class="at" id="at">读取中…</span>
+</header>
+
+<main class="wrap">
+  <p class="lede">
+    一屏回答四个问题：中枢<b>看得见</b>多少、<b>看不见</b>多少、哪里<b>可能在骗人</b>、下一步<b>该谁动手</b>。
+    全部由现有数据派生，页面不调用任何模型或 Agent。
+  </p>
+
+  <section aria-labelledby="q1">
+    <h2 id="q1"><span class="n">1</span>看得见多少</h2>
+    <div class="cards" id="seen"></div>
+  </section>
+
+  <section aria-labelledby="q2">
+    <h2 id="q2"><span class="n">2</span>看不见多少</h2>
+    <p class="hint">这些不是错误，是<b>还没接进来</b>。数字大不丢人，显示成 100% 才丢人。</p>
+    <div class="cards" id="blind"></div>
+  </section>
+
+  <section aria-labelledby="q3">
+    <h2 id="q3"><span class="n">3</span>哪里可能在骗人</h2>
+    <p class="hint">自查项。每条都写明<b>判据</b>和<b>实测结果</b>；查不了的写「查不了」，不写「通过」。</p>
+    <ul class="checks" id="lies"></ul>
+  </section>
+
+  <section aria-labelledby="q4">
+    <h2 id="q4"><span class="n">4</span>下一步该谁动手</h2>
+    <p class="hint">按缺口大小排。要补的动作是各项目自己写 <code>docs/governance/flow.yaml</code> 接进来。</p>
+    <div class="tablewrap"><table id="todo"><thead><tr>
+      <th scope="col">项目</th><th scope="col">已验证</th><th scope="col">缺口</th><th scope="col">状态</th>
+    </tr></thead><tbody></tbody></table></div>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</main>
+</body>
+</html>

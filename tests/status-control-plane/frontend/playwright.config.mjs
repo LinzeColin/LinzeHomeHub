@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: '.',
-  testMatch: 'status.spec.mjs',
+  // ★ 原来写死成 status.spec.mjs —— 新增的 spec 文件会**静默不跑**,
+  //   看起来「测试全绿」实际上根本没执行。改成匹配全部 spec。
+  testMatch: '*.spec.mjs',
   timeout: 30000,
   expect: { timeout: 5000 },
   retries: 0,
