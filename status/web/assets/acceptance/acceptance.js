@@ -1,6 +1,11 @@
 "use strict";
 
-const DATA_URL = "data/acceptance/chatgpt_latest.json";
+// ★ 数据必须放在 web/ 下,不能放 data/。
+// data/ 是**运行期生成**目录,部署脚本 rsync 时明确 --exclude data/,
+// 放那儿的静态文件永远到不了生产 —— 页面能打开,数据 404,验收页是空的。
+// 补丁包原本放在 data/acceptance/,包自带 verifier、包自带单元测试、
+// 以及仓里 70 个冻结测试**全都没抓到**,只有真部署 + 真 HTTP 请求才暴露。
+const DATA_URL = "acceptance/chatgpt_latest.json";
 
 function $(id) {
   return document.getElementById(id);

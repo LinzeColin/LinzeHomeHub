@@ -14,7 +14,7 @@ class AcceptanceCenterTest(unittest.TestCase):
         cls.page = cls.repo / "status/web/acceptance.html"
         cls.js = cls.repo / "status/web/assets/acceptance/acceptance.js"
         cls.css = cls.repo / "status/web/assets/acceptance/acceptance.css"
-        cls.data = cls.repo / "status/data/acceptance/chatgpt_latest.json"
+        cls.data = cls.repo / "status/web/acceptance/chatgpt_latest.json"
 
     def test_files_exist(self):
         for path in (self.index, self.page, self.js, self.css, self.data):
