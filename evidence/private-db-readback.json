@@ -1,0 +1,25 @@
+{
+  "area": "Private-MetaDatabase",
+  "client": "OpenAIDatabase/scripts/private_db_client.py(免 clone,put/get/delete)",
+  "empty_input": {
+    "count": 0,
+    "state": "NO_NEW_FACT",
+    "wrote_anything": false
+  },
+  "independent_confirmation": "private_db_client list 独立列出该对象确实存在于权威层",
+  "no_git_transport": "authority 源码无 clone/add/commit/push;写入路径逐条命令核对过",
+  "prefix": "facts/status",
+  "reversibility": "客户端提供 delete,写入可撤销 —— 这正是任务包 production_side_effect_authorization 里说的 reversible write-readback。对象为本轮真实事实,予以保留;如需清除:python3 <client> delete Private-MetaDatabase <relative_path>",
+  "schema_version": 1,
+  "state": "PASS",
+  "task_id": "T03-03",
+  "write": {
+    "byte_identical": true,
+    "event_id": "event:private-database-fact-status.uiux_merge-uiux-version-merge-v0002-readbac:77f18e2bad",
+    "item_state": "READBACK_VERIFIED",
+    "payload_sha256": "3920f3c89218a012c0d769c3f8c6841725346e17c3737ecd411fa6d187c5deb2",
+    "readback_sha256": "3920f3c89218a012c0d769c3f8c6841725346e17c3737ecd411fa6d187c5deb2",
+    "relative_path": "facts/status/2026-07-28/status.uiux_merge/event:private-database-fact-status.uiux_merge-uiux-version-merge-v0002-readbac:77f18e2bad.json",
+    "state": "SYNCED"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "acceptance_hash": "sha256:9d012aebc67af45056706fc9c20884906bea9bd7118d9be8d17a95871639048d",
+  "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+  "backup_evidence": "",
+  "deployment_digest": "",
+  "gate_verdict": "evidence/gate-verdict.json",
+  "ovh_journal": "evidence/ovh-journal.json",
+  "private_db_readback": "evidence/private-db-readback.json",
+  "run_id": "run:uiux-version-merge-v0002",
+  "subject_commit": "6d4e91478df8226b9d314f23a618de84f10b4ffc",
+  "verifier_version": "0.0.2.2"
+}
