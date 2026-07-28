@@ -27,6 +27,14 @@ fi
 rsync -a --delete \
   --exclude data/ --exclude private/ --exclude runtime/ --exclude .secrets/ \
   "$SOURCE_STATUS/" "$TARGET_STATUS/"
+# ★ chmod 之外必须 chown 到容器 uid。admin 容器以 1000:1000 跑,
+#   而这个目录被 root 建出来是 root:root 0750 —— uid 1000 连进都进不去,
+#   容器起来就 sqlite3.OperationalError: unable to open database file,
+#   进无限重启循环。实测踩过一次:线上 /admin 因此挂掉。
+#   0750 + 属主对齐 = 容器能写、其他用户读不到。
+STATUS_RUNTIME_UID="${STATUS_RUNTIME_UID:-1000}"
+STATUS_RUNTIME_GID="${STATUS_RUNTIME_GID:-1000}"
+chown -R "$STATUS_RUNTIME_UID:$STATUS_RUNTIME_GID" "$TARGET_STATUS/runtime"
 chmod 0750 "$TARGET_STATUS/runtime"
 export PYTHONPATH="$TARGET_STATUS${PYTHONPATH:+:$PYTHONPATH}"
 /usr/bin/python3 -m controlplane migrate --repo "$(dirname "$TARGET_STATUS")"
