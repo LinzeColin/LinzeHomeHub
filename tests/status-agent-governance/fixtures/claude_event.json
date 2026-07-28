@@ -1,0 +1,14 @@
+{
+  "hook_event_name": "PostToolUse",
+  "messages": [
+    {
+      "content": "deploy with password=secret-value-for-redaction",
+      "role": "user"
+    }
+  ],
+  "occurred_at": "2026-07-28T00:01:00+00:00",
+  "result": {
+    "exit_code": 0,
+    "output": "done"
+  }
+}

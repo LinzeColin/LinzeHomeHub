@@ -1,0 +1,12 @@
+{
+  "event_type": "PostToolUse",
+  "metadata": {
+    "exit_code": 0
+  },
+  "timestamp": "2026-07-28T00:00:00+00:00",
+  "tool_input": {
+    "authorization": "secret-value-for-redaction",
+    "command": "python -m unittest"
+  },
+  "tool_output": "all checks passed"
+}

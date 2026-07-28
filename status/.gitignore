@@ -3,3 +3,14 @@ data/snapshot.json
 data/history.json
 data/snapshot.json.tmp
 *.log
+# collect.py 的其余派生产物:主机上每分钟重算,仓内只跟踪 prices.json 与 agent-governance.json
+# (两者都是「初始快照」而非活数据)。本地为了预览页面跑一次采集器就会生成下面这些,
+# 它们带的是本机而不是生产的事实 —— 一旦被提交,页面上就会显示一份假的历史。
+data/baseline_history.json
+data/deploy_calendar.json
+data/graph.json
+data/graph_state.json
+data/live_traffic.json
+data/unit_ledger.json
+data/usage_history.json
+__pycache__/

@@ -1,0 +1,4 @@
+# Merge only after `codex --version` and the installed hook schema are verified.
+# Command hooks must remain session-scoped and may not act as the final Verifier.
+[hooks]
+command = "python3 -m status.controlplane.agent_hook --provider codex --output status/runtime/agent-hook-events.jsonl"
