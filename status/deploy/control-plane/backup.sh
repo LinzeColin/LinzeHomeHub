@@ -76,7 +76,11 @@ READBACK="$TMP_ROOT/readback-$OBJECT"
 trap 'rm -f "$TMP_META" "$PLAIN" "$LOCAL" "$READBACK"' EXIT
 
 git -C "$WORKTREE" bundle create "$PLAIN" --all
-git bundle verify "$PLAIN" >/dev/null
+# ★ verify 也必须 -C 到仓里:`git bundle verify` 要在一个仓的上下文中跑,
+#   否则报 "need a repository to verify a bundle"。第一版漏了 -C,
+#   在仓目录里手工测时恰好当时 cwd 就是个仓,所以没暴露;
+#   由 cron/部署脚本从别的目录调起来时必然失败。
+git -C "$WORKTREE" bundle verify "$PLAIN" >/dev/null
 openssl enc -aes-256-cbc -pbkdf2 -salt -in "$PLAIN" -out "$LOCAL" \
   -pass file:"$STATUS_BACKUP_ENCRYPTION_KEY_FILE"
 rm -f "$PLAIN"
