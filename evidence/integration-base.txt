@@ -1,0 +1,9 @@
+# T00-01 integration base
+repository=LinzeColin/LinzeHomeHub
+base_ref=origin/main
+base_sha=c02f3a6232ca558cee30524bab0e19024705d98f
+base_subject=feat(status): 中枢体检页 /hub.html —— 一屏看清中枢看得见/看不见什么 (#70)
+working_branch=claude/status-uiux-merge-v0002
+worktree=<WORKTREE>
+note=DAG 建议分支名 status-v0.0.0.2；本次使用 claude/status-uiux-merge-v0002（一次性分支，验收项为 base SHA 已记录，非分支名）
+recorded_at=2026-07-29

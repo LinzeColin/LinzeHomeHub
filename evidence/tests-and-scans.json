@@ -1,0 +1,71 @@
+{
+  "not_run": [
+    {
+      "compensating_evidence": "已在真实浏览器中人工核对:三页渲染、DOM 结构、图表非透明像素计数、主题切换、375px 无横向溢出、弹层 role=menuitem 完好",
+      "note": "NOT_RUN 不等于 PASS;正式冻结前应补跑",
+      "reason": "node_modules 未安装;跑它需要 npm ci + 下载浏览器(数百 MB),属于对本机的大动作,未获授权不做",
+      "state": "NOT_RUN",
+      "suite": "tests/status-control-plane/frontend（Playwright）"
+    }
+  ],
+  "preexisting_red_on_main": {
+    "attribution": "与基线 c02f3a6 输出**逐字节一致** —— 全部为既有失败,非本次整合引入",
+    "command": "node scripts/validate-homehub.mjs（AGENTS.md 里的 npm run validate）",
+    "exit_code": 1,
+    "items": [
+      "projects.json expected 5 launch surfaces",
+      "pfi liveUrl must match verified deployment evidence",
+      "serenity-alipay liveUrl must match verified deployment evidence",
+      "nab missing future L3 gate",
+      "account deploymentStatus must match verified deployment evidence",
+      "account liveUrl must match verified deployment evidence",
+      "零Token守卫: status/collector/probe_ai_balance.py 出现运行期 AI 接口调用"
+    ],
+    "note": "最后一条与 policy_scan 的按文件豁免相互矛盾:policy_scan 明确豁免 probe_ai_balance.py 的域名,validate-homehub.mjs 不认这个豁免。两个守卫对同一件事给出相反结论,应统一 —— 但这是 main 上的既有问题,不在本次整合范围内。",
+    "state": "FAIL"
+  },
+  "schema_version": 1,
+  "sealed_taskpack_untouched": {
+    "how": "全程在 scratchpad 副本上运行工具,原封印目录只读",
+    "manifest_mismatches": 0,
+    "path": "~/Downloads/status_linzezhang_v0.0.0.2_SEALED_TASKPACK_FINAL_20260728"
+  },
+  "security_scans": {
+    "governance_check.py": {
+      "acceptance": 32,
+      "acyclic": true,
+      "fixtures": 18,
+      "state": "PASS",
+      "tasks": 25
+    },
+    "policy_scan.py": {
+      "covers": "秘密字面量 + 运行期 AI 接口域名 + SDK 依赖",
+      "state": "PASS",
+      "violations": 0
+    }
+  },
+  "task_ids": [
+    "T05-01",
+    "T05-02"
+  ],
+  "tests": {
+    "baseline_total": 282,
+    "net_new_guards": 37,
+    "status/collector/tests": {
+      "baseline_ran": 219,
+      "ran": 219,
+      "state": "OK"
+    },
+    "tests/status-agent-governance（冻结）": {
+      "ran": 9,
+      "state": "OK"
+    },
+    "tests/status-control-plane/unit": {
+      "baseline_ran": 63,
+      "ran": 91,
+      "skipped": 1,
+      "state": "OK"
+    },
+    "total": 319
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "acceptance_ids": [
+    "AC-001",
+    "AC-002",
+    "AC-003",
+    "AC-004",
+    "AC-005",
+    "AC-006",
+    "AC-007",
+    "AC-008",
+    "AC-009",
+    "AC-010",
+    "AC-011",
+    "AC-012",
+    "AC-013",
+    "AC-014",
+    "AC-015"
+  ],
+  "allowed_paths": [
+    "status/web/",
+    "status/deploy/",
+    "tests/",
+    "evidence/"
+  ],
+  "forbidden_paths": [
+    "status/data/",
+    "status/private/",
+    "status/.secrets/",
+    ".secrets/"
+  ],
+  "goal": "把现有 status 前端与任务包已批准 UI 方向整合为一套设计系统,不丢失现有任何信息,并接入 Agent 开发治理页面",
+  "non_goals": [
+    "改变数据采集口径",
+    "新增运行期外部依赖",
+    "引入第三方 CDN 资源"
+  ],
+  "resource_ceiling": {
+    "macos_launchd": false,
+    "new_persistent_database": false,
+    "runtime_agent_dependency": false,
+    "runtime_llm_calls": 0,
+    "runtime_token_budget": 0
+  },
+  "rollback": "git restore --source=c02f3a6 -- status/web；或从 _protected/uiux-snapshots/linzehomehub-status-web-20260729-c02f3a6 rsync 回写",
+  "scope": [
+    "统一设计令牌与组件语言",
+    "现有 6 个视图(总览/业务流/运行/成本/时间轴/GitHub)全部升级到新设计系统",
+    "新增 Agent 开发治理 / 证据链 / 基础设施三块信息",
+    "保留中枢体检、运维健康、价格设置、GitHub 私有等全部既有入口"
+  ],
+  "skill_allowlist": [
+    "i-have-adhd",
+    "verifier"
+  ],
+  "stop_conditions": [
+    "任一冻结 Oracle 为 FAIL / UNKNOWN / NOT_RUN / WAIVED",
+    "subject binding 漂移",
+    "现有信息在整合中丢失"
+  ],
+  "task_id": "uiux-version-merge-v0002"
+}

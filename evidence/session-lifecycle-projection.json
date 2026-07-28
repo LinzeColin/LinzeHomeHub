@@ -1,0 +1,68 @@
+{
+  "candidates": [],
+  "gates": [],
+  "generated_at": "2026-07-28T21:37:04+00:00",
+  "metrics": {
+    "candidate_count": 0,
+    "gate_count": 0,
+    "pass_count": 0,
+    "run_count": 1
+  },
+  "pipeline": [
+    "意图包",
+    "Agent 执行器",
+    "过程记录器",
+    "脱敏归一",
+    "独立验收门",
+    "证据清单",
+    "经验候选路由"
+  ],
+  "release_decision": {
+    "blockers": [
+      {
+        "code": "NO_GATE_EVIDENCE",
+        "state": "UNKNOWN",
+        "title": "尚无独立验收结论"
+      },
+      {
+        "code": "RUN_WITHOUT_GATE",
+        "state": "UNKNOWN",
+        "title": "运行 run-smoke 未完成独立验收"
+      },
+      {
+        "code": "EVIDENCE_STALE",
+        "state": "STALE",
+        "title": "运行证据缺失或已过期"
+      }
+    ],
+    "label": "证据不足",
+    "state": "UNKNOWN"
+  },
+  "runs": [
+    {
+      "candidate_commit": null,
+      "gate_verdict": "UNKNOWN",
+      "project_id": "status.linzezhang.com",
+      "provider": "codex",
+      "run_id": "run-smoke",
+      "status": "RUNNING",
+      "task_id": "task-smoke",
+      "updated_at": "2026-07-28T21:37:04+00:00"
+    }
+  ],
+  "runtime_invariants": {
+    "agent_dependency": false,
+    "llm_calls": 0,
+    "macos_launchd": false,
+    "token_budget": 0
+  },
+  "schema_version": 1,
+  "source": {
+    "authority": "Private-Database",
+    "evidence_fresh": false,
+    "newest_event_at": "2026-07-28T00:00:00+00:00",
+    "projection": "status.linzezhang.com",
+    "runtime_journal": "OVH SQLite（可重建）",
+    "ttl_minutes": 30
+  }
+}
