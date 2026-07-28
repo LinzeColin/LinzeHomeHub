@@ -47,9 +47,18 @@ docker compose --env-file "$ENV_FILE" \
   -f "$TARGET_STATUS/deploy/docker-compose.control-plane.yml" up -d --build --remove-orphans
 "$TARGET_STATUS/deploy/control-plane/doctor.sh"
 /usr/bin/python3 -m controlplane collect --repo "$(dirname "$TARGET_STATUS")"
+# ★ 部署制品摘要只能覆盖「部署了什么代码」,不能把运行副产物算进去。
+#   实测:同一个候选连跑两次 deploy.sh,摘要不同 —— 幂等性(OP-004)直接不成立,
+#   而且这让 deployment_subject 作为证据失去意义(每次部署都是新数字,
+#   没法用它证明「线上跑的就是这个候选」)。两个真因:
+#     1) *.log —— cron 每分钟往 github.log / collect.log 里追加;
+#     2) __pycache__/*.pyc —— rsync 之后跑 python 才生成,且内含源文件时间戳。
+#   两者都排除后,摘要才是候选代码的函数。
 ARTIFACT_DIGEST="$(find "$TARGET_STATUS" -type f \
   ! -path "$TARGET_STATUS/data/*" ! -path "$TARGET_STATUS/private/*" \
   ! -path "$TARGET_STATUS/runtime/*" ! -path "$TARGET_STATUS/.secrets/*" \
+  ! -path "*/__pycache__/*" ! -name "*.pyc" \
+  ! -name "*.log" ! -name "*.log.*" \
   -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
 python3 - "$TARGET_STATUS/runtime/deployment-subject.json" "$CANDIDATE_COMMIT" "$CANDIDATE_TREE" "$ARTIFACT_DIGEST" "$BACKUP" <<'PY'
 import json,sys
