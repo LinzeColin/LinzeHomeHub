@@ -48,4 +48,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      # ★ 这一步原来漏了。少了它,run_all.py 走到 governance_check.py 就
+      #   ModuleNotFoundError: No module named 'yaml' 直接退出 ——
+      #   也就是说 browser 这个 job **从来没真的跑到过浏览器测试**,
+      #   它一直红在 import 上,Playwright 部分一次都没执行过。
+      #   deterministic job 有这一步,browser job 没有,两边不一致。
+      - run: pip install -r tests/status-control-plane/requirements.txt
       - run: python3 tests/status-control-plane/run_all.py --repo . --browser
