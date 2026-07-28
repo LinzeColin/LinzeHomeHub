@@ -132,6 +132,9 @@ tbody tr:last-child td{border-bottom:none}
 .badge.down{color:var(--danger);background:var(--danger-bg)}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
 .dot.ok{background:var(--ok)} .dot.bad{background:var(--danger)} .dot.unk{background:var(--t3)}
+/* warn 原本没有样式 —— 用到它的地方会渲染成一个透明点,状态直接看不见。
+   与自愈规则那处 failed 是同一个坑:没定义的状态不会变绿,但会变成「不存在」。 */
+.dot.warn{background:var(--warn)}
 .chartbox{position:relative;width:100%;height:186px}
 .chartbox.sm{height:152px} .chartbox.xs{height:118px}
 .row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;font-size:13px;border-bottom:.5px solid var(--line)}
@@ -2315,6 +2318,8 @@ function vCost(){
   <div class="card hov" style="margin-top:13px"><div class="muted" style="margin-bottom:7px">额度占用对比</div>
     <div class="chartbox"><canvas id="cPct"></canvas></div></div>
   <h2>外部服务</h2><div class="grid k4" id="cExt"></div>
+  <h2>AI 供应商账务 <span class="muted" style="font-size:12px;font-weight:400" id="cAiAt"></span></h2>
+  <div class="grid k4" id="cAi"></div>
   <div class="muted" id="cFx" style="margin-top:14px"></div>`;
 }
 SYNC['cost']=function(){
@@ -2361,6 +2366,29 @@ SYNC['cost']=function(){
       <div style="font-size:11.5px;margin-top:7px">${eta} <span class="muted">${esc(u.note||'')}</span></div></div>`}).join('');
   const uu=(s.usage||[]).filter(x=>x.limit);
   bars('cPct',uu.map(x=>x.label),uu.map(x=>+(x.used/x.limit*100).toFixed(2)),true,v=>v+'% 已用');
+  /* AI 供应商账务。★ 只有 state==='ok' 才显示数字;其余一律显示原因文字。
+     显示一个错的余额,比显示「不知道」糟得多 —— 前者会让人据此做决定。
+     另外 DeepSeek 报的是**余额**(还剩多少),OpenAI 官方没有公开的剩余余额端点,
+     只能报**已花费**,所以两张卡的标题不一样,不能都写「余额」。*/
+  const ai=s.ai_accounts||{};
+  setText(q('#cAiAt'), ai.checked_at?`· 更新于 ${ai.checked_at}`:'· 尚未探测');
+  const AI_LABEL={deepseek:'DeepSeek',openai:'OpenAI'};
+  const AI_STATE={ok:['ok',''],unconfigured:['unk','未配置'],failed:['bad','探测失败'],
+                  unknown_shape:['warn','结构不认识'],refused:['bad','已拒绝']};
+  q('#cAi').innerHTML=(ai.items||[]).map(x=>{
+    const [cls,word]=AI_STATE[x.state]||['unk','状态不明'];
+    const head=x.kind==='balance'?'余额':'本月已花费';
+    const body = x.state==='ok'
+      ? `<div style="font-size:19px;font-weight:600">${esc(String(x.amount))} <span class="muted" style="font-size:12px">${esc(x.currency||'')}</span></div>`
+      : `<div style="font-size:13px;font-weight:600;color:var(--warn)">${esc(word)}</div>`;
+    return `<div class="card hov" style="padding:14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="dot ${cls}"></span>
+        <span style="font-size:13.5px;font-weight:550">${esc(AI_LABEL[x.vendor]||x.vendor)}</span>
+        <span class="muted" style="font-size:11.5px">${esc(head)}</span></div>
+      ${body}
+      <div class="muted" style="font-size:11.5px;margin-top:5px">${esc(x.note||'')}</div></div>`;
+  }).join('')||'<div class="muted" style="font-size:12.5px">尚未接入</div>';
   q('#cExt').innerHTML=(s.externals||[]).map(e=>{
     const c=e.ok===true?'ok':(e.ok===false?'bad':'unk');
     return `<div class="card hov" style="display:flex;align-items:center;gap:11px;padding:14px">

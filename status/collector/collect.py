@@ -713,6 +713,30 @@ def fx_cached(prev):
     return fx_rates(prev)
 
 
+def ai_accounts_cached(prev):
+    """AI 供应商账务缓存 60 分钟。
+
+    余额本来就变得慢,而这些是**带速率限制**的账单端点,每分钟去问既没意义
+    又容易被限流。探针本身只读账单端点、只用 GET,不碰任何推理端点
+    (见 collector/probe_ai_balance.py 顶部的边界说明与机器守卫)。
+
+    取不到时**保留上一轮的值并标记陈旧**,而不是丢空 —— 但陈旧永远不会显示成绿。
+    """
+    pa = prev.get("ai_accounts") or {}
+    if pa.get("checked_at") and age_min(pa["checked_at"]) < 60:
+        return pa
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from probe_ai_balance import collect_ai_accounts
+        return collect_ai_accounts()
+    except Exception as exc:                      # 探针挂了不能拖垮整轮采集(AR-003)
+        stale = dict(pa)
+        stale["all_ok"] = False
+        stale["probe_error"] = "账务探针异常:%s" % type(exc).__name__
+        return stale or {"items": [], "all_ok": False,
+                         "probe_error": "账务探针异常:%s" % type(exc).__name__}
+
+
 def cert_cached(prev):
     """证书 90 天才换,缓存 60 分钟;剩余天数每次本地重算(不走网络)。"""
     pc = prev.get("ops", {}).get("cert", {})
@@ -2679,6 +2703,7 @@ def main():
 
     host = host_metrics()
     fx = fx_cached(prev)
+    ai_accounts = ai_accounts_cached(prev)
     cert = cert_cached(prev)
     ext, ext_at = externals_cached(prev, host)
 
@@ -2752,6 +2777,7 @@ def main():
         },
         "host": host,
         "fx": fx,
+        "ai_accounts": ai_accounts,
         "cost": costblk,
         "projects": projects,
         "deploy": dep,
