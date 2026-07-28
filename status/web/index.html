@@ -180,6 +180,12 @@ tbody tr:last-child td{border-bottom:none}
 .rule .ic{width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none}
 .rule .ic.ok{background:var(--ok)}.rule .ic.warn{background:var(--warn)}
 .rule .ic.acted{background:var(--accent)}.rule .ic.pending{background:var(--t3)}
+.rule .ic.failed{background:var(--danger)}.rule .ic.unknown{background:var(--t3)}
+/* 状态词:颜色只是辅助通道,状态本身必须能读出来(小圆点在弱视/色觉差异下不可靠) */
+.rst{font-size:10px;padding:1px 6px;border-radius:5px;margin-left:6px;font-weight:600}
+.rst.failed{background:var(--danger-bg);color:var(--danger)}
+.rst.unknown{background:var(--warn-bg);color:var(--warn)}
+.rst.warn{background:var(--warn-bg);color:var(--warn)}
 .rule .rn{font-size:13px;font-weight:550}
 .rule .rt{font-size:12px;color:var(--t2);margin-top:2px}
 .rule .rd{font-size:12px;color:var(--t3);margin-top:2px}
@@ -2214,12 +2220,22 @@ function syncHost(){
     setText(q('#rtMainArm'),`${sh.main_armed}/${sh.main_total} 守护中`);
     setText(q('#rtMetaArm'),`${sh.meta_armed}/${sh.meta_total} 守护中`);
     const R=set=>(sh.rules||[]).filter(r=>(r.set||'main')===set).map(r=>{
-      const st=['ok','warn','acted','pending'].includes(r.state)?r.state:'ok';
+      /* ★ 认不出来的状态必须落到「不确定」,绝不能落到 'ok'。
+         改这行之前是 `…includes(r.state)?r.state:'ok'` —— 任何没见过的状态名、
+         任何拼错、任何 selfheal.json 被写坏的字段,都会**静默渲染成绿点**。
+         这正是 INV-005 禁止的那件事:未知不得聚合成绿。
+         方向反过来之后,新状态就算前端还没适配,最差也只是显示「不确定」,
+         不会假装一切正常。'failed' 是本次新增的真实状态(自愈动了手但复探没通过)。*/
+      const KNOWN=['ok','warn','acted','pending','failed'];
+      const st=KNOWN.includes(r.state)?r.state:'unknown';
+      /* 非正常态额外给一个**文字**标签,不让颜色单独承担状态 */
+      const stw={failed:'未恢复',unknown:'状态不确定',warn:'注意'}[st];
+      const sl=stw?`<span class="rst ${st}">${stw}</span>`:'';
       const eng=r.engine==='builtin'?'<span class="eng builtin">内置</span>':'<span class="eng selfheal">自愈脚本</span>';
       const act=r.actions_total?`<span class="muted"> · 累计 ${r.actions_total}</span>`:'';
       const la=r.last_action?`<div class="rd" style="color:var(--accent)">最近:${esc(r.last_action)}</div>`:'';
       return `<div class="rule"><span class="ic ${st}"></span><div style="flex:1;min-width:0">
-        <div class="rn">${esc(r.name)}${eng}${act}</div><div class="rt">${esc(r.threshold||'')}</div>
+        <div class="rn">${esc(r.name)}${sl}${eng}${act}</div><div class="rt">${esc(r.threshold||'')}</div>
         <div class="rd">${esc(r.detail||'')}</div>${la}</div></div>`}).join('');
     q('#rtMain').innerHTML=R('main'); q('#rtMeta').innerHTML=R('meta');
     q('#rtHeal').innerHTML=(sh.recent||[]).slice(0,7).map(x=>

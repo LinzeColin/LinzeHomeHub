@@ -26,6 +26,11 @@ def main() -> int:
         [sys.executable, "-m", "unittest", "discover", "-s", str(here / "unit"), "-p", "test_*.py"],
         [sys.executable, str(here / "governance_check.py"), "--repo", args.repo],
         [sys.executable, str(here / "policy_scan.py"), "--repo", args.repo],
+        # 遗留平面的 shell 守卫(自愈看门狗的复探)。被测对象是真正跑在 root cron 里的
+        # linze-selfheal.sh,所以必须真跑那个文件;需要 GNU stat/tac,脚本会在
+        # 非 Linux 平台自行 SKIP 并返回 0 —— 本机跑不了不等于可以不跑,
+        # 上线前的 VPS 那一轮必须看到 SELFHEAL_POST_PROBE_PASS。
+        ["bash", str(here / "shell" / "test_selfheal_post_probe.sh")],
     ]
     for command in commands:
         if run(command, here, env):
