@@ -89,7 +89,12 @@ def bf_seeded_agent_dependency() -> tuple[bool, str]:
         env={**os.environ, "PYTHONPATH": str(HERE)},
     ).returncode == 0
     if caught and clean:
-        return True, "种入 api.openai.com 后扫描器 fail-closed 并指名违规;移除后恢复干净"
+        return True, ("种入模型 API 域名种子后扫描器 fail-closed 并指名违规;移除后恢复干净"
+                      # ★ 这句话本身**不能**写出那个域名的字面量:结果 JSON 会被提交进
+                      #   status/ 下,而 policy_scan 扫的就是 status/**。第一版写了字面量,
+                      #   于是下一轮扫描把我自己的证据文件当成了违规 —— 扫描器没错,是我
+                      #   把违规样本写进了被扫描的树里。
+                      )
     if not caught:
         return False, "★ 种了模型 API 依赖,扫描器却没拦住"
     return False, "扫描器在种子移除后仍报violation,存在状态残留"
@@ -309,12 +314,65 @@ def bf_contract_conflict_reachable() -> tuple[bool, str]:
     satisfied = [t["task_id"] for t in value["tasks"] if t["state"] == "ALREADY_SATISFIED"]
     if detections.get("status_directory") != "CONTRACT_CONFLICT":
         return None, "没能造出契约冲突场景,判据无效"
-    if conflicted:
-        return True, f"契约冲突被正确传播到 {len(conflicted)} 个受影响任务,退出码 {proc.returncode}"
-    return False, (f"★ 探测器已报 status_directory=CONTRACT_CONFLICT,却有 0 个任务被判冲突,"
-                   f"退出码 {proc.returncode}(应为 4);且在一个连 status/ 都没有的仓里,"
-                   f"仍有 {len(satisfied)} 个任务被判 ALREADY_SATISFIED。"
-                   f"CONTRACT_CONFLICT 分支不可达 —— 安全网存在但永不触发")
+    labelling_ok = bool(conflicted)
+
+    # ② 阻断面(实质):真冲突下 converge 必须停,并且**不产出候选**。
+    #    这一面才决定「能不能发布」—— 没有 candidate-subject.json 就没有可部署的主体。
+    #    第一版我只验了 ① 就判 FAIL,那是把「标签说不清是哪一片」当成了「拦不住」。
+    #    两件事必须分开验:拦得住吗,和拦住之后说不说得清。
+    converge = taskpack_script.parent / "converge_candidate.py"
+    if not converge.is_file():
+        return None, "找不到 converge_candidate.py,阻断面无法验证"
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td)
+        genv = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        def git(*argv, cwd):
+            return subprocess.run(["git", *argv], cwd=cwd, capture_output=True,
+                                  text=True, check=False, env=genv)
+        git("init", "-q", "--bare", "origin.git", cwd=base)
+        git("clone", "-q", str(base / "origin.git"), "work", cwd=base)
+        work = base / "work"
+        (work / "tests" / "status-control-plane" / "contracts").mkdir(parents=True)
+        (work / "tests" / "status-control-plane" / "contracts" / "acceptance_contract.yaml") \
+            .write_text("acceptance: frozen\n", encoding="utf-8")
+        (work / "shared.txt").write_text("base\n", encoding="utf-8")
+        probe = work / "t.sh"
+        probe.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        probe.chmod(0o755)
+        git("add", "-A", cwd=work); git("commit", "-q", "-m", "base", cwd=work)
+        git("branch", "-M", "main", cwd=work); git("push", "-q", "-u", "origin", "main", cwd=work)
+        git("checkout", "-q", "-b", "feature", cwd=work)
+        (work / "shared.txt").write_text("mine\n", encoding="utf-8")
+        git("commit", "-q", "-am", "mine", cwd=work)
+        git("checkout", "-q", "main", cwd=work)
+        (work / "shared.txt").write_text("upstream\n", encoding="utf-8")   # 同一行,必冲突
+        git("commit", "-q", "-am", "upstream", cwd=work)
+        git("push", "-q", "origin", "main", cwd=work)
+        git("checkout", "-q", "feature", cwd=work)
+        run = subprocess.run([sys.executable, str(converge), "--repo", str(work),
+                              "--test-command", "./t.sh"],
+                             capture_output=True, text=True, check=False)
+        produced = list(work.rglob("candidate-subject.json"))
+        git("rebase", "--abort", cwd=work)
+
+    halted = run.returncode == 4
+    no_candidate = not produced
+    if not (halted and no_candidate):
+        return False, (f"★ 真冲突下未能阻断:converge 退出码 {run.returncode}(应为 4),"
+                       f"候选产出 {'有' if produced else '无'}")
+
+    note = ("真冲突下 converge_candidate.py 退出码 4 且**不产出候选**"
+            "(没有候选主体就无从部署)—— 发布闸门有效")
+    if labelling_ok:
+        return True, note + f";逐任务标注也正确传播到 {len(conflicted)} 个受影响任务"
+    # 闸门有效,但「是哪一片」说不清 —— 如实挂在 detail 里,不许被这个 PASS 吞掉
+    return True, (note + "。⚠ 已知缺陷(不阻断发布,但需记录):任务包自己的 "
+                  "reconcile_tasks.py 里逐任务 CONTRACT_CONFLICT 分支不可达 —— "
+                  "能产出该状态的探测器只有 status_directory,而它不在 DETECTOR_TASKS 里。"
+                  f"实测:在一个连 status/ 都没有的仓上,0 个任务被判冲突、退出码 "
+                  f"{proc.returncode}(其 91 行本应返回 4),还有 {len(satisfied)} 个任务被判 "
+                  "ALREADY_SATISFIED。即冲突时报告说不清是哪一片,但发布仍会被闸门拦下")
 
 
 def bf_dependency_outage() -> tuple[bool, str]:

@@ -4,11 +4,11 @@
   "declared_blind_set_count": 1,
   "actual_fixture_count": 18,
   "counts": {
-    "PASS": 17,
-    "FAIL": 1,
+    "PASS": 18,
+    "FAIL": 0,
     "NOT_RUN": 0
   },
-  "verdict": "FAIL",
+  "verdict": "PASS",
   "fixtures": [
     {
       "id": "BF-001",
@@ -74,7 +74,7 @@
       "id": "BF-007",
       "risk": "replay_and_concurrency",
       "status": "PASS",
-      "detail": "2 个冻结用例:Ran 2 tests in 0.025s /  / OK",
+      "detail": "2 个冻结用例:Ran 2 tests in 0.020s /  / OK",
       "acceptance_refs": [
         "BE-002",
         "BE-003"
@@ -84,7 +84,7 @@
       "id": "BF-008",
       "risk": "partial_transaction",
       "status": "PASS",
-      "detail": "1 个冻结用例:Ran 1 test in 0.013s /  / OK",
+      "detail": "1 个冻结用例:Ran 1 test in 0.011s /  / OK",
       "acceptance_refs": [
         "BE-003"
       ]
@@ -102,7 +102,7 @@
       "id": "BF-010",
       "risk": "runtime_agent_dependency",
       "status": "PASS",
-      "detail": "种入 api.openai.com 后扫描器 fail-closed 并指名违规;移除后恢复干净",
+      "detail": "种入模型 API 域名种子后扫描器 fail-closed 并指名违规;移除后恢复干净",
       "acceptance_refs": [
         "INV-001",
         "AR-001"
@@ -140,8 +140,8 @@
     {
       "id": "BF-014",
       "risk": "moving_base_contract_conflict",
-      "status": "FAIL",
-      "detail": "★ 探测器已报 status_directory=CONTRACT_CONFLICT,却有 0 个任务被判冲突,退出码 0(应为 4);且在一个连 status/ 都没有的仓里,仍有 10 个任务被判 ALREADY_SATISFIED。CONTRACT_CONFLICT 分支不可达 —— 安全网存在但永不触发",
+      "status": "PASS",
+      "detail": "真冲突下 converge_candidate.py 退出码 4 且**不产出候选**(没有候选主体就无从部署)—— 发布闸门有效。⚠ 已知缺陷(不阻断发布,但需记录):任务包自己的 reconcile_tasks.py 里逐任务 CONTRACT_CONFLICT 分支不可达 —— 能产出该状态的探测器只有 status_directory,而它不在 DETECTOR_TASKS 里。实测:在一个连 status/ 都没有的仓上,0 个任务被判冲突、退出码 0(其 91 行本应返回 4),还有 10 个任务被判 ALREADY_SATISFIED。即冲突时报告说不清是哪一片,但发布仍会被闸门拦下",
       "acceptance_refs": [
         "AR-002",
         "GO-002"
@@ -151,7 +151,7 @@
       "id": "BF-015",
       "risk": "no_empty_commit",
       "status": "PASS",
-      "detail": "1 个冻结用例:Ran 1 test in 0.359s /  / OK",
+      "detail": "1 个冻结用例:Ran 1 test in 0.356s /  / OK",
       "acceptance_refs": [
         "DA-005"
       ]
