@@ -1,18 +1,30 @@
 [Unit]
+# ★ 原版按任务包设想的部署写:WorkingDirectory=/srv/linze-home-hub、User=linze-status、
+#   EnvironmentFile=/etc/linze/status-agent-governance.env。本机生产上这三样**全都不存在**
+#   (实测:无该目录、无该用户、无该 env 文件),照原样装上去 timer 每次触发都失败。
+#   现在对齐到与同目录其余单元(linze-status-control-plane-collect.service 等)一致的真实部署:
+#   根 /srv/linze/apps,运行用户 ubuntu —— 与每分钟跑采集的 cron 同一个,
+#   也与 status/runtime、status/data 的属主一致,不会写出别人改不动的文件。
 Description=status.linzezhang.com Agent 开发治理只读投影
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=linze-status
-Group=linze-status
-WorkingDirectory=/srv/linze-home-hub
-EnvironmentFile=-/etc/linze/status-agent-governance.env
-ExecStart=/srv/linze-home-hub/status/deploy/control-plane/agent-governance-project.sh
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/srv/linze/apps
+# 可选 env(前缀 -)。刻意**不**挂 .secrets/control-plane.env —— 它是 0600 root:root,
+# ubuntu 读不到;而投影只读本地 SQLite,本来就不需要任何密钥。
+EnvironmentFile=-/srv/linze/apps/status/.secrets/agent-governance.env
+Environment=REPO_ROOT=/srv/linze/apps
+Environment=STATUS_AGENT_EVIDENCE_TTL_MINUTES=30
+ExecStart=/srv/linze/apps/status/deploy/control-plane/agent-governance-project.sh
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/linze-home-hub/status/runtime /srv/linze-home-hub/status/data
-UMask=0077
+ReadWritePaths=/srv/linze/apps/status/runtime /srv/linze/apps/status/data
+# 0002 而不是 0077:data/ 里的产物要能被 nginx 容器以只读挂载读到(现有 agent-governance.json 是 664)
+UMask=0002
+TimeoutStartSec=120
