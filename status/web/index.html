@@ -629,9 +629,12 @@ function insights(s){
     if(susp)push('warn',`业务流 ${susp} 格可疑`,
       `自报≠实测 ${ft.mismatch||0} · 违反耦合 ${ft.coupling_violation||0}`);
     // 「没有实测」本身就是一条待办 —— 不标出来,0% 覆盖的自报绿就会被当成已验证
-    if(ft.cells&&(fl.verified_total||0)*2<ft.cells)
+    // ★ 分母同样用可测格子(见指标卡处的说明),否则这条提醒的门槛会被
+    //   「大片没做」拉低,反而在真的没实测时不报。
+    const meas=fl.measurable_total||0;
+    if(meas&&(fl.verified_total||0)*2<meas)
       push('warn','业务流实测覆盖不足一半',
-        `${fl.verified_total||0}/${ft.cells} 格有机器实测,其余仅被测方自报`);
+        `${fl.verified_total||0}/${meas} 格可测的有机器实测,其余仅被测方自报`);
   }
   if(!out.length)push('ok','一切正常','没有需要你处理的事项');
   const rank={bad:0,warn:1,ok:2};
@@ -1909,9 +1912,17 @@ SYNC['flow']=function(){
         +(t.blocked_by_policy?` · 另 ${t.blocked_by_policy} 格按规定就该不通(不用管,不计)`:'')
         +` · 另 ${t.degraded} 格有缺陷`,
       tone:(t.blocked_by_input+t.blocked+t.not_built)?'bad':'ok'},
-    {lab:'实测覆盖',val:t.cells?(f.verified_total||0)/t.cells*100:0,unit:'%',fmt:v=>v.toFixed(0),
-      sub:`${f.verified_total||0} / ${t.cells} 格有机器实测,其余仅自报`,
-      tone:(f.verified_total||0)*2<t.cells?'warn':'ok'},
+    // ★ 分母用**可测格子**,不是全部格子。
+    //   全部 315 格里有 49 格根本没有东西可测(没做 27 + 按规定不通 22):
+    //   没建的探针探什么?按规定就不该跑的,测了也没意义。
+    //   拿它们当分母 = 要求一个永远达不到的数,还把真缺口稀释掉。
+    //   但**不可测的数照样写在副标题里**,只留可测口径会让「大片没建」消失。
+    {lab:'实测覆盖',val:(f.measurable_total||0)?(f.verified_total||0)/f.measurable_total*100:0,
+      unit:'%',fmt:v=>v.toFixed(0),
+      sub:`${f.verified_total||0} / ${f.measurable_total||0} 格可测的有机器实测`
+        +(f.unmeasurable_total?` · 另 ${f.unmeasurable_total} 格没东西可测(没做或按规定不通),不计入`:'')
+        +` · 其余仅自报`,
+      tone:(f.verified_total||0)*2<(f.measurable_total||0)?'warn':'ok'},
     {lab:'可疑格',val:t.mismatch+t.coupling_violation,unit:'',
       sub:`自报≠实测 ${t.mismatch} · 违反耦合 ${t.coupling_violation}`,
       tone:(t.mismatch+t.coupling_violation)?'warn':'ok'},
