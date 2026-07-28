@@ -1,0 +1,46 @@
+{
+  "blind_set": {
+    "counts": {
+      "FAIL": 0,
+      "NOT_RUN": 0,
+      "PASS": 18
+    },
+    "how_the_6_NOT_RUN_were_closed": {
+      "BF-004 deployment_drift": "用 S5-T03 冻结出的真实主体产出 candidate-subject.json(tree d7f2944)",
+      "BF-005 jwt_boundary": "装 PyJWT",
+      "BF-006/BF-017 浏览器": "装 chromium 并真跑 Playwright 套件,再置 --browser-ran",
+      "BF-013 reconcile_states": "跑 reconcile_tasks.py 产出 reconciliation.json",
+      "BF-014 contract_conflict": "从 _protected 的 v0.0.0.1 任务包取 reconcile_tasks.py 设 TASKPACK_ROOT"
+    },
+    "note": "这 6 条原先都是「缺依赖/缺上游产物」,不是判据本身不适用 —— 补齐后全部真跑并通过",
+    "verdict": "PASS"
+  },
+  "schema_version": 1,
+  "state": "PASS",
+  "suites": {
+    "status/collector/tests": {
+      "ran": 219,
+      "state": "OK"
+    },
+    "tests/status-agent-governance(冻结)": {
+      "ran": 9,
+      "state": "OK"
+    },
+    "tests/status-control-plane/frontend(Playwright)": {
+      "note": "先前记为 NOT_RUN;已安装 chromium 真跑,20/20 通过,含移动端横向溢出与注入内容纯文本",
+      "projects": [
+        "desktop",
+        "mobile"
+      ],
+      "ran": 20,
+      "state": "OK"
+    },
+    "tests/status-control-plane/unit": {
+      "ran": 96,
+      "skipped": 1,
+      "state": "OK"
+    }
+  },
+  "task_id": "T05-01",
+  "total": 344
+}
