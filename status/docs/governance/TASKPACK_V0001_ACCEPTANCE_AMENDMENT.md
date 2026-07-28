@@ -68,8 +68,9 @@ rclone crypt remote**(前者底层 R2,后者独立 OCI Object Storage),
 
 ## 4. DA-004 修订后全文
 
-- **requirement**:主对象层为 **Private-Database 的 GitHub Release 资产**,
-  存放加密冷备与大体积私有对象;OCI PAR 作为**单向异地投递**副本。
+- **requirement**:主对象层为**某个私有仓的 GitHub Release 资产**
+  (见 §4a 的目的地约束),存放加密冷备与大体积私有对象;
+  OCI PAR 作为**单向异地投递**副本。
 - **target**:主通道必须记录 **上传 → readback → digest → 解密 → 归档重建证据**;
   OCI 通道只记录**投递回执**。
 - **input**:小体量确定性加密对象集(沿用原文)。
@@ -93,6 +94,28 @@ rclone crypt remote**(前者底层 R2,后者独立 OCI Object Storage),
    不得复用历史结论。
 
 ---
+
+## 4a. 目的地约束 —— 修订我自己第一版写错的地方
+
+第一版本文件把主通道写成「**Private-Database** 的 Release 资产」。**这是错的。**
+
+`backup.sh` 备份的对象正是 **Private-Database 仓的 git bundle**。把它存进
+Private-Database 自己的 Release,等于**把备份放在被备份对象内部** ——
+该仓一旦被删除或失去访问,备份与源同归于尽。这不是可接受的冷备。
+
+因此加入两条**硬性目的地约束**,由脚本在运行期强制,不是文档口号:
+
+1. **目的地仓不得等于被备份的仓**(防循环依赖);
+2. **目的地仓必须是私有仓**(防私有数据进公开面)。
+
+默认目的地取 `LinzeColin/Governance`(既有私有仓,不新建云资源)。
+可由 `LINZE_BACKUP_GH_REPO` 覆盖,但上述两条约束不可绕过。
+
+★ 同时如实写明本方案的**保护边界**:
+GitHub Release 资产与 git 对象是分开存储的,所以它能防住
+**误强推 / 历史重写 / 分支删除**;但它**防不住整个 GitHub 账号级失效**。
+OCI PAR 那条单向腿是账号级失效时的唯一残余副本,而它读不回来 ——
+**这一点必须在看板上写着,不许被「已验证恢复」的绿盖过去。**
 
 ## 5. AR-003 修订
 
