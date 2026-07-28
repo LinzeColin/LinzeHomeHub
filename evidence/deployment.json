@@ -1,0 +1,59 @@
+{
+  "T06-03_three_way_digest": {
+    "assertion": "仓内 main = OVH 主机 = 生产 HTTP,5/5 逐字节一致",
+    "digests": {
+      "agent-governance.css": "1afeab39df8772ea",
+      "agent-governance.html": "1e024bb57c5356ca",
+      "agent-governance.js": "9cb5a5a3495df9de",
+      "hub.html": "71c4ca77c43f95c2",
+      "index.html": "4cd79b0a7117c8f4"
+    },
+    "files": 5,
+    "state": "PASS",
+    "why_not_status_code": "nginx try_files 让任何路径都返回 200 —— 实测 /this-does-not-exist-xyz 的 digest 与 index.html 完全相同。可达性只能以内容+digest 判定。"
+  },
+  "T06-04_release_fact": {
+    "event_id": "event:private-database-fact-status.release-status-v0.0.0.2-release-20260729-53:54f8b5ff6a",
+    "fact_type": "status.release",
+    "item_state": "READBACK_VERIFIED",
+    "payload_sha256": "50108e734d1792c2150a2e1f1a7294939beaf960d36ab0f59618e26b3bd97b77",
+    "readback_sha256": "50108e734d1792c2150a2e1f1a7294939beaf960d36ab0f59618e26b3bd97b77",
+    "recorded_gate_verdict": "BLOCKED —— 发布事实里如实写了发布时的门禁状态,不粉饰",
+    "state": "PASS"
+  },
+  "collector_untouched": "collect.py 不在内容变更清单里;部署后快照 updated_at 仍与当前时间同步",
+  "content_changed_files": 40,
+  "deployed_at": "2026-07-29",
+  "excludes": [
+    "data/",
+    "private/",
+    ".secrets/",
+    "runtime/",
+    "spool/",
+    "__pycache__/",
+    "*.log"
+  ],
+  "live_dom_verified": {
+    "/": "顶栏 7 入口带真实生产角标(总览 11/12 · 业务流 60 基线 · 运行 1 未登记 · GitHub 9仓 · 成本 A$647 · 时间轴 1 条到期 · 治理 证据陈旧);#view 2947px,5 个总览区块全渲染",
+    "/agent-governance.html": "标题「治理」、H1「Agent 开发治理」、决策 证据不足、页内 5 段、基础设施 5 个权威层、事实流向 5 步、无错误横幅"
+  },
+  "merge_commit": "1303b1362c4026339fcc3bcdf50f28e5941f98ca",
+  "method": "host-direct rsync -> ubuntu@139.99.61.6:/srv/linze/apps/status/ + docker restart linze-status",
+  "no_delete_flag": "未用 --delete —— dry-run 显示它会删掉生产的 collect.log/github.log/selfheal.log",
+  "production_db_migration": {
+    "applied": "002_agent_governance.sql(4 CREATE TABLE IF NOT EXISTS + 3 INDEX,0 条破坏性语句)",
+    "backup": "runtime/status.db.pre-agent-migration.bak"
+  },
+  "pull_request": "LinzeColin/LinzeHomeHub#71",
+  "schema_version": 1,
+  "task_ids": [
+    "T04-03",
+    "T06-02",
+    "T06-03",
+    "T06-04"
+  ],
+  "taskpack_vs_production_drift_found": [
+    "agent-governance-project.sh 写死 REPO_ROOT=/srv/linze-home-hub,生产实际在 /srv/linze/apps(靠 env 可覆盖)",
+    "该脚本用 -m status.controlplane.agent_cli,生产既有约定是 PYTHONPATH=<status> + -m controlplane.*"
+  ]
+}

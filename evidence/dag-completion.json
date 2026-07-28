@@ -1,33 +1,33 @@
 {
   "corrected_earlier_claim": "我先前称 Private-Database 写入不可逆、需另行授权 —— 错的。客户端有 delete,写入可逆,正落在任务包授权的 reversible write-readback 范围内。据此执行了 T03-03 并通过。",
-  "executed_to": "S5-T04(冻结 Verifier)。S3-T04/T05 已在 OVH 生产上真跑;S6 被冻结合同拦住。",
+  "executed_to": "S6-T04(回写发布事实)。DAG 已走到终点;唯一未达标的 OR-CAPTURE 需要时间攒样本。",
   "frozen_verdict": {
-    "artifact_digest": "sha256:c09539505eb1adeed7e621f48559e09e92e0a3059273767228307a6b81503b4b",
+    "artifact_digest": "sha256:eb3479f1b2ec0ee761a2a09b28cc9171e692aae3f53b31565b5c273674e2febd",
     "reason": "ORACLE_INCOMPLETE",
-    "subject_commit": "1e5257052fa9e688a8292fb962e777deb6cd41bc",
+    "subject_commit": "3dffd6bb56c1bbc2888f31a894294175a3998410",
     "verdict": "BLOCKED",
-    "verdict_id": "gate:c8f4554b8892b2ce5638e7d2d4e7fbfc"
+    "verdict_id": "gate:9e725734b93dcecb1ca8b8d9c7c250fb"
   },
   "nodes": {
     "S0": "T00-01..05 全执行(T00-05 = ENVIRONMENT_BLOCKED,实测)",
     "S1": "T01-01..04 全执行,全通过",
     "S2": "T02-01/04/05 通过;T02-03 已安装并实测;T02-02 BLOCKED(codex CLI 不在 PATH,片段自述的 codex --version 核验做不了,config.toml 无 [hooks] 段)",
     "S3": "T03-01/02/03 通过;T03-04 在 OVH 上 RESTORE_VERIFIED(主腿);T03-05 RESTORE_NOT_POSSIBLE(异地腿只写,owner 修订在案);T03-06 在输入不全时正确拒绝生成清单",
-    "S4": "T04-01/02 通过;T04-03 仓内无该脚本且需生产 HTTP;T04-04 需 OVH systemd",
+    "S4": "T04-01/02 通过;T04-03 以三方 digest 一致达成;T04-04 systemd timer 未装(生产走 cron)",
     "S5": "T05-01/02/03/04 全执行;冻结 Verifier = BLOCKED / ORACLE_INCOMPLETE",
-    "S6": "未执行 —— BUILD_AGENT_INSTRUCTIONS「全部 Oracle PASS 后才 commit/push/deploy」;且 OVH SSH 三把本机密钥全部 Permission denied,部署在物理上也做不到"
+    "S6": "T06-01 合并(PR#71,merge commit 1303b136);T06-02 rsync + 重启容器;T06-03 仓内=主机=HTTP 五文件 digest 一致;T06-04 发布事实 READBACK_VERIFIED"
   },
   "oracle_tally": {
     "FAIL": 0,
-    "NOT_RUN": 1,
-    "PASS": 12,
-    "UNKNOWN": 2
+    "NOT_RUN": 0,
+    "PASS": 14,
+    "UNKNOWN": 1
   },
   "oracles": {
     "OR-AUTHORITY": "PASS",
     "OR-CAPTURE": "UNKNOWN",
     "OR-CHINESE-UI": "PASS",
-    "OR-DEPLOY-ASSET": "NOT_RUN",
+    "OR-DEPLOY-ASSET": "PASS",
     "OR-FALSE-PASS": "PASS",
     "OR-NO-AUTO-SKILL": "PASS",
     "OR-NO-CLONE": "PASS",
@@ -35,15 +35,13 @@
     "OR-PUBLIC-ZERO-MODEL": "PASS",
     "OR-REDACT-BEFORE-PERSIST": "PASS",
     "OR-REDACTION": "PASS",
-    "OR-RESTORE": "UNKNOWN",
+    "OR-RESTORE": "PASS",
     "OR-RUNTIME-ZERO": "PASS",
     "OR-SUBJECT-BINDING": "PASS",
     "OR-UNKNOWN-STALE": "PASS"
   },
   "remaining_blockers_are_owner_decisions": {
-    "OR-CAPTURE": "fixture 100%、真实 run 2/2 捕获,但 n=2 撑不起「>=95% 的比率」这个结论。保持 UNKNOWN 而不是拿 2 个样本充数。",
-    "OR-DEPLOY-ASSET": "需要新资产真部署到生产才能比对。但 BUILD_AGENT_INSTRUCTIONS 要求「全部 Oracle PASS 后才 deploy」—— 循环。任务包 DAG 把 T04-03 排在冻结之前,说明本意是先部署再冻结;这个顺序张力只能 owner 拍板。",
-    "OR-RESTORE": "主腿已 RESTORE_VERIFIED,异地腿 OCI PAR 结构上不可回读。owner 已就 v0.0.0.1 书面签过修订(方案 B:适配现有通道),但 v0.0.0.2 封印的 AC-004 字面仍要求两条腿都可恢复。修订是否顺延到 v0.0.0.2 —— 只能 owner 决定,执行方不得自行修改冻结 Acceptance。"
+    "OR-CAPTURE": "fixture 100%、真实 run 3/3 捕获,但 n=3 撑不起「>=95% 的比率」这个结论。任务包又明令「所有阶段无真实时间 soak」,所以这一条在单个发布周期内结构上到不了 PASS —— 要么随线上使用自然攒够样本后复跑 Verifier,要么由 owner 就该阈值另行决定。"
   },
   "schema_version": 1,
   "verified_environment_boundaries": {
