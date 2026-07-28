@@ -1,15 +1,69 @@
 /* 中枢体检 —— 沿用总览页的设计变量,不另起一套配色。
-   ★ 颜色只当辅助:每个状态都同时有**文字**,不靠色觉分辨(实测对比度不足以承担一级状态)。 */
+   ★ 颜色只当辅助:每个状态都同时有**文字**,不靠色觉分辨(实测对比度不足以承担一级状态)。
+
+   v0.0.0.2:这里原本自带一套**深色优先、和总览页完全不同**的配色 —— 名义上"沿用",
+   实际是站内第二套设计系统。整合时并入与 index.html / agent-governance.css 同一套令牌,
+   由 tests/status-control-plane/unit/test_design_tokens_shared.py 逐值比对,防止再次分叉。
+   浅色为默认、深色跟随系统,并支持 [data-theme] 手动覆盖(hub.html 里那段内联脚本会读
+   localStorage 的 theme,和另外两个页面共用同一个键)。 */
 :root{
-  --bg:#0d1014; --card:#151a21; --line:#232a34;
-  --t1:#e8edf4; --t2:#9aa7b8; --t3:#6b7889;
-  --ok:#3fb950; --ok-bg:#0f2716;
-  --warn:#d29922; --warn-bg:#2a2110;
-  --danger:#f85149; --danger-bg:#2d1214;
+  --bg:#f4f7fb; --card:#ffffff; --soft:#f8fafc; --surface-3:#eef3f9;
+  --line:#d9e2ed; --line2:#c6d3e2;
+  --t1:#172033; --t2:#46546a; --t3:#667386;
+  --accent:#245fe5; --accent-bg:#eaf1ff; --accent-t:#10284a;
+  --navy:#10284a; --navy-2:#1d4378;
+  --pro:#6f42c1; --pro-bg:#f1ebff; --pro-t:#3f2478;
+  --ok:#087c5a; --ok-bg:#e7f6f0; --warn:#8f5708; --warn-bg:#fff4dc;
+  --danger:#c5324b; --danger-bg:#ffedf0;
+  --slate:#596579; --slate-bg:#edf1f5;
+  --shadow:0 1px 2px rgba(22,35,60,.05),0 8px 28px rgba(22,35,60,.08);
+  --shadow-lift:0 2px 6px rgba(22,35,60,.08),0 14px 36px rgba(22,35,60,.12);
+  --focus:0 0 0 3px rgba(36,95,229,.24);
+  --r:16px; --r-sm:10px; --ease:cubic-bezier(.22,.61,.36,1);
 }
-@media (prefers-color-scheme:light){
-  :root{--bg:#f7f9fc;--card:#fff;--line:#e2e8f0;--t1:#111826;--t2:#4a5568;--t3:#718096;
-        --ok-bg:#e6f6ea;--warn-bg:#fdf6e3;--danger-bg:#fdecea;}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0c1220; --card:#131c2c; --soft:#192438; --surface-3:#223049;
+    --line:#2d3d57; --line2:#3a4d6d;
+    --t1:#f1f5fb; --t2:#c2ccda; --t3:#9dacbf;
+    --accent:#75a4ff; --accent-bg:#172b50; --accent-t:#cfe0ff;
+    --navy:#0c1e39; --navy-2:#183c6b;
+    --pro:#b99cff; --pro-bg:#2b2350; --pro-t:#e2d8ff;
+    --ok:#62d4ab; --ok-bg:#10352c; --warn:#f2be67; --warn-bg:#3a2c15;
+    --danger:#ff8195; --danger-bg:#43202a;
+    --slate:#b9c5d5; --slate-bg:#263349;
+    --shadow:0 1px 2px rgba(0,0,0,.32),0 8px 28px rgba(0,0,0,.34);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.38),0 16px 40px rgba(0,0,0,.44);
+    --focus:0 0 0 3px rgba(117,164,255,.32);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f4f7fb; --card:#ffffff; --soft:#f8fafc; --surface-3:#eef3f9;
+  --line:#d9e2ed; --line2:#c6d3e2;
+  --t1:#172033; --t2:#46546a; --t3:#667386;
+  --accent:#245fe5; --accent-bg:#eaf1ff; --accent-t:#10284a;
+  --navy:#10284a; --navy-2:#1d4378;
+  --pro:#6f42c1; --pro-bg:#f1ebff; --pro-t:#3f2478;
+  --ok:#087c5a; --ok-bg:#e7f6f0; --warn:#8f5708; --warn-bg:#fff4dc;
+  --danger:#c5324b; --danger-bg:#ffedf0;
+  --slate:#596579; --slate-bg:#edf1f5;
+  --shadow:0 1px 2px rgba(22,35,60,.05),0 8px 28px rgba(22,35,60,.08);
+  --shadow-lift:0 2px 6px rgba(22,35,60,.08),0 14px 36px rgba(22,35,60,.12);
+  --focus:0 0 0 3px rgba(36,95,229,.24);
+}
+:root[data-theme="dark"]{
+  --bg:#0c1220; --card:#131c2c; --soft:#192438; --surface-3:#223049;
+  --line:#2d3d57; --line2:#3a4d6d;
+  --t1:#f1f5fb; --t2:#c2ccda; --t3:#9dacbf;
+  --accent:#75a4ff; --accent-bg:#172b50; --accent-t:#cfe0ff;
+  --navy:#0c1e39; --navy-2:#183c6b;
+  --pro:#b99cff; --pro-bg:#2b2350; --pro-t:#e2d8ff;
+  --ok:#62d4ab; --ok-bg:#10352c; --warn:#f2be67; --warn-bg:#3a2c15;
+  --danger:#ff8195; --danger-bg:#43202a;
+  --slate:#b9c5d5; --slate-bg:#263349;
+  --shadow:0 1px 2px rgba(0,0,0,.32),0 8px 28px rgba(0,0,0,.34);
+  --shadow-lift:0 2px 6px rgba(0,0,0,.38),0 16px 40px rgba(0,0,0,.44);
+  --focus:0 0 0 3px rgba(117,164,255,.32);
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--t1);
