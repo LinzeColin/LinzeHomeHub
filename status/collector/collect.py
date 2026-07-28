@@ -1591,7 +1591,14 @@ def flow_state():
                     srcs.setdefault(u, []).append(b["name"] or b["id"])
         pv = sum(b["verified"] for b in bl_out)
         pc = sum(b["cells_n"] for b in bl_out)
-        out.append({"verified": pv, "cells_n": pc,
+        # ★ 这一行漏了一次,直接把线上覆盖率打成 4100%:
+        #   measurable 只加在了**基线级**的 row 上,而快照汇总读的是**项目级**的
+        #   p.get("measurable", 0) —— 每个项目都取到默认值 0,于是
+        #   measurable_total=0、unmeasurable_total=315,百分比 41/0 变成 4100%。
+        #   「在一层算、在另一层读」是这个文件里反复出现的形状:
+        #   新增字段必须**三层都过一遍**(格 → 基线 → 项目 → 快照),漏一层就静默失真。
+        pm = sum(b["measurable"] for b in bl_out)
+        out.append({"verified": pv, "cells_n": pc, "measurable": pm,
                     "verified_pct": round(pv / pc * 100) if pc else 0,
                     "self_report_only": pv == 0,
                     "project": p.get("project") or "", "repo": p.get("repo") or "",
