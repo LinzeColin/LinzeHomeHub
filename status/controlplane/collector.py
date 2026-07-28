@@ -89,7 +89,27 @@ def _source_rows(github_data: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _project_key(raw: Mapping[str, Any]) -> str:
-    return str(raw.get("repo") or raw.get("project") or raw.get("id") or raw.get("name") or "").strip()
+    """项目的唯一键。
+
+    ★ 原实现是 `repo or project or id or name`,**把 repo 排在最前面**,于是
+      同一个仓里的多个项目会塌成同一个键。实测生产数据:Nab / PFI / Serenity /
+      EEI / Alpha / ADP / CyberBoss 七个项目都住在 MetaDatabase 这一个仓里,
+      Home 与 Status 都住在 LinzeHomeHub —— 12 个项目被压成 5 个键,
+      直接让 records_by_id 抛 `duplicate entity_id`,控制面采集整个跑不起来。
+
+      「一个仓装多个项目」是本工作间**有意为之**的架构(新功能默认做子项目,
+      不单独建仓),所以这不是数据脏,是键选错了。
+
+    ★ 修法不是去重。去重会把 7 个真项目合成 1 个,那是 DA-002 明令禁止的
+      silent shrink —— 清单悄悄变小,覆盖率分母跟着缩水,看板反而更好看。
+      正确做法是让键真正唯一:用 `repo/name` 复合,既区分同仓内的不同项目,
+      也保留项目与仓的从属关系;没有 repo 时退回项目自身标识。
+    """
+    name = str(raw.get("name") or raw.get("project") or raw.get("id") or "").strip()
+    repo = str(raw.get("repo") or "").strip()
+    if repo and name:
+        return f"{repo}/{name}"
+    return name or repo
 
 
 def _project_name(raw: Mapping[str, Any]) -> str:
