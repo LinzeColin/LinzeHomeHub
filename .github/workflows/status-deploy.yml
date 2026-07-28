@@ -1,0 +1,91 @@
+# status.linzezhang.com 的部署。
+#
+# 在此之前 status/ 是 **host-direct rsync 手动同步** —— README 里写着命令,靠人记得跑。
+# 结果就是「代码合进 main 了」和「线上真的变了」是两件事:v0.0.0.2 合并后线上仍是旧版,
+# 直到有人手动 rsync。合并即上线才不会再出现这种落差。
+#
+# 安全边界(重要):CI 用的是一把**受限**密钥,不是 _protected 里那把全权限的。
+# OVH 上 ubuntu 有 NOPASSWD ALL,所以那把普通密钥绝不能进 GitHub Secrets。
+# 这把 CI 密钥在 authorized_keys 里绑了 `command=".../ci-deploy-gate.sh",restrict`,
+# 只能做两件事:rsync 写入 /srv/linze/apps/status(rrsync -wo 强制),以及 deploy-finalize。
+# 拿不到 shell、不能 sudo、碰不到该目录以外任何东西 —— 越权全部实测拒绝过。
+name: status-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'status/**'
+      - '.github/workflows/status-deploy.yml'
+  workflow_dispatch:
+
+# 同一时间只允许一个部署,避免两次推送把对方的文件覆盖成半截状态
+concurrency:
+  group: status-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备受限部署密钥
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "${{ secrets.STATUS_DEPLOY_SSH_KEY }}" > ~/.ssh/status_deploy
+          chmod 600 ~/.ssh/status_deploy
+          printf '%s\n' "${{ secrets.STATUS_DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: 同步 status/ 到 OVH
+        env:
+          TARGET: ubuntu@139.99.61.6
+        run: |
+          # ★ 不加 --delete:实测它会删掉主机上的 collect.log / github.log / selfheal.log。
+          # ★ data/ private/ .secrets/ runtime/ spool/ 全部排除 —— 那是线上活数据,
+          #   仓内那份只是初始快照,整目录同步会把 /admin 改过的价格库覆盖回旧值。
+          rsync -rlptD --itemize-changes \
+            --exclude 'data/' --exclude 'private/' --exclude '.secrets/' \
+            --exclude 'runtime/' --exclude 'spool/' --exclude '__pycache__/' --exclude '*.log' \
+            -e "ssh -i ~/.ssh/status_deploy -o BatchMode=yes -o IdentitiesOnly=yes" \
+            status/ "$TARGET":
+
+      - name: 重启并在主机内自检
+        env:
+          TARGET: ubuntu@139.99.61.6
+        run: |
+          # 闸门自己会验内容并在失败时返回非零(直连容器,不打前置代理)
+          ssh -i ~/.ssh/status_deploy -o BatchMode=yes -o IdentitiesOnly=yes "$TARGET" deploy-finalize
+
+      - name: 公网验收 —— 用内容与 digest,不看状态码
+        run: |
+          set -euo pipefail
+          # ★ nginx 的 try_files 让**任何路径**都返回 200:实测 /this-does-not-exist 的
+          #   digest 与 index.html 完全相同。所以状态码在这个站上没有任何鉴别力,
+          #   只能比对仓内文件与线上响应的 sha256。
+          fail=0
+          for f in index.html hub.html agent-governance.html agent-governance.css agent-governance.js; do
+            repo="$(sha256sum "status/web/$f" | cut -d' ' -f1)"
+            live="$(curl -sS --retry 5 --retry-delay 3 --retry-all-errors \
+                      "https://status.linzezhang.com/$f" | sha256sum | cut -d' ' -f1)"
+            if [ "$repo" = "$live" ]; then
+              echo "OK   $f  ${repo:0:16}…"
+            else
+              echo "FAIL $f  repo=${repo:0:16}… live=${live:0:16}…"; fail=1
+            fi
+          done
+          # 反假绿:乱写的路径必须仍然返回 index —— 若它和治理页一样,说明上面的比对没意义
+          bogus="$(curl -sS 'https://status.linzezhang.com/__deploy_probe_should_fallback__' | sha256sum | cut -d' ' -f1)"
+          idx="$(sha256sum status/web/index.html | cut -d' ' -f1)"
+          [ "$bogus" = "$idx" ] || { echo "FAIL 兜底路径没有返回 index —— 站点行为与预期不符"; fail=1; }
+          [ "$fail" -eq 0 ] || { echo '::error::公网 digest 验收未通过'; exit 1; }
+          echo '公网验收通过:仓内 = 线上,5/5'
+
+      - name: 失败时留下可回滚的线索
+        if: failure()
+        run: |
+          echo '::error::status 部署失败。回滚:'
+          echo '  git checkout <上一个好提交> -- status/web && 重跑本 workflow'
+          echo '  或从 _protected/uiux-snapshots/ 的快照 rsync 回写(见 SNAPSHOT.md)'
