@@ -1549,7 +1549,16 @@ def flow_state():
                 if _SEV.get(final, 9) < _SEV.get(worst, 9):
                     worst = final
             probed_n = sum(1 for c in cells.values() if c["measured"])
+            # ★ 可测格子 = 排除掉「根本没有东西可测」的两态:
+            #     not_built          代码都不存在,探针探什么
+            #     blocked_by_policy  本来就不该跑,测了也没意义
+            #   这两态在上面 final 判定的第一条分支里就已经明确是
+            #   「人的决定,机器测不出来,必须尊重」—— 覆盖率的分母必须一致,
+            #   否则就是拿一个自己都承认测不了的东西去要求实测率。
+            measurable_n = sum(1 for c in cells.values()
+                               if c["s"] not in ("not_built", "blocked_by_policy"))
             row = {"verified": probed_n, "cells_n": len(cells),
+                   "measurable": measurable_n,
                    "id": b.get("id") or "", "name": b.get("name") or "",
                    "priority": (b.get("priority") or "P3").upper(),
                    "note": b.get("note") or "",
@@ -1649,6 +1658,19 @@ def flow_state():
                       for d in days[-90:]],
             "verified_total": sum(p["verified"] for p in out),
             "cells_total": sum(p["cells_n"] for p in out),
+            # ★ 覆盖率的分母必须把「测不了」和「还没测」分开。
+            #   实测:315 格里有 49 格**根本没有东西可测** ——
+            #     还没建(not_built) 27 格:代码都不存在,探针探什么?
+            #     按规定不通(blocked_by_policy) 22 格:本来就不该跑,测了也没意义
+            #       (而且这两态本来就是「人的决定,机器测不出来,必须尊重」,
+            #        见上面 final 判定里的第一条分支)
+            #   把它们算进分母,等于要求一个永远达不到的数,还会让真实缺口被稀释:
+            #     41/315 = 13.0%   ← 冤枉自己,且看不出还差多少
+            #     41/266 = 15.4%   ← 可测口径,缺口 185 格,是能拿去派活的数
+            #   两个数都出,**绝不只留一个** —— 只留可测口径会让「大片没建」消失。
+            "measurable_total": sum(p.get("measurable", 0) for p in out),
+            "unmeasurable_total": sum(p["cells_n"] - p.get("measurable", 0)
+                                      for p in out),
             "note": "★**自报的绿 ≠ 实测的绿**:未配探针的格子只代表被测方「说它通」,"
                     "不代表本站测出来通。每个项目标了实测覆盖率,0% 的项目会整体标注为「仅自报」。"
                     "阶段由各项目自己定义,本站只统一接口与呈现。格子状态 = 自报与本机只读实测的"
