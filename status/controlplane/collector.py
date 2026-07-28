@@ -125,7 +125,17 @@ def _declared_records(status_data: Mapping[str, Any]) -> tuple[InventoryRecord, 
         records.append(InventoryRecord(
             entity_id=stable_id("project", key), kind="project", name=name, source="declared",
             lifecycle=str(raw.get("lifecycle") or raw.get("stage") or "active"), runtime_state="UNKNOWN",
-            metadata={"evidence_ref": str(raw.get("evidence_ref") or "")},
+            metadata={"evidence_ref": str(raw.get("evidence_ref") or ""),
+                      "repo": str(raw.get("repo") or "").strip()},
+        ))
+    # 被已登记项目引用到的仓,本身也算「已登记」——否则 MetaDatabase 这种
+    # 托管 7 个项目的仓会被判成 REPOSITORY_UNREGISTERED,是假红。
+    # 反过来,没有任何项目引用的仓仍会报 UNREGISTERED,该有的信号一条不少。
+    for repo in sorted({str(r.get("repo") or "").strip() for r in _project_rows(status_data)} - {""}):
+        records.append(InventoryRecord(
+            entity_id=stable_id("repository", repo), kind="repository", name=repo, source="declared",
+            lifecycle="active", runtime_state="UNKNOWN",
+            metadata={"evidence_ref": "", "declared_via": "project_reference"},
         ))
     return tuple(records)
 
@@ -137,7 +147,14 @@ def _source_records(github_data: Mapping[str, Any]) -> tuple[InventoryRecord, ..
         if not key:
             continue
         records.append(InventoryRecord(
-            entity_id=stable_id("project", key), kind="repository", name=key, source="source",
+            # ★ 仓和项目是两种实体,必须分命名空间。
+            #   原来两者都用 stable_id("project", …),靠「项目键恰好等于仓名」才对上 ——
+            #   而那个「恰好」正是把同仓多项目压成一个的那个 bug。修掉 bug 之后,
+            #   若仍共用命名空间,MetaDatabase 这种托管着 7 个已登记项目的仓
+            #   会被判成 REPOSITORY_UNREGISTERED,是**假红**。
+            #   分开之后:declared 会为「被项目引用到的仓」补一条同命名空间的记录,
+            #   于是有项目的仓能对上,真正没人登记的仓才报 UNREGISTERED —— 信号保住了。
+            entity_id=stable_id("repository", key), kind="repository", name=key, source="source",
             lifecycle="retired" if raw.get("archived") else "active", runtime_state="UNKNOWN",
             metadata={
                 "public_url": (raw.get("url") or raw.get("html_url")) if not raw.get("private") else None,
@@ -178,10 +195,17 @@ def _runtime_records(status_data: Mapping[str, Any]) -> tuple[InventoryRecord, .
             name = str(raw.get("id") or raw.get("name") or "").strip()
             if not name:
                 continue
+            # ★ 单元名在**不同类型之间**可以重复。实测:`linze-status` 既是一个
+            #   container,又是一个 cron 单元(/etc/cron.d/linze-status),
+            #   两个都真实存在、都要监控。只用名字做键会撞成一个,
+            #   于是 records_by_id 抛 duplicate,采集整个跑不起来。
+            #   同样不能靠去重解决 —— 那会让 56 个单元里凭空少一个,
+            #   而「单元消失必须留痕」正是这套盘子要防的事。
+            unit_kind = str(raw.get("kind") or raw.get("type") or "unit").strip() or "unit"
             raw_state = str(raw.get("state") or raw.get("status") or "UNKNOWN").upper()
             state = "HEALTHY" if raw_state in {"RUNNING", "ACTIVE", "SCHEDULED", "HEALTHY"} else "FAILED" if raw_state in {"FAILED", "EXITED", "INACTIVE", "DEAD"} else "UNKNOWN"
             records.append(InventoryRecord(
-                entity_id=stable_id("runtime", name), kind="runtime_unit", name=name, source="runtime",
+                entity_id=stable_id("runtime", unit_kind, name), kind="runtime_unit", name=name, source="runtime",
                 runtime_state=state, metadata={"evidence_ref": str(software.get("at") or status_data.get("updated_at") or "")},
             ))
     return tuple(records)
