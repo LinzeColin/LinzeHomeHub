@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily completed-fact sync to Private-Database
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=linze-status-authority-sync.service
+
+[Install]
+WantedBy=timers.target

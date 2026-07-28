@@ -1,0 +1,12 @@
+[Unit]
+Description=Run bounded status self-heal every five minutes
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=5m
+AccuracySec=15s
+Persistent=true
+Unit=linze-status-selfheal.service
+
+[Install]
+WantedBy=timers.target

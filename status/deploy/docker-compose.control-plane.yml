@@ -1,0 +1,47 @@
+services:
+  status:
+    read_only: true
+    tmpfs:
+    - /var/cache/nginx:size=32m,mode=0755
+    - /var/run:size=4m,mode=0755
+    - /tmp:size=8m,mode=1777
+    cap_drop:
+    - ALL
+    cap_add:
+    - CHOWN
+    - SETGID
+    - SETUID
+    - NET_BIND_SERVICE
+    security_opt:
+    - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 192m
+    cpus: 0.5
+    image: ${STATUS_NGINX_IMAGE:?set STATUS_NGINX_IMAGE to a digest-pinned nginx image}
+  admin:
+    build:
+      context: ..
+      dockerfile: admin/Dockerfile.control-plane
+      args:
+        PYTHON_IMAGE: ${STATUS_PYTHON_IMAGE:?set STATUS_PYTHON_IMAGE to a digest-pinned Python 3.12 slim image}
+    image: linze-status-admin:${STATUS_ADMIN_IMAGE_TAG:-v0.0.0.1}
+    read_only: true
+    tmpfs:
+    - /tmp:size=16m,mode=1777
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    pids_limit: 96
+    mem_limit: 192m
+    cpus: 0.5
+    environment:
+      RUNTIME_DB_PATH: /srv/runtime/status.db
+      CF_ACCESS_ISSUER: ${CF_ACCESS_ISSUER:?set CF_ACCESS_ISSUER}
+      CF_TEAM_DOMAIN: ${CF_TEAM_DOMAIN:?set CF_TEAM_DOMAIN}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD:?set CF_ACCESS_AUD}
+      OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL}
+    volumes:
+    - /srv/linze/apps/status/runtime:/srv/runtime:rw
+    - /srv/linze/apps/status/data:/srv/data:ro
+    - /srv/linze/apps/status/private:/srv/private:ro

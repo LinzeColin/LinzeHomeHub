@@ -370,6 +370,7 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .arrive{animation:arrive 1.6s var(--ease)}
 @keyframes arrive{0%{box-shadow:0 0 0 0 var(--ok)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
 </style>
+  <link rel="stylesheet" href="/assets/control-plane/control-plane.css">
 </head>
 <body>
 <div class="topbar"><div class="in">
@@ -2545,5 +2546,6 @@ D.addEventListener('visibilitychange',()=>{if(!D.hidden){tickAgo();load();
 load().then(probeEdit);
 setInterval(load,REFRESH);
 </script>
+  <script src="/assets/control-plane/control-plane.js" defer></script>
 </body>
 </html>

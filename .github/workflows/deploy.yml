@@ -5,7 +5,7 @@ on:
 
 jobs:
   golden-path:
-    uses: LinzeColin/CodexProject/.github/workflows/linze-golden-path.reusable.yml@main
+    uses: LinzeColin/CodexProject/.github/workflows/linze-golden-path.reusable.yml@95652c49ca67cf76b756022ee0a4e01501d2196a
     with:
       service_name: linze-home-hub
       coolify_app_uuid: "u9kyhx2fzhr0vaj2yfd6vt66"

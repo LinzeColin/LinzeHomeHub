@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "runtime_db_path": "/srv/linze/apps/status/runtime/status.db",
+  "public_snapshot_path": "/srv/linze/apps/status/data/control-plane.json",
+  "private_snapshot_path": "/srv/linze/apps/status/private/control-plane.json",
+  "private_database_worktree_env": "PRIVATE_DATABASE_WORKTREE",
+  "r2_remote_env": "LINZE_R2_REMOTE",
+  "oci_remote_env": "LINZE_OCI_REMOTE",
+  "backup_prefix": "private-database",
+  "d1_enabled": false,
+  "agent_runtime_allowed": false,
+  "model_api_runtime_allowed": false,
+  "token_budget": 0
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Bounded truthful self-heal for status.linzezhang.com
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=/srv/linze/apps/status
+WorkingDirectory=/srv/linze/apps
+ExecStart=/usr/bin/python3 -m controlplane selfheal --policy /srv/linze/apps/status/deploy/control-plane/selfheal-policy.json --state /srv/linze/apps/status/runtime/selfheal-state.json --lock /run/lock/linze-status-selfheal.lock
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0027
+TimeoutStartSec=90

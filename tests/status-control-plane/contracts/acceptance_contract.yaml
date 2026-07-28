@@ -1,0 +1,281 @@
+api_version: status.linzezhang.com/acceptance/v1alpha1
+document_version: v0.0.0.1
+state: FROZEN_FOR_EXECUTION
+repository_policy:
+  repository: LinzeColin/LinzeHomeHub
+  target_area: status
+  freeze_main: false
+  contract_freeze: true
+  late_bind_integration_base: true
+  formal_verifier_subject: candidate_subject
+global_invariants:
+- id: INV-001
+  statement: Production runtime has no Agent or LLM dependency and consumes zero model tokens.
+  oracle: runtime dependency, domain, configuration and request scan
+  blocking: true
+- id: INV-002
+  statement: LinzeHomeHub/status owns code and governance; Private-Database is the sole long-term structured fact authority.
+  oracle: authority and write-path scan
+  blocking: true
+- id: INV-003
+  statement: OVH SQLite is rebuildable runtime cache, journal, idempotency and outbox only.
+  oracle: delete-and-rebuild fixture plus authority comparison
+  blocking: true
+- id: INV-004
+  statement: No macOS launchd or persistent local-machine runtime resource is introduced.
+  oracle: runtime and packaging scan
+  blocking: true
+- id: INV-005
+  statement: UNKNOWN, UNAVAILABLE, STALE, UNVERIFIED, NOT_RUN and ABSTAIN never aggregate to PASS or green.
+  oracle: seeded state aggregation fixtures
+  blocking: true
+- id: INV-006
+  statement: Main may continue changing; only the final candidate and deployment subject are immutable evidence subjects.
+  oracle: subject manifest and moving-base integration fixture
+  blocking: true
+domains:
+  frontend:
+  - id: FE-001
+    requirement: All user-visible product text, status explanations and recovery guidance are Chinese.
+    baseline: Existing status is primarily Chinese but all new states are not yet defined.
+    target: No unexplained English state or operator instruction in public and admin views.
+    input: golden, degraded, unknown, stale and recovery snapshots
+    oracle: DOM text scan and approved terminology dictionary
+    threshold: zero unapproved user-visible English status strings
+    evidence: playwright report and DOM snapshot
+  - id: FE-002
+    requirement: Coverage Health and Runtime Health are shown independently.
+    baseline: Portfolio health can be derived from a static declared denominator.
+    target: Unknown inventory denominator cannot produce an all-healthy portfolio.
+    input: declared/source/runtime inventory fixtures
+    oracle: state matrix assertion
+    threshold: all blind inventory-loss cases produce UNKNOWN or DEGRADED coverage
+    evidence: snapshot diff and assertion log
+  - id: FE-003
+    requirement: Architecture, capability, evidence and provenance views derive from one canonical snapshot.
+    baseline: Existing graph and status data are separate projections with partial overlap.
+    target: All four views expose the same entity IDs and observed revision.
+    input: canonical snapshot fixture
+    oracle: cross-view entity and revision equality
+    threshold: 100 percent of displayed entities resolve to one canonical ID
+    evidence: cross-view consistency report
+  - id: FE-004
+    requirement: Desktop, mobile, keyboard, reduced-motion and dark-mode paths remain usable.
+    baseline: No frozen status-specific cross-viewport acceptance suite.
+    target: No critical a11y violation or unintended horizontal overflow.
+    input: 1440x900 and 390x844, keyboard-only, reduced-motion and dark mode
+    oracle: Playwright, accessibility tree and browser logs
+    threshold: zero critical violations, zero uncaught console errors, zero unintended overflow
+    evidence: screenshots, trace and accessibility report
+  - id: FE-005
+    requirement: Dynamic fields and URLs cannot execute injected content.
+    baseline: Admin/private data rendering requires a unified safe-rendering contract.
+    target: Seeded HTML, JavaScript, URL-scheme and Unicode-confusable payloads remain inert.
+    input: blind XSS and URL fixtures
+    oracle: DOM mutation and network observation
+    threshold: zero script execution and zero non-allowlisted navigation
+    evidence: Playwright trace and CSP report
+  backend:
+  - id: BE-001
+    requirement: Cloudflare Access identity is verified by signature, issuer, audience, expiry and owner policy.
+    baseline: Current public code does not expose a frozen full negative JWT test matrix.
+    target: Only the intended identity and application token are accepted.
+    input: valid, expired, wrong issuer, wrong audience, wrong user and malformed tokens
+    oracle: HTTP contract tests
+    threshold: valid fixture accepted; every negative fixture rejected
+    evidence: request/response matrix without raw token values
+  - id: BE-002
+    requirement: Admin mutations are schema-validated, revision-checked and idempotent.
+    baseline: File-level locking does not fully define cross-process revision and replay behavior.
+    target: Duplicate commands do not duplicate facts; stale revisions cannot overwrite newer state.
+    input: duplicate, concurrent and out-of-order commands
+    oracle: transaction and replay fixture
+    threshold: one committed fact per idempotency key; stale write rejected
+    evidence: journal/outbox state report
+  - id: BE-003
+    requirement: Runtime journal and outbox commit atomically with the accepted mutation.
+    baseline: Current JSON projection is not the required long-term authority path.
+    target: Fault at any transaction point leaves either a complete commit or no commit.
+    input: fault injection at each transaction boundary
+    oracle: SQLite integrity, row set and outbox comparison
+    threshold: zero partial accepted mutations
+    evidence: fault-injection report
+  - id: BE-004
+    requirement: Public and private projections use explicit allowlists and fail closed.
+    baseline: Existing privacy filtering is distributed across collectors and rendering.
+    target: Unknown fields never enter the public snapshot.
+    input: seeded private repo names, paths, PII, prompts and secret-like values
+    oracle: recursive public snapshot scan
+    threshold: zero seeded private values and zero undeclared fields
+    evidence: redaction and schema report
+  data:
+  - id: DA-001
+    requirement: Private-Database remains the only long-term structured authority.
+    baseline: Some mutable status facts currently originate from OVH JSON projections.
+    target: Completed facts sync idempotently to Private-Database; local files remain rebuildable projections.
+    input: accepted admin mutation, release, incident and recovery fixtures
+    oracle: authority record and projection reconstruction comparison
+    threshold: all completed facts represented once in authority; projection rebuild is lossless
+    evidence: sync manifest and reconstruction report
+  - id: DA-002
+    requirement: Declared, Source and Runtime inventories reconcile without silent shrink.
+    baseline: Static declarations and dynamic discovery use different coverage semantics.
+    target: Empty or sharply shrinking observation cannot overwrite a credible inventory without an explicit reason.
+    input: empty API, partial API, retired asset, orphan runtime and new repository fixtures
+    oracle: inventory reconciliation state machine
+    threshold: all fixtures produce the expected explicit difference state
+    evidence: inventory diff report
+  - id: DA-003
+    requirement: Capability evidence expires when its subject, contract, environment or TTL changes.
+    baseline: Path existence and historical evidence can outlive the current implementation.
+    target: Commit, lockfile, contract, artifact, environment and fake-clock mutations invalidate the lease.
+    input: one mutation per invalidation cause
+    oracle: evidence lease evaluator
+    threshold: 100 percent of invalidation fixtures become STALE or UNVERIFIED
+    evidence: lease transition report
+  - id: DA-004
+    requirement: R2 stores cold backups and large/private objects; OCI holds an independently recoverable offsite copy.
+    baseline: Public code reflects a legacy GitHub Release and OCI-oriented backup path.
+    target: Object upload, readback, digest, encryption metadata and restore evidence are recorded.
+    input: small deterministic encrypted object set
+    oracle: R2 and OCI readback/decrypt/restore comparison
+    threshold: all restored object digests and expected facts match
+    evidence: backup and restore manifests
+  - id: DA-005
+    requirement: No new fact produces no Git commit.
+    baseline: Daily synchronization policy requires explicit empty-change handling.
+    target: Repeated identical sync leaves the authority tree unchanged.
+    input: two identical completed-fact batches
+    oracle: Git tree and commit comparison
+    threshold: second batch creates zero commit and zero object delta
+    evidence: sync execution record
+  architecture:
+  - id: AR-001
+    requirement: Production dependency graph contains no Agent, model API or chat-session dependency.
+    baseline: Repository rules prohibit these dependencies but require machine enforcement.
+    target: Source, lockfile, config, container and outbound-domain scans all pass.
+    input: clean tree plus seeded forbidden dependency and domain fixtures
+    oracle: static/runtime dependency scanner
+    threshold: clean tree passes; every seeded violation fails
+    evidence: zero-Agent assurance report
+  - id: AR-002
+    requirement: The implementation extends the latest main through semantic reconciliation rather than replacing upstream
+      work.
+    baseline: The repository changes continuously.
+    target: Already-satisfied and upstream-equivalent tasks are skipped; compatible drift is adapted.
+    input: moving-base fixtures with no overlap, equivalent overlap and conflicting overlap
+    oracle: task reconciliation classifier plus frozen acceptance
+    threshold: all fixtures receive the expected state and no equivalent upstream implementation is overwritten
+    evidence: drift and reconciliation report
+  - id: AR-003
+    requirement: Status, GitHub, Private-Database, R2 and OCI failures are isolated.
+    baseline: Collectors already retain some last-known-good data but cross-plane behavior is not frozen.
+    target: Failure of one dependency cannot corrupt authority or stop unrelated monitoring.
+    input: one dependency outage at a time
+    oracle: fault-injection state and data comparison
+    threshold: no authority corruption; unrelated critical path continues; affected state is explicit
+    evidence: failure isolation report
+  - id: AR-004
+    requirement: Third-party workflows, actions, images and reused code are versioned immutably where supported.
+    baseline: Current workflows include mutable cross-repository and major-tag references.
+    target: Approved full SHA/digest/tag and license record exist for each runtime/build dependency.
+    input: dependency and workflow inventory
+    oracle: supply-chain policy scanner
+    threshold: zero unapproved mutable execution dependency
+    evidence: dependency and license ledger
+  operations:
+  - id: OP-001
+    requirement: Collection, status generation, self-heal, backup and recovery run on OVH without Agent or local-machine dependency.
+    baseline: Current design uses cron/systemd but runtime facts require Stage-0 confirmation.
+    target: All recurring jobs map to OVH units/timers/cron and expose last success/error.
+    input: read-only runtime inventory
+    oracle: unit, process and scheduler reconciliation
+    threshold: zero required recurring job depends on an Agent, chat or local machine
+    evidence: runtime inventory report
+  - id: OP-002
+    requirement: Self-heal is singleton, bounded, exact-targeted and reports recovery only after a successful post-probe.
+    baseline: Current shell flow requires stronger action-result semantics.
+    target: Failed restart, cooldown, lock contention and repeated failure are represented truthfully.
+    input: restart success/failure, lock contention, cooldown and no-progress fixtures
+    oracle: self-heal state machine
+    threshold: zero false RECOVERED state; retry budget never exceeded
+    evidence: self-heal fixture report
+  - id: OP-003
+    requirement: Backup existence and restore verification are separate conditions.
+    baseline: File age can be mistaken for recoverability.
+    target: Deletion or green recovery requires fresh offsite readback and deterministic restore evidence.
+    input: fresh, stale, corrupt, missing-key and offsite-unavailable fixtures
+    oracle: fake clock, decrypt, digest and reconstruction
+    threshold: only the fully verified fixture is RESTORE_VERIFIED
+    evidence: restore lease report
+  - id: OP-004
+    requirement: Start, stop, doctor, backup, restore and rollback commands are idempotent and immediately testable.
+    baseline: Existing scripts are not one frozen cross-domain operator contract.
+    target: Repeated execution has the same accepted end state and no destructive duplicate effect.
+    input: two consecutive runs plus injected partial failure
+    oracle: command exit, state and artifact comparison
+    threshold: second run is no-op or safe convergence; partial failure is recoverable
+    evidence: operator command report
+  governance:
+  - id: GO-001
+    requirement: Requirement, task, test, oracle, evidence and artifact traceability is complete.
+    baseline: Existing governance assets are distributed across repositories and views.
+    target: Every blocking requirement resolves through one acyclic execution path.
+    input: acceptance contract, task DAG, fixture catalog and artifact manifest
+    oracle: traceability checker
+    threshold: 100 percent of blocking requirements mapped; zero orphan critical task
+    evidence: traceability matrix
+  - id: GO-002
+    requirement: The taskpack reconciles against latest main without freezing repository development.
+    baseline: A fixed research snapshot becomes stale as upstream work continues.
+    target: Integration base, candidate and deployment subjects are recorded separately.
+    input: moving-base fixture and execution manifest
+    oracle: subject identity checker
+    threshold: all formal evidence binds candidate or deployment subject, never an unqualified moving main
+    evidence: subject manifest
+  - id: GO-003
+    requirement: Codex and the development Agent remain last-mile executors.
+    baseline: Without a frozen contract, an Agent could restart research or expand scope.
+    target: Execution contract forbids market research, new version creation, acceptance expansion and complex re-review.
+    input: taskpack instruction and execution log
+    oracle: scope and command audit
+    threshold: zero unapproved scope, version or acceptance mutation
+    evidence: execution compliance report
+  - id: GO-004
+    requirement: Final package passes deterministic content, syntax, path, DAG and hash validation.
+    baseline: No final package is authorized yet.
+    target: One clean ZIP contains no prior version, cache, unresolved conflict or placeholder.
+    input: final candidate package
+    oracle: package finalizer
+    threshold: all finalizer checks PASS
+    evidence: signed/hash manifest and finalizer report
+verdict_policy:
+  allowed:
+  - PASS
+  - CONDITIONAL_PASS
+  - FAIL
+  unknown_is_pass: false
+  not_run_is_pass: false
+  abstain_is_pass: false
+  maximum_remediation_rounds: 2
+  independent_rereview_rounds: 1
+  blind_sets: 1
+taskpack_version: v0.0.0.1
+conflict_resolution_order:
+- current_thread_latest_explicit_user_requirement
+- user_specified_infrastructure_and_data_authority
+- target_repository_applicable_rules
+- this_taskpack_canonical_facts_and_acceptance_contract
+- official_documentation
+- locked_third_party_release_or_commit
+- older_taskpacks_and_handoffs
+- agent_inference
+execution_constraints:
+  freeze_main: false
+  freeze_scope_and_acceptance: true
+  maximum_remediation_rounds: 2
+  independent_rereview_rounds: 1
+  blind_sets: 1
+  real_time_soak: false
+  background_wait: false
+  dynamic_acceptance_expansion: false

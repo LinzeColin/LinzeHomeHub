@@ -1,0 +1,440 @@
+api_version: status.linzezhang.com/task-dag/v1alpha1
+document_version: v0.0.0.1
+state: FROZEN_FOR_EXECUTION
+repository_freeze_required: false
+maximum_children_per_stage: 5
+stages:
+- id: S0
+  name: Late-bound preflight and reconciliation
+- id: S1
+  name: Authority, journal, outbox and migration
+- id: S2
+  name: Inventory, conditions, capabilities and provenance
+- id: S3
+  name: Admin and frontend experience
+- id: S4
+  name: Operations, self-heal, backup and recovery
+- id: S5
+  name: Security, deterministic tests and finalizer
+- id: S6
+  name: Moving-base convergence, verification and release
+tasks:
+- id: S0-T1
+  stage: S0
+  category: research
+  name: Capture latest repository and authenticated runtime facts
+  depends_on: []
+  outputs:
+  - execution_context_capture
+  - integration_base_identity
+  acceptance_refs:
+  - INV-006
+  - OP-001
+  - GO-002
+  reconcile: true
+  rollback: delete isolated capture output only
+  stop_condition: RED drift in authority, permissions or deployment topology
+- id: S0-T2
+  stage: S0
+  category: research
+  name: Run current-state detectors and classify semantic deltas
+  depends_on:
+  - S0-T1
+  outputs:
+  - task_reconciliation_report
+  acceptance_refs:
+  - AR-002
+  - GO-002
+  reconcile: true
+  rollback: no mutation
+  stop_condition: unclassifiable blocking task
+- id: S0-T3
+  stage: S0
+  category: research
+  name: Create isolated worktree and execution manifest
+  depends_on:
+  - S0-T2
+  outputs:
+  - isolated_worktree
+  - execution_manifest
+  acceptance_refs:
+  - INV-006
+  - GO-002
+  reconcile: false
+  rollback: remove worktree and branch
+  stop_condition: dirty or unverifiable integration base
+- id: S1-T1
+  stage: S1
+  category: implementation
+  name: Implement rebuildable SQLite journal, idempotency and outbox schema
+  depends_on:
+  - S0-T3
+  outputs:
+  - runtime_schema
+  - migration
+  - repository_adapter
+  acceptance_refs:
+  - INV-003
+  - BE-002
+  - BE-003
+  - DA-001
+  reconcile: true
+  rollback: restore prior schema and replay accepted authority facts
+  stop_condition: destructive migration without verified recovery
+- id: S1-T2
+  stage: S1
+  category: implementation
+  name: Implement Private-Database authority sync and no-empty-commit policy
+  depends_on:
+  - S1-T1
+  outputs:
+  - authority_sync_adapter
+  - outbox_worker
+  - sync_manifest
+  acceptance_refs:
+  - INV-002
+  - DA-001
+  - DA-005
+  reconcile: true
+  rollback: disable sync adapter and retain unsent outbox
+  stop_condition: authority path conflict or permission denial
+- id: S1-T3
+  stage: S1
+  category: implementation
+  name: Migrate mutable status facts and legacy evidence without creating a parallel authority
+  depends_on:
+  - S1-T2
+  outputs:
+  - migration_report
+  - compatibility_projection
+  acceptance_refs:
+  - DA-001
+  - DA-003
+  reconcile: true
+  rollback: restore prior projection and preserve migration journal
+  stop_condition: record loss, ambiguous authority or checksum mismatch
+- id: S2-T1
+  stage: S2
+  category: implementation
+  name: Implement Declared, Source and Runtime inventory adapters
+  depends_on:
+  - S1-T1
+  outputs:
+  - inventory_adapters
+  - stable_entity_ids
+  acceptance_refs:
+  - FE-002
+  - DA-002
+  reconcile: true
+  rollback: disable new adapters and retain last-known-good snapshot
+  stop_condition: inventory cannot distinguish unavailable from empty
+- id: S2-T2
+  stage: S2
+  category: implementation
+  name: Implement coverage reconciliation and desired/observed conditions
+  depends_on:
+  - S2-T1
+  outputs:
+  - condition_engine
+  - coverage_snapshot
+  acceptance_refs:
+  - INV-005
+  - FE-002
+  - DA-002
+  reconcile: true
+  rollback: revert condition engine and preserve prior snapshot
+  stop_condition: blind false-green fixture passes as healthy
+- id: S2-T3
+  stage: S2
+  category: implementation
+  name: Implement capability axes, Evidence Lease and provenance lineage
+  depends_on:
+  - S2-T2
+  - S1-T3
+  outputs:
+  - capability_registry
+  - evidence_lease
+  - provenance_snapshot
+  acceptance_refs:
+  - FE-003
+  - DA-003
+  - GO-002
+  reconcile: true
+  rollback: revert derived views; authority records remain unchanged
+  stop_condition: evidence cannot bind current subject and contract
+- id: S2-T4
+  stage: S2
+  category: implementation
+  name: Generate business-line matrix and architecture graph from canonical data
+  depends_on:
+  - S2-T3
+  outputs:
+  - business_matrix
+  - architecture_graph
+  acceptance_refs:
+  - FE-003
+  - AR-003
+  reconcile: true
+  rollback: remove generated projections
+  stop_condition: graph shrink or empty result without explicit source failure
+- id: S3-T1
+  stage: S3
+  category: implementation
+  name: Harden Admin authentication, API validation and safe rendering
+  depends_on:
+  - S1-T1
+  outputs:
+  - admin_auth_patch
+  - admin_api_contract
+  - safe_renderer
+  acceptance_refs:
+  - FE-005
+  - BE-001
+  - BE-002
+  - BE-004
+  reconcile: true
+  rollback: restore previous admin image and configuration
+  stop_condition: owner access cannot be preserved or negative JWT fixture is accepted
+- id: S3-T2
+  stage: S3
+  category: implementation
+  name: Implement Chinese status views and explicit condition semantics
+  depends_on:
+  - S2-T4
+  - S3-T1
+  outputs:
+  - frontend_views
+  - terminology_dictionary
+  acceptance_refs:
+  - FE-001
+  - FE-002
+  - FE-003
+  reconcile: true
+  rollback: restore previous static assets
+  stop_condition: UNKNOWN or STALE can render as healthy
+- id: S3-T3
+  stage: S3
+  category: test
+  name: Implement status-specific Playwright, accessibility and XSS suites
+  depends_on:
+  - S3-T2
+  outputs:
+  - frontend_test_suite
+  acceptance_refs:
+  - FE-004
+  - FE-005
+  reconcile: true
+  rollback: remove test-only artifacts
+  stop_condition: critical accessibility or seeded execution failure remains
+- id: S4-T1
+  stage: S4
+  category: implementation
+  name: Harden deterministic self-heal and truthful recovery state
+  depends_on:
+  - S2-T2
+  outputs:
+  - self_heal_state_machine
+  - self_heal_fixtures
+  acceptance_refs:
+  - OP-002
+  reconcile: true
+  rollback: restore prior self-heal script and disable new timer
+  stop_condition: false RECOVERED state or unbounded retry
+- id: S4-T2
+  stage: S4
+  category: implementation
+  name: Implement R2 cold backup, OCI offsite copy and restore evidence
+  depends_on:
+  - S1-T2
+  outputs:
+  - backup_adapters
+  - restore_manifest
+  - retention_policy
+  acceptance_refs:
+  - DA-004
+  - OP-003
+  reconcile: true
+  rollback: retain prior backups and disable new deletion path
+  stop_condition: no verified readback or restore digest mismatch
+- id: S4-T3
+  stage: S4
+  category: implementation
+  name: Implement idempotent doctor, start, stop, backup, restore and rollback commands
+  depends_on:
+  - S4-T1
+  - S4-T2
+  - S3-T1
+  outputs:
+  - operator_commands
+  - operations_runbook
+  acceptance_refs:
+  - OP-004
+  - AR-003
+  reconcile: true
+  rollback: restore prior operator scripts
+  stop_condition: command is destructive on repeat or rollback cannot restore prior release
+- id: S5-T1
+  stage: S5
+  category: implementation
+  name: Localize or immutably pin build and deployment dependencies
+  depends_on:
+  - S0-T3
+  outputs:
+  - workflow_patch
+  - dependency_license_record
+  acceptance_refs:
+  - AR-004
+  - GO-003
+  reconcile: true
+  rollback: restore prior workflow after preserving evidence
+  stop_condition: required dependency cannot be pinned or licensed acceptably
+- id: S5-T2
+  stage: S5
+  category: test
+  name: Implement zero-Agent, privacy, authority and supply-chain policy scans
+  depends_on:
+  - S1-T3
+  - S3-T1
+  - S5-T1
+  outputs:
+  - policy_test_suite
+  acceptance_refs:
+  - INV-001
+  - INV-002
+  - INV-004
+  - BE-004
+  - AR-001
+  - AR-004
+  reconcile: true
+  rollback: test-only change
+  stop_condition: seeded violation is not detected
+- id: S5-T3
+  stage: S5
+  category: test
+  name: Implement Fake Clock, replay, failure injection and blind fixtures
+  depends_on:
+  - S2-T3
+  - S3-T3
+  - S4-T3
+  - S5-T2
+  outputs:
+  - deterministic_fixture_suite
+  acceptance_refs:
+  - INV-005
+  - DA-002
+  - DA-003
+  - AR-002
+  - AR-003
+  - OP-002
+  - OP-003
+  reconcile: true
+  rollback: test-only change
+  stop_condition: critical failure path has no deterministic oracle
+- id: S5-T4
+  stage: S5
+  category: test
+  name: Build deterministic CI and package finalizer
+  depends_on:
+  - S5-T3
+  outputs:
+  - ci_jobs
+  - package_finalizer
+  - traceability_checker
+  acceptance_refs:
+  - GO-001
+  - GO-004
+  reconcile: true
+  rollback: restore prior CI and retain reports
+  stop_condition: DAG, path, syntax or traceability check cannot fail closed
+- id: S6-T1
+  stage: S6
+  category: remediation
+  name: Fetch latest main, reconcile drift and create final candidate
+  depends_on:
+  - S2-T4
+  - S3-T3
+  - S4-T3
+  - S5-T4
+  outputs:
+  - candidate_subject
+  - drift_report
+  acceptance_refs:
+  - INV-006
+  - AR-002
+  - GO-002
+  reconcile: true
+  rollback: discard candidate worktree
+  stop_condition: RED contract conflict or two remediation rounds exhausted
+- id: S6-T2
+  stage: S6
+  category: review
+  name: Run frozen core tests, blind set and formal verifier on candidate
+  depends_on:
+  - S6-T1
+  outputs:
+  - verifier_verdict
+  - evidence_bundle
+  acceptance_refs:
+  - GO-001
+  - GO-004
+  reconcile: false
+  rollback: no production mutation
+  stop_condition: verdict is not PASS
+- id: S6-T3
+  stage: S6
+  category: release
+  name: Merge, deploy and bind deployment subject without freezing main
+  depends_on:
+  - S6-T2
+  outputs:
+  - deployment_subject
+  - release_record
+  acceptance_refs:
+  - INV-006
+  - GO-002
+  - GO-003
+  reconcile: false
+  rollback: deploy previous accepted artifact
+  stop_condition: deployed digest differs from accepted candidate artifact
+- id: S6-T4
+  stage: S6
+  category: release
+  name: Run immediate smoke, restore and rollback verification
+  depends_on:
+  - S6-T3
+  outputs:
+  - post_deploy_report
+  - restore_report
+  - rollback_report
+  acceptance_refs:
+  - OP-003
+  - OP-004
+  - AR-003
+  reconcile: false
+  rollback: execute frozen rollback command
+  stop_condition: core path, privacy, authority or recovery check fails
+- id: S6-T5
+  stage: S6
+  category: release
+  name: Synchronize completed release, evidence and recovery facts to authority and backups
+  depends_on:
+  - S6-T4
+  outputs:
+  - authority_release_fact
+  - r2_backup_fact
+  - oci_backup_fact
+  acceptance_refs:
+  - DA-001
+  - DA-004
+  - DA-005
+  reconcile: false
+  rollback: record failure and preserve outbox without fabricating completion
+  stop_condition: fact or object digest cannot be verified
+budgets:
+  maximum_remediation_rounds: 2
+  independent_rereview_rounds: 1
+  blind_sets: 1
+  real_time_soak: false
+  wait_nodes: 0
+  infinite_retry: false
+taskpack_version: v0.0.0.1

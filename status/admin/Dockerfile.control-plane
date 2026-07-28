@@ -1,0 +1,11 @@
+ARG PYTHON_IMAGE
+FROM ${PYTHON_IMAGE}
+RUN pip install --no-cache-dir "PyJWT==2.13.0" "cryptography==49.0.0"
+WORKDIR /app
+COPY admin/app.py /app/app.py
+COPY admin/static /app/static
+COPY controlplane /app/controlplane
+RUN mkdir -p /srv/runtime && chown -R 1000:1000 /srv/runtime /app
+USER 1000:1000
+EXPOSE 8080
+CMD ["python", "-u", "/app/app.py"]

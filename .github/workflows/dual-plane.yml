@@ -1,30 +1,28 @@
 name: Dual-Plane Governance
-
-# 全仓强制：本仓每个项目都必须就位双平面七文件架构并过门。
-# 任一项目缺文件、人类平面渲染漂移、或三道门 FAIL -> 整仓 CI 红。
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
   dual-plane:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-      - name: 安装 PyYAML（渲染 config.yaml / data_contract.yaml 需要，保证渲染确定性）
-        run: python3 -m pip install --quiet pyyaml
-      - name: 运行全仓双平面合规校验
+          cache: pip
+      - name: 安装冻结的治理解析依赖
+        run: python3 -m pip install --disable-pip-version-check "PyYAML==6.0.3"
+      - name: 运行唯一的全仓双平面合规校验器
         run: |
-          set -euo pipefail
-          SCRIPT="$(find . -path '*/machine/tools/check_dual_plane_ci.py' | sort | head -1)"
-          if [ -z "$SCRIPT" ]; then
-            echo "FAIL: 未找到 check_dual_plane_ci.py（本仓应至少有一个双平面项目）"
-            exit 1
-          fi
-          echo "runner: $SCRIPT"
+          set -Eeuo pipefail
+          SCRIPT="machine/tools/check_dual_plane_ci.py"
+          [[ -f "$SCRIPT" ]] || { echo "FAIL: 缺少 $SCRIPT" >&2; exit 1; }
           python3 "$SCRIPT" --root . --require-projects

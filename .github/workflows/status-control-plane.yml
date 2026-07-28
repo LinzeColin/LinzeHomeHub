@@ -1,0 +1,51 @@
+name: status-control-plane
+
+on:
+  pull_request:
+    paths:
+      - 'status/**'
+      - 'tests/status-control-plane/**'
+      - '.github/workflows/status-control-plane.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'status/**'
+      - 'tests/status-control-plane/**'
+      - '.github/workflows/status-control-plane.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: status-control-plane-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deterministic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/status-control-plane/requirements.txt
+      - run: pip install -r tests/status-control-plane/requirements.txt
+      - run: python3 tests/status-control-plane/run_all.py --repo .
+      - run: bash -n status/deploy/control-plane/*.sh
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python3 tests/status-control-plane/run_all.py --repo . --browser

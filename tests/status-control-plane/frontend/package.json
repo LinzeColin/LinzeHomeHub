@@ -1,0 +1,12 @@
+{
+  "name": "status-control-plane-acceptance",
+  "private": true,
+  "version": "0.0.0.1",
+  "type": "module",
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  },
+  "scripts": {
+    "test": "playwright test"
+  }
+}

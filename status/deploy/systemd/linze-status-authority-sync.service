@@ -1,0 +1,15 @@
+[Unit]
+Description=Sync completed status facts to Private-Database
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/srv/linze/apps/status/.secrets/control-plane.env
+Environment=PYTHONPATH=/srv/linze/apps/status
+WorkingDirectory=/srv/linze/apps
+ExecStart=/usr/bin/python3 -m controlplane sync-authority --repo /srv/linze/apps --push
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+TimeoutStartSec=600
