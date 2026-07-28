@@ -31,6 +31,7 @@ def main() -> int:
         # 非 Linux 平台自行 SKIP 并返回 0 —— 本机跑不了不等于可以不跑,
         # 上线前的 VPS 那一轮必须看到 SELFHEAL_POST_PROBE_PASS。
         ["bash", str(here / "shell" / "test_selfheal_post_probe.sh")],
+        ["bash", str(here / "shell" / "test_artifact_digest_stable.sh")],
     ]
     for command in commands:
         if run(command, here, env):
