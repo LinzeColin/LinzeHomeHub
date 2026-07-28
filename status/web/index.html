@@ -375,6 +375,35 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   background:var(--warn-bg);padding:4px 10px;border-radius:999px;font-weight:550}
 .arrive{animation:arrive 1.6s var(--ease)}
 @keyframes arrive{0%{box-shadow:0 0 0 0 var(--ok)}70%{box-shadow:0 0 0 12px transparent}100%{box-shadow:0 0 0 0 transparent}}
+/* ---------- 时间轴 ---------- */
+/* 未来时间轴(续费) */
+.tlFuture{position:relative;padding:8px 0 20px}
+.tlFuture .tick{position:absolute;top:2px;bottom:22px;width:.5px;background:var(--line);pointer-events:none}
+.tlFuture .tick.lbl{position:absolute;top:-17px;transform:translateX(-50%);font-size:9.5px;color:var(--t3);white-space:nowrap;background:0;width:auto}
+.tlFuture .row{position:relative;height:30px;margin-bottom:4px}
+.tlFuture .bar{position:absolute;top:5px;left:0;height:22px;border-radius:7px;display:flex;align-items:center;padding:0 10px;font-size:12.5px;font-weight:600;color:#fff;min-width:42px}
+.tlFuture .bar .tld{font-size:10.5px;opacity:.8;margin-left:5px}
+/* 历史时间轴(共享刻度) */
+.tlTrackHist{width:560px;margin:0 auto}
+.tlfHdr{display:flex;height:20px;margin-bottom:4px;font-size:10.5px;color:var(--t3);position:relative}
+.tlfHdr .mo{position:absolute;transform:translateX(-50%);white-space:nowrap;font-weight:550}
+.tlfHdr .mo.now{color:var(--accent);font-weight:650}
+.tlfGrid{position:relative;width:100%}
+.tlfGrid .vline{position:absolute;top:-6px;bottom:0;width:.5px;background:var(--line);pointer-events:none}
+.tlfGrid .tr{position:relative;height:25px;margin-bottom:6px}
+.tlfGrid .tr .lbl{position:absolute;right:101%;top:4px;font-size:12.5px;font-weight:600;color:var(--t1);white-space:nowrap;text-align:right;padding-right:12px;display:flex;align-items:center;gap:5px}
+.tlfGrid .tr .lbl .tag{font-size:9px;padding:1px 5px;border-radius:3px;font-weight:550}
+.tlfGrid .tr .seg{position:absolute;top:0;height:100%;border-radius:4px}
+.tlfGrid .tr .seg.hist{background:var(--t3);opacity:.55}
+.tlfGrid .tr .seg.cur-ok{background:var(--ok)}
+.tlfGrid .tr .seg.cur-bad{background:var(--danger)}
+.tlNow{position:absolute;top:-8px;bottom:0;width:1.5px;background:var(--accent);border-radius:1px;z-index:3}
+.tlNow::after{content:'';position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:8px;height:8px;background:var(--accent);border-radius:50%;box-shadow:0 0 0 2px rgba(42,120,214,.15)}
+/* 动画 */
+@keyframes tlBarIn{from{opacity:0;transform:translateX(-16px) scaleX(.9)}to{opacity:1;transform:translateX(0) scaleX(1)}}
+@keyframes tlRowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tlSegIn{from{opacity:0;transform:scaleX(.15)}to{opacity:1;transform:scaleX(1)}}
+@keyframes tlNowIn{0%{opacity:0;transform:scale(.2)}60%{transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
 </style>
   <link rel="stylesheet" href="/assets/control-plane/control-plane.css">
 </head>
@@ -432,6 +461,7 @@ const PAGES=[
   {id:'flow',   name:'业务流'},   // 软件**内部**功能实现程度:业务基线 × 各项目自定义阶段
   {id:'runtime',name:'运行'},
   {id:'cost',   name:'成本'},
+  {id:'timeline',name:'时间轴'},
   {id:'github', name:'GitHub'},
 ];
 // 「运行」页内的分段:软件基线 / 主机与自愈。**分段不是二级入口**,不进 PAGES。
@@ -690,7 +720,9 @@ function renderTabs(){
       (fl&&fl.unregistered&&fl.unregistered.length?fl.unregistered.length+' 未登记':''),
     'runtime':sw?(sw.unregistered.length?sw.unregistered.length+' 未登记':sw.score+'分'):
               (S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:''),
-    'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'', 'github':g.available?g.repos_total+'仓':''};
+    'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'',
+    'timeline':S&&S.ops&&S.ops.subs?((S.ops.subs.due_soon||[]).length?S.ops.subs.due_soon.length+' 条到期':(S.ops.subs.tracked||0)+' 条'):'',
+    'github':g.available?g.repos_total+'仓':''};
   const nav=q('#tabs');
   nav.innerHTML='<span class="tabink" id="tabink"></span>'+PAGES.map(p=>
     `<a href="#/${p.id}" class="${ROUTE()===p.id?'on':''}">${p.name}${badge[p.id]?`<span class="n">${badge[p.id]}</span>`:''}</a>`).join('');
@@ -706,7 +738,7 @@ function mount(){
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
   const V={'':vOverview,'flow':vFlow,'runtime':vRuntime,'cost':vCost,
-           'github':vGithub}[MOUNTED]||vOverview;
+           'timeline':vTimeline,'github':vGithub}[MOUNTED]||vOverview;
   paint(V);
 }
 /* 视图切换统一走这里:能用 View Transitions 就用(整页交叉淡入,最丝滑),
@@ -2541,6 +2573,115 @@ SYNC['github']=function(){
     Traffic:<b>${esc(cap.traffic||'—')}</b><br>Actions 账单:<b>${b.available?'OK(billing/usage)':esc(cap.billing||'—')}</b><br>
     API 余量:<b>${num((g.rate||{}).remaining)} / ${num((g.rate||{}).limit)}</b>
     <span class="muted">· 每分钟仅耗约 2 点,额度每小时重置</span></div>`;
+};
+
+/* ============ 时间轴:未来续费 + 历史共享时间轴 ============ */
+function vTimeline(){
+  return `<div class="grid k5" id="tlKpi"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <h2 style="margin:0">续费时间轴 <span class="hint">今天 → 下次扣费日</span></h2>
+    <span class="seg" style="display:inline-flex"><button class="on" data-v="30" onclick="const b=this;this.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');window._tlRangeSw&&window._tlRangeSw(+b.dataset.v)">30 天</button><button data-v="365" onclick="const b=this;this.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');window._tlRangeSw&&window._tlRangeSw(+b.dataset.v)">全年</button></span>
+  </div>
+  <div class="tlFuture" id="tlFuture"></div>
+  <h2>订阅历史 <span class="hint">所有订阅共享同一时间轴 · 按实际扣费日反推 · 灰=历史 绿=活跃 红=到期</span></h2>
+  <p style="font-size:10.5px;color:var(--t3);margin:-6px 0 14px">全部从快照纯计算派生，不新增任何采集</p>
+  <div class="tlTrackHist" id="tlTrackHist"></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--t3);margin-top:14px;padding-top:12px;border-top:.5px solid var(--line)">
+    <span><span class="dot" style="background:var(--t3);opacity:.55;width:12px;height:12px;border-radius:3px"></span>历史过期</span>
+    <span><span class="dot ok" style="width:12px;height:12px;border-radius:3px"></span>活跃中(>7天)</span>
+    <span><span class="dot bad" style="width:12px;height:12px;border-radius:3px"></span>到期(≤7天)</span>
+    <span style="margin-left:auto"><span class="dot" style="background:var(--accent);width:7px;height:7px;border-radius:50%"></span> 今天</span>
+  </div>
+  <div id="tlBlind" style="margin-top:14px"></div>`;
+}
+SYNC['timeline']=function(){
+  const o=S.ops||{}, sb=o.subs||{};
+  const items=(sb.items||[]).slice();
+  const blind=sb.blind||[];
+  const TH=(sb.threshold_days?Math.min(sb.threshold_days,7):7);
+  kpiRow('#tlKpi',[
+    {lab:'总订阅',val:sb.total||0,unit:'',sub:`${sb.tracked||0} 条可追踪`},
+    {lab:'即将到期',val:(sb.due_soon||[]).length,unit:'',sub:`≤${TH} 天`,tone:(sb.due_soon||[]).length?'bad':'ok'},
+    {lab:'本月扣费',val:items.filter(i=>i.days<=31).length,unit:'',sub:'30天内到期'},
+    {lab:'盯不住',val:blind.length,unit:'',sub:'缺购买日期',tone:blind.length?'warn':'ok'},
+  ]);
+
+  // ── 未来续费轴 ──
+  const NOW=new Date();
+  const EXP=TH||7;
+  const ft=q('#tlFuture');
+  if(ft){
+    const drawFuture=function(range){
+      const M=range===365?365:30;
+      const P=d=>Math.min(98,(d/M)*100);
+      const C=s=>s.days<=EXP?'var(--danger)':'var(--ok)';
+      const act=range===365?items:items.filter(s=>s.days<=M);
+      const tk=range===365?[0,7,14,30,90,180,365]:[0,7,14,21,30];
+      ft.innerHTML=tk.map(t=>`<span class="tick" style="left:${P(t)}%"></span><span class="tick lbl" style="left:${P(t)}%">${t}天</span>`).join('')
+        +act.map(s=>`<div class="row"><span class="bar" style="width:${P(s.days)}%;background:${C(s)}">${esc(s.name)}<span class="tld">${s.days}天</span></span></div>`).join('');
+    };
+    window._tlRangeSw=drawFuture;
+    drawFuture(30);
+  }
+
+  // ── 历史时间轴 ──
+  const trh=q('#tlTrackHist');
+  if(trh&&items.length){
+    const T0=new Date(NOW);T0.setMonth(NOW.getMonth()-5);T0.setDate(1);T0.setHours(0,0,0,0);
+    const RNG=((new Date(NOW)).setDate(NOW.getDate()+1)-T0);
+    const P=d=>Math.max(0,Math.min(100,(d-T0)/RNG*100));
+
+    // 月份标签
+    const mths=[];
+    for(let m=new Date(T0);m<=NOW;m.setMonth(m.getMonth()+1))mths.push(new Date(m));
+    const hdr=mths.map(m=>`<span class="mo${m.getMonth()===NOW.getMonth()&&m.getFullYear()===NOW.getFullYear()?' now':''}" style="left:${P(m)}%">${m.getMonth()+1}月</span>`).join('');
+    const vl=mths.map(m=>`<span class="vline" style="left:${P(m)}%"></span>`).join('');
+    const nowP=P(NOW);
+
+    // derive periods: items 按 date+cadence 反推
+    const derive=s=>{
+      const rd=new Date(s.date+'T00:00:00');
+      const C=s.cadence==='yearly'?12:1;
+      let e=new Date(rd);const ps=[];
+      while(e>T0){
+        let st=new Date(e);st.setMonth(st.getMonth()-C);if(st<T0)st=T0;
+        let enRaw=new Date(e),en=new Date(e);if(en>NOW)en=NOW;
+        let isCur=enRaw>NOW,state=isCur?(s.days<=EXP?'cur-bad':'cur-ok'):'hist';
+        ps.push({st:new Date(st),en:new Date(en),s:state});
+        e=new Date(st);
+      }
+      return ps;
+    };
+
+    const rows=items.map(s=>{
+      const ps=derive(s);
+      const segs=ps.map(per=>{
+        const L=P(per.st),W=P(per.en)-L;
+        if(W<.3)return'';
+        return `<span class="seg ${per.s}" style="left:${L.toFixed(2)}%;width:${W.toFixed(2)}%"></span>`;
+      }).join('');
+      const tag=s.days<=EXP?'<span class="tag" style="color:var(--danger);background:rgba(207,58,58,.1)">到期</span>':'<span class="tag" style="color:var(--ok);background:rgba(15,138,77,.1)">活跃</span>';
+      return `<div class="tr"><span class="lbl">${esc(s.name)}${tag}</span>${segs}</div>`;
+    }).join('');
+
+    // 盲区行
+    const bRows=blind.length?blind.map(b=>`<div class="tr" style="opacity:.45"><span class="lbl" style="color:var(--t3)">${esc(b.name)}<span class="tag" style="color:var(--t3);background:var(--soft)">盯不住</span></span></div>`).join(''):'';
+
+    trh.innerHTML=`<div class="tlfHdr">${hdr}</div><div class="tlfGrid" style="position:relative">${vl}<span class="tlNow" style="left:${nowP.toFixed(2)}%"></span>${rows}${bRows}</div>`;
+  }
+
+  // 盲区详情
+  const bl=q('#tlBlind');
+  if(bl){
+    bl.innerHTML=blind.length
+      ? `<h2>盯不住的订阅 <span class="hint">${blind.length} 条没登记购买日期,到期不会有提醒</span></h2>
+         <div class="card">${blind.map(b=>`<div class="row" style="align-items:center">
+           <span><b>${esc(b.name)}</b> <span class="muted">${esc(b.cadence||'—')}</span></span>
+           <span style="color:var(--warn);font-weight:550">${esc(b.why||'—')}</span></div>`).join('')}
+           <div class="muted" style="font-size:11.5px;margin-top:10px">
+             到「价格设置」里补上购买日期,这里就能自动算出下次扣费时间。</div></div>`
+      : '<div class="card"><div style="display:flex;align-items:center;gap:10px"><span class="dot ok"></span><b>全部订阅均可追踪</b></div></div>';
+  }
 };
 
 addEventListener('hashchange',()=>{if(S)mount();});
