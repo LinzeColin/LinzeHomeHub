@@ -128,9 +128,21 @@ console.log('HomeHub structural validation passed');
 // ---- 零 Agent / 零 Token 守卫 ----
 // 运行期代码不得调用任何推理接口。这条规则写在 AGENTS.md,这里让它可被机器判定,
 // 否则时间一长就会被悄悄破坏。只扫运行期源码,不扫文档与本脚本自身。
+//
+// ★ 与 tests/status-control-plane/policy_scan.py **对齐**。
+//   在此之前两个守卫对同一个文件给出相反结论:policy_scan 明确按文件豁免了账务探针的
+//   厂商域名(查账单不是调模型),而这里是整域名封杀 —— 于是 `npm run validate` 长期红着,
+//   红的还是一个被另一个守卫认定为合规的文件。两个守卫互相矛盾时,人只会开始忽略其中一个,
+//   那比少一个守卫更糟。
+//
+//   对齐后的策略,**净强度不降反升**:
+//     · 厂商域名:只在账务探针这一个文件里豁免,别处出现照旧违规;
+//     · 推理端点(chat/completions 等完整 URL):在**任何**文件里都违规,
+//       包括那个被豁免的文件 —— 这一条是原来没有的,现在补上了。
 function checkNoRuntimeAI(failures) {
   const roots = ['src', 'status/collector', 'status/deploy', 'status/web', 'status/admin'];
-  const banned = [
+  // 厂商域名/SDK 构造。与 policy_scan.py 的 FORBIDDEN_RUNTIME 同源。
+  const bannedVendor = [
     /api\.openai\.com/i,
     /api\.anthropic\.com/i,
     /generativelanguage\.googleapis\.com/i,
@@ -139,6 +151,14 @@ function checkNoRuntimeAI(failures) {
     /\bopenai\s*\(/i,
     /\bAnthropic\s*\(/i,
   ];
+  // 完整的推理端点 URL(host + 推理路径)。允许 /v1/organization/costs,禁止 /v1/chat/completions。
+  // 只匹配带 host 的完整 URL,所以探针里那张裸路径黑名单不会误伤自己。
+  const bannedInference = [
+    /https?:\/\/[^\s"')]*(?:openai|anthropic|deepseek|googleapis|x\.ai|mistral)[^\s"')]*\/(?:chat\/completions|completions|responses|embeddings|images\/generations|messages|generateContent)/i,
+  ];
+  // ★ 按文件豁免,且只豁免域名那一档。放宽守卫时必须同时写清「放宽到哪为止」,
+  //   否则下一个人只会看到「openai 域名是允许的」,口子会一直长大。
+  const VENDOR_EXEMPT = 'status/collector/probe_ai_balance.py';
   const exts = new Set(['.ts', '.js', '.mjs', '.py', '.sh', '.html', '.json']);
   const walk = (dir) => {
     let entries;
@@ -151,9 +171,19 @@ function checkNoRuntimeAI(failures) {
       } else if (exts.has(extname(e.name))) {
         let text;
         try { text = readFileSync(full, 'utf8'); } catch { continue; }
-        for (const re of banned) {
+        const vendorExempt = full.replaceAll('\\', '/').endsWith(VENDOR_EXEMPT);
+        if (!vendorExempt) {
+          for (const re of bannedVendor) {
+            if (re.test(text)) {
+              failures.push(`零Token守卫: ${full} 出现运行期 AI 接口调用 (${re})`);
+              break;
+            }
+          }
+        }
+        // 推理端点不设任何豁免 —— 连账务探针自己也要查
+        for (const re of bannedInference) {
           if (re.test(text)) {
-            failures.push(`零Token守卫: ${full} 出现运行期 AI 接口调用 (${re})`);
+            failures.push(`零Token守卫: ${full} 出现推理端点调用,该项无任何豁免 (${re})`);
             break;
           }
         }
