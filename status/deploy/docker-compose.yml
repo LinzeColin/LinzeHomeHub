@@ -22,8 +22,9 @@ services:
       - traefik.http.services.linzestatus.loadbalancer.server.port=80
       - traefik.http.routers.linzestatus-http.rule=Host(`status.linzezhang.com`)
       - traefik.http.routers.linzestatus-http.entrypoints=http
-      - traefik.http.routers.linzestatus-http.middlewares=linzestatus-redir
-      - traefik.http.middlewares.linzestatus-redir.redirectscheme.scheme=https
+      # Cloudflare Tunnel 将公网 HTTPS 请求以 HTTP 转发到 origin。这里必须直接
+      # 指向 status 服务；若在 origin 端再次升级 HTTPS，会形成 307 自重定向环。
+      - traefik.http.routers.linzestatus-http.service=linzestatus
 
   admin:
     build: ../admin
