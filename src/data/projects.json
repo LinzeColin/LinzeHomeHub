@@ -57,7 +57,7 @@
     "category": "Investor Relations",
     "compatibilityLevel": "L2",
     "deploymentStatus": "Live",
-    "futureLevel": "L2",
+    "futureLevel": "L3 gated",
     "summary": "NAB 投资者关系路演静态站；已从 Cloudflare Worker 迁至 Coolify 稳定托管，边缘缓存加速。",
     "liveUrl": "https://nab.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/Archive/tree/main/nab",

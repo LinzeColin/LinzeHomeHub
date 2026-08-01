@@ -16,7 +16,7 @@ Private-Database 禁止 `git clone`；派生/临时物走 `.gitignore`。**一�
 - Supports six hero models: `星图仪`, `漂浮岛`, `档案书`, `宇宙罗盘`, `黑金花园`, `能量核心`.
 - Uses scroll direction and speed as a shared gravity signal for particles, readouts, and Rapier bodies.
 - Renders project planets from `src/data/projects.json`; whole-card links use `liveUrl` first and `fallbackUrl` second.
-- Presents a five-surface Launch Constellation for EEI, OpenAIDatabase / MemoryAtlas, PFI, Serenity-Alipay, and Archive/nab.
+- Presents a six-surface Launch Constellation for EEI, OpenAIDatabase / MemoryAtlas, PFI, Serenity-Alipay, Archive/nab, and Account / Identity.
 - Supports `?quality=low|medium|ultra` and `prefers-reduced-motion`.
 
 ## Local Development
@@ -70,7 +70,7 @@ Suggested domain: `home.linzezhang.com`, with `linzezhang.com` available as a la
 - Empty `liveUrl` values fall back to the public GitHub source path.
 - Every card remains L2 static-first; future L3 data, auth, write, and automation capabilities stay gated.
 
-Current verified routing: EEI, PFI, Serenity-Alipay, and Archive/nab are `Live`; MemoryAtlas is `Protected`. No card currently relies on a deploy-ready fallback.
+Current verified routing: EEI, PFI, Serenity-Alipay, Archive/nab, and Account / Identity are `Live`; MemoryAtlas is `Protected`. The Account card is navigation-only; no account operation runs in HomeHub. No card currently relies on a deploy-ready fallback.
 
 ## Safety
 

@@ -42,13 +42,14 @@ if (existsSync(join(root, 'index.html'))) {
 
 if (existsSync(join(root, 'src/data/projects.json'))) {
   const projects = JSON.parse(read('src/data/projects.json'));
-  const requiredIds = ['eei', 'memory-atlas', 'pfi', 'serenity-alipay', 'nab'];
+  const requiredIds = ['eei', 'memory-atlas', 'pfi', 'serenity-alipay', 'nab', 'account'];
   const verifiedDestinations = {
     eei: ['Live', 'https://eei.linzezhang.com'],
     'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com'],
-    pfi: ['Live', 'https://codex-pfi.linzezhang35.workers.dev'],
-    'serenity-alipay': ['Live', 'https://serenity-alipay.linzezhang35.workers.dev'],
+    pfi: ['Live', 'https://pfi.linzezhang.com'],
+    'serenity-alipay': ['Live', 'https://serenity.linzezhang.com'],
     nab: ['Live', 'https://nab.linzezhang.com'],
+    account: ['Live', 'https://account.linzezhang.com'],
   };
   for (const id of requiredIds) {
     if (!projects.some((project) => project.id === id)) failures.push(`projects.json missing ${id}`);
