@@ -8,6 +8,13 @@
 <!-- 主题在 <head> 里同步应用,早于首次绘制:否则存了深色的用户每次进来都会先闪一下浅色。
      和 /hub.html、/agent-governance.html 共用 localStorage 的 theme 键。 -->
 <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<!-- STATUS_DUAL_THEME_PREFLIGHT_V0.0.0.3 BEGIN -->
+<script id="statusDualThemePreflight">(() => {
+  let visual = 'galaxy';
+  try { const stored = localStorage.getItem('statusVisualTheme'); if (stored === 'galaxy' || stored === 'titanium') visual = stored; } catch (_) {}
+  document.documentElement.dataset.visualTheme = visual;
+})();</script>
+<!-- STATUS_DUAL_THEME_PREFLIGHT_V0.0.0.3 END -->
 <style>
 /* ============================================================================
    设计令牌 v0.0.0.2 —— 已批准 UI 方向(冷蓝)统一到全站
@@ -484,6 +491,9 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 @keyframes tlNowIn{0%{opacity:0;transform:scale(.2)}60%{transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
 </style>
   <link rel="stylesheet" href="/assets/control-plane/control-plane.css">
+<!-- STATUS_DUAL_THEME_CSS_V0.0.0.3 BEGIN -->
+<link rel="stylesheet" href="/assets/status-dual-theme.css" data-status-dual-theme="v0.0.0.3">
+<!-- STATUS_DUAL_THEME_CSS_V0.0.0.3 END -->
 </head>
 <body>
 <div class="topbar"><div class="in">
@@ -2888,5 +2898,8 @@ setInterval(load,REFRESH);
 setInterval(loadGovernance,REFRESH*4);   // 治理投影由 systemd timer 产出,不需要和快照同频
 </script>
   <script src="/assets/control-plane/control-plane.js" defer></script>
+<!-- STATUS_DUAL_THEME_JS_V0.0.0.3 BEGIN -->
+<script src="/assets/status-dual-theme.js" defer data-status-dual-theme="v0.0.0.3"></script>
+<!-- STATUS_DUAL_THEME_JS_V0.0.0.3 END -->
 </body>
 </html>

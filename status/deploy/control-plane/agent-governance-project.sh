@@ -10,10 +10,15 @@ set -euo pipefail
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "$SELF_DIR/../../.." && pwd)}"
 DB_PATH="${STATUS_DB_PATH:-$REPO_ROOT/status/runtime/status.db}"
-OUTPUT="${STATUS_AGENT_PROJECTION:-$REPO_ROOT/status/data/agent-governance.json}"
+# STATUS_V3_LEGACY_PROJECTION_WRITER
+LEGACY_OUTPUT="${STATUS_AGENT_LEGACY_PROJECTION:-$REPO_ROOT/status/data/agent-governance-v1-legacy.json}"
+if [[ "${LEGACY_OUTPUT##*/}" == "agent-governance.json" ]]; then
+  echo "legacy v1 projection may not write protected v3 public path" >&2
+  exit 2
+fi
 TTL="${STATUS_AGENT_EVIDENCE_TTL_MINUTES:-30}"
 cd "$REPO_ROOT"
 # `python3 -m status.controlplane.agent_cli` 依赖 cwd 上有 status/ 这个包 ——
 # cd 到 REPO_ROOT 之后才成立,所以上面那行 cd 不是可有可无的。
-python3 -m status.controlplane.agent_cli project --db "$DB_PATH" --output "$OUTPUT" --ttl-minutes "$TTL"
-python3 -m json.tool "$OUTPUT" >/dev/null
+python3 -m status.controlplane.agent_cli project --db "$DB_PATH" --output "$LEGACY_OUTPUT" --ttl-minutes "$TTL"
+python3 -m json.tool "$LEGACY_OUTPUT" >/dev/null

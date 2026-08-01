@@ -9,7 +9,9 @@ paths=(
   status/controlplane/agent_store.py status/controlplane/backup_transport.py status/controlplane/candidate.py
   status/controlplane/capture.py status/controlplane/gate.py status/controlplane/intent.py status/controlplane/redaction.py
   status/controlplane/sql/002_agent_governance.sql status/web/agent-governance.html
-  status/web/agent-governance.css status/web/agent-governance.js status/data/agent-governance.json
+  status/web/agent-governance.css status/web/agent-governance.js
+  # STATUS_V3_PUBLIC_PROJECTION_PRESERVED: v3 signed public JSON uses its own release rollback contract.
+  status/data/agent-governance-v1-legacy.json
 )
 for path in "${paths[@]}"; do
   if git cat-file -e "$BASE:$path" 2>/dev/null; then git checkout "$BASE" -- "$path"; else rm -f "$path"; fi
