@@ -1,6 +1,6 @@
 {
   "_managed_by": "status-agent-v3",
-  "_managed_version": "v0.0.0.9",
+  "_managed_version": "v0.0.0.10",
   "development_only": true,
   "production_agent_dependency": 0,
   "production_token_consumption": 0,
@@ -63,7 +63,7 @@
       "allowed_tools": [
         "Read"
       ],
-      "max_budget_usd": 0.5,
+      "max_budget_usd": 1.0,
       "safe_mode": true,
       "chrome_integration": false,
       "permission_mode": "plan",
