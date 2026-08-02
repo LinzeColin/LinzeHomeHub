@@ -42,14 +42,17 @@ if (existsSync(join(root, 'index.html'))) {
 
 if (existsSync(join(root, 'src/data/projects.json'))) {
   const projects = JSON.parse(read('src/data/projects.json'));
-  const requiredIds = ['eei', 'memory-atlas', 'pfi', 'serenity-alipay', 'nab'];
-  const verifiedDestinations = {
-    eei: ['Live', 'https://eei.linzezhang.com'],
-    'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com'],
-    pfi: ['Live', 'https://codex-pfi.linzezhang35.workers.dev'],
-    'serenity-alipay': ['Live', 'https://serenity-alipay.linzezhang35.workers.dev'],
-    nab: ['Live', 'https://nab.linzezhang.com'],
+  // Frozen against the current main data baseline. This validator intentionally
+  // rejects both omission and unreviewed additions without rewriting project data.
+  const verifiedProjects = {
+    eei: ['Live', 'https://eei.linzezhang.com', 'L3 gated'],
+    'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com', 'L3 gated'],
+    pfi: ['Live', 'https://pfi.linzezhang.com', 'L3 gated'],
+    'serenity-alipay': ['Live', 'https://serenity.linzezhang.com', 'L3 gated'],
+    nab: ['Live', 'https://nab.linzezhang.com', 'L2'],
+    account: ['Live', 'https://account.linzezhang.com', 'L3 gated'],
   };
+  const requiredIds = Object.keys(verifiedProjects);
   for (const id of requiredIds) {
     if (!projects.some((project) => project.id === id)) failures.push(`projects.json missing ${id}`);
   }
@@ -69,8 +72,14 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
       }
     }
     if (!project.fallbackUrl) failures.push(`${project.id} missing fallbackUrl`);
-    if (project.futureLevel !== 'L3 gated') failures.push(`${project.id} missing future L3 gate`);
-    const [expectedStatus, expectedUrl] = verifiedDestinations[project.id] ?? [];
+    const [expectedStatus, expectedUrl, expectedFutureLevel] = verifiedProjects[project.id] ?? [];
+    if (!expectedStatus) {
+      failures.push(`${project.id} is not in the frozen project baseline`);
+      continue;
+    }
+    if (project.futureLevel !== expectedFutureLevel) {
+      failures.push(`${project.id} futureLevel must match frozen project baseline`);
+    }
     if (project.deploymentStatus !== expectedStatus) {
       failures.push(`${project.id} deploymentStatus must match verified deployment evidence`);
     }
