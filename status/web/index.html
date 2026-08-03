@@ -816,26 +816,14 @@ function probeEdit(){if(PROBED)return;PROBED=true;
    fail-closed:取不到、解析失败、或证据不新鲜,一律显示「证据不足」,绝不沿用旧绿色。 */
 const GOV_LABEL={READY:'可发布',BLOCKED:'暂不可发布',UNKNOWN:'证据不足',STALE:'证据陈旧'};
 let GOV={badge:'证据不足',state:'UNKNOWN'};
-function governanceProjectionState(data){
-  // v3 是签名的最小披露投影；签名或新鲜度不成立时必须回落，不能把静态 READY 当成当前绿色。
-  if(data&&data.schema_version===3){
-    const freshness=data.freshness&&typeof data.freshness==='object'?data.freshness:{};
-    const evidence=freshness.evidence&&typeof freshness.evidence==='object'?freshness.evidence:{};
-    const signed=data.signature_state==='PASS';
-    const fresh=freshness.state==='CURRENT'&&evidence.state==='CURRENT';
-    const declared=GOV_LABEL[data.state]?data.state:'UNKNOWN';
-    return signed&&fresh?declared:'STALE';
-  }
-  const decision=data&&data.release_decision||{};
-  const fresh=!!(data&&data.source&&data.source.evidence_fresh);
-  return fresh?(decision.state||'UNKNOWN'):'STALE';
-}
 async function loadGovernance(){
   try{
     const r=await fetch('data/agent-governance.json?t='+Date.now(),{cache:'no-store'});
     if(!r.ok)throw new Error(String(r.status));
     const d=await r.json();
-    const state=governanceProjectionState(d);
+    const decision=d&&d.release_decision||{};
+    const fresh=!!(d&&d.source&&d.source.evidence_fresh);
+    const state=fresh?(decision.state||'UNKNOWN'):'STALE';
     GOV={state,badge:GOV_LABEL[state]||'证据不足'};
   }catch(e){
     GOV={state:'UNKNOWN',badge:'证据不足'};
