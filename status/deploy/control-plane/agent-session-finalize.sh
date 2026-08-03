@@ -6,12 +6,6 @@ if [[ $# -ne 3 ]]; then
 fi
 RUN_ID="$1"; SAFE_EVENTS="$2"; RAW_FILE="$3"
 DB_PATH="${STATUS_DB_PATH:-status/runtime/status.db}"
-# STATUS_V3_LEGACY_PROJECTION_WRITER
-LEGACY_PROJECTION="${STATUS_AGENT_LEGACY_PROJECTION:-status/data/agent-governance-v1-legacy.json}"
-if [[ "${LEGACY_PROJECTION##*/}" == "agent-governance.json" ]]; then
-  echo "legacy v1 projection may not write protected v3 public path" >&2
-  exit 2
-fi
 RUNTIME_ROOT="${STATUS_AGENT_RUNTIME_ROOT:-status/runtime/agent-runs}"
 RUN_DIR="$RUNTIME_ROOT/$RUN_ID"
 [[ -f "$RUN_DIR/session.env" ]] || { echo "缺少 session.env" >&2; exit 3; }
@@ -36,4 +30,4 @@ if [[ "$RAW_FILE" != "-" ]]; then
   rm -f "$RAW_FILE"
   printf '%s\n' "$target" > "$RUN_DIR/raw-object-ref.txt"
 fi
-python3 -m status.controlplane.agent_cli project --db "$DB_PATH" --output "$LEGACY_PROJECTION"
+python3 -m status.controlplane.agent_cli project --db "$DB_PATH" --output status/data/agent-governance.json

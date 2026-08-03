@@ -8,13 +8,6 @@
 <!-- 主题在 <head> 里同步应用,早于首次绘制:否则存了深色的用户每次进来都会先闪一下浅色。
      和 /hub.html、/agent-governance.html 共用 localStorage 的 theme 键。 -->
 <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
-<!-- STATUS_DUAL_THEME_PREFLIGHT_V0.0.0.3 BEGIN -->
-<script id="statusDualThemePreflight">(() => {
-  let visual = 'galaxy';
-  try { const stored = localStorage.getItem('statusVisualTheme'); if (stored === 'galaxy' || stored === 'titanium') visual = stored; } catch (_) {}
-  document.documentElement.dataset.visualTheme = visual;
-})();</script>
-<!-- STATUS_DUAL_THEME_PREFLIGHT_V0.0.0.3 END -->
 <style>
 /* ============================================================================
    设计令牌 v0.0.0.2 —— 已批准 UI 方向(冷蓝)统一到全站
@@ -491,9 +484,6 @@ tr.mxr.on td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 @keyframes tlNowIn{0%{opacity:0;transform:scale(.2)}60%{transform:scale(1.2)}100%{opacity:1;transform:scale(1)}}
 </style>
   <link rel="stylesheet" href="/assets/control-plane/control-plane.css">
-<!-- STATUS_DUAL_THEME_CSS_V0.0.0.3 BEGIN -->
-<link rel="stylesheet" href="/assets/status-dual-theme.css" data-status-dual-theme="v0.0.0.3">
-<!-- STATUS_DUAL_THEME_CSS_V0.0.0.3 END -->
 </head>
 <body>
 <div class="topbar"><div class="in">
@@ -807,7 +797,7 @@ async function load(){
   }
 }
 function probeEdit(){if(PROBED)return;PROBED=true;
-  fetch('/admin/api/prices').then(r=>{if(r.ok){CAN_EDIT=true;mount(true);}}).catch(()=>{})}
+  fetch('/admin/api/prices').then(r=>{if(r.ok){CAN_EDIT=true;mount();}}).catch(()=>{})}
 
 /* ---------- 治理投影(顶栏「治理」角标) ----------
    独立页 /agent-governance.html 自己会完整渲染这份数据;顶栏只取一个结论词,
@@ -871,18 +861,18 @@ function renderTabs(){
   });
 }
 
-function mount(skipTransition=false){
+function mount(){
   if(!S)return;
   MOUNTED=ROUTE();
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
   const V={'':vOverview,'flow':vFlow,'runtime':vRuntime,'cost':vCost,
            'timeline':vTimeline,'github':vGithub}[MOUNTED]||vOverview;
-  paint(V,skipTransition);
+  paint(V);
 }
 /* 视图切换统一走这里:能用 View Transitions 就用(整页交叉淡入,最丝滑),
    不支持则退回 CSS 动画。之前每次切页都是硬替换 innerHTML,所以显得割裂。 */
-function paint(V,skipTransition=false){
+function paint(V){
   const swap=()=>{
     const el=q('#view');
     el.innerHTML=V();
@@ -891,7 +881,7 @@ function paint(V,skipTransition=false){
     uniUnmount();                                  // 星图离页即停帧并断开 observer
     if(D.getElementById('uni'))uniMount('uni');
   };
-  if(!skipTransition&&!reduced&&D.startViewTransition){D.startViewTransition(swap)}
+  if(!reduced&&D.startViewTransition){D.startViewTransition(swap)}
   else{const el=q('#view'); el.classList.remove('fade'); swap(); void el.offsetWidth; el.classList.add('fade')}
 }
 function sync(){
@@ -2883,7 +2873,7 @@ D.addEventListener('visibilitychange',()=>{if(!D.hidden){tickAgo();load();
     ink=dark?'#9dacbf':'#667386';
     grid=dark?'rgba(157,172,191,.18)':'rgba(102,115,134,.16)';
     paintBtn();
-    if(S)mount(true);                               // 重建全部 canvas,拿新配色再画一次
+    if(S)mount();                                   // 重建全部 canvas,拿新配色再画一次
   };
   const saved=localStorage.getItem('theme');
   apply(saved==='dark'||saved==='light'?saved:'system');
@@ -2898,8 +2888,5 @@ setInterval(load,REFRESH);
 setInterval(loadGovernance,REFRESH*4);   // 治理投影由 systemd timer 产出,不需要和快照同频
 </script>
   <script src="/assets/control-plane/control-plane.js" defer></script>
-<!-- STATUS_DUAL_THEME_JS_V0.0.0.3 BEGIN -->
-<script src="/assets/status-dual-theme.js" defer data-status-dual-theme="v0.0.0.3"></script>
-<!-- STATUS_DUAL_THEME_JS_V0.0.0.3 END -->
 </body>
 </html>

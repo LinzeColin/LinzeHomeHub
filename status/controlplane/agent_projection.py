@@ -140,32 +140,3 @@ def write_projection(db_path: Path, output_path: Path, *, ttl_minutes: int = 30)
     value = build_projection(snapshot, ttl_minutes=ttl_minutes)
     _atomic_write(output_path, value)
     return value
-
-# STATUS_V3_LEGACY_PROJECTION_ISOLATED
-# v1 facts remain observable, but this module cannot publish a release-authoritative
-# green state or write the signed v3 public projection path.
-_status_v3_legacy_build_projection = build_projection
-
-
-def build_projection(*args, **kwargs):
-    value = _status_v3_legacy_build_projection(*args, **kwargs)
-    decision = dict(value.get("release_decision") or {})
-    blockers = list(decision.get("blockers") or [])
-    if not any(item.get("code") == "LEGACY_V1_HAS_NO_RELEASE_AUTHORITY" for item in blockers if isinstance(item, dict)):
-        blockers.append({"code": "LEGACY_V1_HAS_NO_RELEASE_AUTHORITY", "title": "历史 v1 投影不具备发布授权", "state": "UNKNOWN"})
-    if decision.get("state") == "READY":
-        decision["state"] = "UNKNOWN"
-        decision["label"] = "历史投影不具备发布授权"
-    decision["blockers"] = blockers
-    value["release_decision"] = decision
-    value["legacy_projection"] = {"state": "UNTRUSTED", "green_allowed": False, "writer": "status-agent-governance-v1"}
-    return value
-
-
-_status_v3_legacy_write_projection = write_projection
-
-
-def write_projection(db_path, output_path, *, ttl_minutes=30):
-    if Path(output_path).name == "agent-governance.json":
-        raise RuntimeError("legacy v1 projection may not write protected v3 public path")
-    return _status_v3_legacy_write_projection(db_path, output_path, ttl_minutes=ttl_minutes)

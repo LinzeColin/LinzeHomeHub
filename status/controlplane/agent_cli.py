@@ -272,8 +272,7 @@ def parser() -> argparse.ArgumentParser:
 
     project = sub.add_parser("project")
     project.add_argument("--db", default="status/runtime/status.db")
-    # STATUS_V3_LEGACY_PROJECTION_DEFAULT
-    project.add_argument("--output", default="status/data/agent-governance-v1-legacy.json")
+    project.add_argument("--output", default="status/data/agent-governance.json")
     project.add_argument("--ttl-minutes", type=int, default=30)
     project.set_defaults(func=cmd_project)
 
