@@ -9,45 +9,14 @@ const status = (value) => `<span class="status-pill status-${safeClass(value)}">
 const emptyRow = (columns, text) => `<tr><td colspan="${columns}" class="empty">${escapeHtml(text)}</td></tr>`;
 
 // v3 的公开投影刻意只披露可验证的发布结论，不携带运行、候选或私有摘要明细。
-// 在这里做一次只读的展示适配：签名、新鲜度或本地时钟上的 expires_at 不成立时回落 STALE，
-// 绝不借用旧 v1 字段猜绿色，也绝不把静态 READY 永久沿用。
+// 在这里做一次只读的展示适配：签名或新鲜度缺失时回落 STALE，绝不借用旧 v1 字段猜绿色。
 const V3_STATES = new Set(["READY", "BLOCKED", "UNKNOWN", "STALE"]);
-let projectionExpiryTimer = null;
-
-function v3ProjectionExpiryEpoch(data) {
-  const freshness = data && data.freshness && typeof data.freshness === "object" ? data.freshness : {};
-  const evidence = freshness.evidence && typeof freshness.evidence === "object" ? freshness.evidence : {};
-  const expiresAt = typeof evidence.expires_at === "string" ? Date.parse(evidence.expires_at) : NaN;
-  return Number.isFinite(expiresAt) ? expiresAt : NaN;
-}
-
-function v3ProjectionIsFresh(data) {
-  const freshness = data && data.freshness && typeof data.freshness === "object" ? data.freshness : {};
-  const evidence = freshness.evidence && typeof freshness.evidence === "object" ? freshness.evidence : {};
-  const expiresAt = v3ProjectionExpiryEpoch(data);
-  return freshness.state === "CURRENT" && evidence.state === "CURRENT" && Number.isFinite(expiresAt) && Date.now() < expiresAt;
-}
-
-function scheduleProjectionExpiryRefresh(data) {
-  if (projectionExpiryTimer !== null) {
-    clearTimeout(projectionExpiryTimer);
-    projectionExpiryTimer = null;
-  }
-  if (!data || data.schema_version !== 3) return;
-  const expiresAt = v3ProjectionExpiryEpoch(data);
-  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return;
-  projectionExpiryTimer = window.setTimeout(() => {
-    projectionExpiryTimer = null;
-    load();
-  }, Math.min(Math.max(0, expiresAt - Date.now()) + 20, 2147483647));
-}
-
 function v3ProjectionView(data) {
   if (!data || data.schema_version !== 3 || !V3_STATES.has(data.state)) return null;
   const freshness = data.freshness && typeof data.freshness === "object" ? data.freshness : {};
   const evidence = freshness.evidence && typeof freshness.evidence === "object" ? freshness.evidence : {};
   const signed = data.signature_state === "PASS";
-  const fresh = v3ProjectionIsFresh(data);
+  const fresh = freshness.state === "CURRENT" && evidence.state === "CURRENT";
   const decisionState = signed && fresh ? data.state : "STALE";
   const reasons = Array.isArray(data.reasons) ? data.reasons.filter((item) => typeof item === "string") : [];
   const blockers = decisionState === "READY" ? [] : [{
@@ -177,14 +146,8 @@ async function load() {
   try {
     const response = await fetch(DATA_URL, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    render(data);
-    scheduleProjectionExpiryRefresh(data);
+    render(await response.json());
   } catch (error) {
-    if (projectionExpiryTimer !== null) {
-      clearTimeout(projectionExpiryTimer);
-      projectionExpiryTimer = null;
-    }
     render({ release_decision: { state: "UNKNOWN", label: "证据不足", blockers: [{ code: "PROJECTION_UNAVAILABLE", title: "只读投影暂不可用", state: "UNKNOWN" }] }, metrics: {}, pipeline: [], runs: [], gates: [], candidates: [], source: {} });
     byId("notice-text").textContent = `无法读取治理投影：${error.message}`;
     byId("notice").classList.add("show");
