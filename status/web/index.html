@@ -878,11 +878,11 @@ function mount(skipTransition=false){
   setText(q('#ptitle'), p.id?('云平台 · '+p.name):'云平台总览');
   const V={'':vOverview,'flow':vFlow,'runtime':vRuntime,'cost':vCost,
            'timeline':vTimeline,'github':vGithub}[MOUNTED]||vOverview;
-  paint(V);
+  paint(V,skipTransition);
 }
 /* 视图切换统一走这里:能用 View Transitions 就用(整页交叉淡入,最丝滑),
    不支持则退回 CSS 动画。之前每次切页都是硬替换 innerHTML,所以显得割裂。 */
-function paint(V){
+function paint(V,skipTransition=false){
   const swap=()=>{
     const el=q('#view');
     el.innerHTML=V();
