@@ -1,0 +1,19 @@
+{
+  "_managed_by": "status-agent-v3",
+  "_managed_version": "v0.0.0.3",
+  "fields": [
+    "schema_version",
+    "state",
+    "state_zh",
+    "green_allowed",
+    "reasons",
+    "subject_id",
+    "verdict_id",
+    "signature_state",
+    "freshness",
+    "bootstrap",
+    "observed_at",
+    "truth_source"
+  ],
+  "schema_version": "status.public_projection_allowlist.v3"
+}

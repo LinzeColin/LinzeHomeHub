@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# STATUS_AGENT_V3_MANAGED: v0.0.0.3
+set -euo pipefail
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "$HERE/../.." && pwd)"
+export PYTHONPATH="$REPO_ROOT/status/controlplane${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m v3.cli "$@"
