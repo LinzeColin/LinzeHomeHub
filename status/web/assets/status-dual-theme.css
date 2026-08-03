@@ -455,7 +455,7 @@ html[data-status-visual-transition="true"] .wrap {
 
 @media (max-width: 760px) {
   #statusVisualThemeSwitch { order: -1; }
-  .status-visual-theme-option { min-width: 42px; min-height: 34px; padding: 0 8px; }
+  .status-visual-theme-option { min-width: 42px; min-height: 40px; padding: 0 8px; }
   .status-visual-theme-option span { display: none; }
   .head { min-height: 78px; padding: 15px 16px; }
   #statusVisualOrnament { width: 76px; height: 60px; right: 8px; opacity: .30; }
