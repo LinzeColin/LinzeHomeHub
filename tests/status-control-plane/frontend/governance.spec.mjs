@@ -15,8 +15,8 @@ const signedReadyProjection = {
     evidence: {
       state: 'CURRENT',
       reason: 'CURRENT',
-      verified_at: '2026-08-03T00:00:00+00:00',
-      expires_at: '2026-08-03T00:30:00+00:00',
+      verified_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + (30 * 60 * 1000)).toISOString(),
       ttl_minutes: 30,
     },
   },
@@ -51,9 +51,27 @@ test('v3 公开投影在根页的语义读取对过期证据 fail-closed', async
   stale.freshness.state = 'STALE';
   stale.freshness.evidence.state = 'STALE';
   stale.freshness.evidence.reason = 'VERDICT_EXPIRED';
+  const clockExpired = JSON.parse(JSON.stringify(signedReadyProjection));
+  clockExpired.freshness.evidence.expires_at = new Date(Date.now() - 1000).toISOString();
+  const expiryMissing = JSON.parse(JSON.stringify(signedReadyProjection));
+  delete expiryMissing.freshness.evidence.expires_at;
 
-  await expect.poll(() => page.evaluate(({ ready, staleProjection }) => ({
+  await expect.poll(() => page.evaluate(({ ready, staleProjection, clockExpiredProjection, expiryMissingProjection }) => ({
     ready: governanceProjectionState(ready),
     stale: governanceProjectionState(staleProjection),
-  }), { ready: signedReadyProjection, staleProjection: stale })).toEqual({ ready: 'READY', stale: 'STALE' });
+    clockExpired: governanceProjectionState(clockExpiredProjection),
+    expiryMissing: governanceProjectionState(expiryMissingProjection),
+  }), { ready: signedReadyProjection, staleProjection: stale, clockExpiredProjection: clockExpired, expiryMissingProjection: expiryMissing }))
+    .toEqual({ ready: 'READY', stale: 'STALE', clockExpired: 'STALE', expiryMissing: 'STALE' });
+});
+
+test('v3 公开投影跨过签名 TTL 后在治理页自动回落', async ({ page }) => {
+  const expiring = JSON.parse(JSON.stringify(signedReadyProjection));
+  expiring.freshness.evidence.expires_at = new Date(Date.now() + 1200).toISOString();
+  await routeProjection(page, expiring);
+  await page.goto('/agent-governance.html');
+
+  await expect(page.locator('#decision-title')).toHaveText('可发布验收');
+  await expect(page.locator('#decision-title')).toHaveText('证据陈旧', { timeout: 5000 });
+  await expect(page.locator('#nav-state')).toHaveText('证据陈旧');
 });
