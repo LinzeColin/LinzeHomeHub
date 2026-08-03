@@ -807,7 +807,7 @@ async function load(){
   }
 }
 function probeEdit(){if(PROBED)return;PROBED=true;
-  fetch('/admin/api/prices').then(r=>{if(r.ok){CAN_EDIT=true;mount();}}).catch(()=>{})}
+  fetch('/admin/api/prices').then(r=>{if(r.ok){CAN_EDIT=true;mount(true);}}).catch(()=>{})}
 
 /* ---------- 治理投影(顶栏「治理」角标) ----------
    独立页 /agent-governance.html 自己会完整渲染这份数据;顶栏只取一个结论词,
@@ -871,7 +871,7 @@ function renderTabs(){
   });
 }
 
-function mount(){
+function mount(skipTransition=false){
   if(!S)return;
   MOUNTED=ROUTE();
   const p=PAGES.find(x=>x.id===MOUNTED)||PAGES[0];
@@ -891,7 +891,7 @@ function paint(V){
     uniUnmount();                                  // 星图离页即停帧并断开 observer
     if(D.getElementById('uni'))uniMount('uni');
   };
-  if(!reduced&&D.startViewTransition){D.startViewTransition(swap)}
+  if(!skipTransition&&!reduced&&D.startViewTransition){D.startViewTransition(swap)}
   else{const el=q('#view'); el.classList.remove('fade'); swap(); void el.offsetWidth; el.classList.add('fade')}
 }
 function sync(){
@@ -2883,7 +2883,7 @@ D.addEventListener('visibilitychange',()=>{if(!D.hidden){tickAgo();load();
     ink=dark?'#9dacbf':'#667386';
     grid=dark?'rgba(157,172,191,.18)':'rgba(102,115,134,.16)';
     paintBtn();
-    if(S)mount();                                   // 重建全部 canvas,拿新配色再画一次
+    if(S)mount(true);                               // 重建全部 canvas,拿新配色再画一次
   };
   const saved=localStorage.getItem('theme');
   apply(saved==='dark'||saved==='light'?saved:'system');
