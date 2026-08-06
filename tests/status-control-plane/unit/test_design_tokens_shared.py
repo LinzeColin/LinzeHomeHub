@@ -97,9 +97,9 @@ class DesignTokenParityTests(unittest.TestCase):
 
     def test_no_external_resources_anywhere(self):
         """零 CDN 是硬约束:CSP 是 default-src 'self',取外部资源等于线上直接白屏。"""
+        # control-plane.css 于 2026-08-04 随「业务线与证据治理」板块下线而删除，故不再检查。
         for path in (INDEX, GOV_CSS, HUB_CSS, WEB / "hub.html",
-                     WEB / "agent-governance.js", WEB / "agent-governance.html",
-                     WEB / "assets" / "control-plane" / "control-plane.css"):
+                     WEB / "agent-governance.js", WEB / "agent-governance.html"):
             with self.subTest(file=path.name):
                 text = path.read_text(encoding="utf-8")
                 for host in ("cdn.jsdelivr.net", "unpkg.com", "fonts.googleapis.com",
