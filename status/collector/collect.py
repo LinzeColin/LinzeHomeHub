@@ -155,6 +155,93 @@ def docker_space():
     return out
 
 
+def project_resources():
+    """每个项目实际吃掉多少内存和存储 —— 按 PROJECTS[].owns 归属。
+
+    为什么要有它(Owner 2026-08-10):页面一直只显示全机 mem_pct / disk_pct,
+    于是"内存又告警了"这种话没法落到具体项目上 —— 不知道该关谁、该搬谁。
+    现在按 owns 里已有的 container 前缀 / coolify 应用名把容器认领到项目,
+    存储同理认领 docker 卷与 /srv 下的目录。
+
+    认不到主的部分不摊派、不猜,统一归到 "未归属",宁可显示缺口也不编数字。
+    整个函数只跑 3 条只读命令,不给这台已经很紧的机器添负担。
+    """
+    # 容器内存:docker stats 一次拿全
+    mem = {}
+    for line in run("docker stats --no-stream --format '{{.Name}}|{{.MemUsage}}'").splitlines():
+        name, _, usage = line.partition("|")
+        if not name or "/" not in usage:
+            continue
+        raw = usage.split("/")[0].strip()          # 形如 "298.2MiB"
+        try:
+            num = float(re.sub(r"[A-Za-z]+$", "", raw))
+        except ValueError:
+            continue
+        unit = re.sub(r"^[\d.]+", "", raw).upper()
+        mb = num / 1024 if unit.startswith("K") else num * 1024 if unit.startswith("G") else num
+        mem[name] = mb
+
+    # 存储:du 扫 1.6G 卷 + 4.5G /srv 要十几秒,而 run() 默认 20s 超时 —— 第一版就是
+    # 这么静默超时、结果全 0 的。而且采集器每分钟跑一次,没必要每次都扫盘:
+    # 存储变化以小时计,缓存 30 分钟足够,也不给这台已经很紧的机器添负担。
+    store, cache = {}, os.path.join(DATA_DIR, "project_storage.json")
+    fresh = False
+    try:
+        if time.time() - os.path.getmtime(cache) < 1800:
+            with open(cache) as f:
+                store = json.load(f)
+            fresh = True
+    except Exception:
+        pass
+    if not fresh:
+        # glob 必须在 root 的 shell 里展开:/var/lib/docker/volumes 是 root 0700,
+        # 普通 shell 读不到目录内容就不展开 *,du 收到字面 "*/" 直接失败(还被
+        # 2>/dev/null 吞掉,静默返回空)。所以整条命令塞进 sudo sh -c。
+        raw = run("sudo sh -c 'du -sm /var/lib/docker/volumes/*/ /srv/*/ /srv/linze/apps/*/ 2>/dev/null'", timeout=120)
+        for line in raw.splitlines():
+            size, _, path = line.partition("\t")
+            if size.strip().isdigit() and path:
+                store[path.strip().rstrip("/").split("/")[-1]] = int(size)
+        if store:                      # 扫失败就保留上一次的,别把 0 写进缓存
+            try:
+                with open(cache, "w") as f:
+                    json.dump(store, f)
+            except Exception:
+                pass
+
+    claimed_c, claimed_s = set(), set()
+    out = {}
+    for proj in list(PROJECTS) + list(PLATFORM):
+        owns = proj.get("owns") or {}
+        pats = list(owns.get("container") or [])
+        if owns.get("coolify"):
+            pats.append(owns["coolify"])
+        m = 0.0
+        hit = []
+        for cname, cmb in mem.items():
+            if any(cname.startswith(x) or x in cname for x in pats):
+                m += cmb
+                hit.append(cname)
+                claimed_c.add(cname)
+        st = 0
+        for sname, smb in store.items():
+            if any(x.strip("-_") and (sname.startswith(x.strip("-_")) or x.strip("-_") in sname) for x in pats):
+                st += smb
+                claimed_s.add(sname)
+        out[proj["name"]] = {
+            "mem_mb": round(m, 1),
+            "storage_mb": st,
+            "containers": len(hit),
+        }
+
+    out["_unclaimed"] = {
+        "mem_mb": round(sum(v for k, v in mem.items() if k not in claimed_c), 1),
+        "storage_mb": sum(v for k, v in store.items() if k not in claimed_s),
+        "containers": len([k for k in mem if k not in claimed_c]),
+    }
+    return out
+
+
 def container_health():
     """一次遍历同时拿:最大重启次数 + 崩溃自愈(restart 策略)覆盖率。"""
     names = run("docker ps --format '{{.Names}}'").splitlines()
@@ -318,17 +405,22 @@ def subscription_ledger(costblk, red_days=7, warn_days=14):
 
 
 def renew_days(purchase, cadence):
-    """purchase 'YYYY-MM-DD';cadence 'monthly'|'yearly'  (下次日期, 剩余天)。"""
+    """purchase 'YYYY-MM-DD';cadence 'monthly'|'semiannual'|'yearly'  (下次日期, 剩余天)。
+
+    2026-08-10 增加 semiannual:VPS-3 是半年付。此前只有 monthly/yearly 两档,
+    传别的值会静默落进 yearly 分支 —— 半年付的机器会被算成一年后才续费,
+    页面上那个"还有 N 天"就是错的,而且错得看不出来。
+    """
     p = datetime.strptime(purchase, "%Y-%m-%d").replace(tzinfo=CN)
     today = now_cn()
     nxt = p
-    if cadence == "monthly":
+    step = {"monthly": 1, "semiannual": 6}.get(cadence)
+    if step:
         while nxt <= today:
-            m = nxt.month + 1
-            y = nxt.year + (1 if m > 12 else 0)
-            m = 1 if m > 12 else m
-            day = min(p.day, 28)
-            nxt = nxt.replace(year=y, month=m, day=day)
+            m = nxt.month + step
+            y = nxt.year + (m - 1) // 12
+            m = (m - 1) % 12 + 1
+            nxt = nxt.replace(year=y, month=m, day=min(p.day, 28))
     else:
         while nxt <= today:
             nxt = nxt.replace(year=nxt.year + 1)
@@ -2745,10 +2837,35 @@ def main():
         json.dump(hist, f)
 
     projects, online = projects_live()
+    # 把实测的内存/存储挂到每个项目上 —— 光有全机 mem_pct 没法回答"该搬谁"
+    try:
+        _res = project_resources()
+        for _p in projects:
+            _r = _res.get(_p.get("name"))
+            if _r:
+                _p["mem_mb"] = _r["mem_mb"]
+                _p["storage_mb"] = _r["storage_mb"]
+                _p["containers"] = _r["containers"]
+        _unclaimed = _res.get("_unclaimed")
+    except Exception:
+        _unclaimed = None   # 采不到就整段留空,绝不用估算值糊上去
     dep = deploy_stats()
     usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
     ovh_renew = {"date": ovh_date, "days": ovh_days}
+    # VPS-3 新加坡:2026-08-10 下单,半年付。订单信息写在这里,页面才有唯一事实源;
+    # 之前只有 VPS-1 的续费日,新机一到就会出现两台机器对不上账的情况。
+    _v3_date, _v3_days = renew_days("2026-08-10", "semiannual")
+    ovh_renew["vps3"] = {
+        "ordered": "2026-08-10",
+        "plan": "VPS-3 2027 (6 vCore / 12 GB / 100 GB NVMe)",
+        "dc": "Singapore",
+        "term": "6 months",
+        "renew_date": _v3_date,
+        "renew_days": _v3_days,
+        "auto_renew": "待确认",   # owner 需在 OVH 控制台关掉;关掉后改成 "off"
+        "state": "processing",    # processing -> delivered,交付后改这里
+    }
     ch = container_health()
     backup = backup_status()
     costblk = cost(prices, fx)
@@ -2775,7 +2892,7 @@ def main():
             "subs": subs,
             "restarts": ch["restarts"],
         },
-        "host": host,
+        "host": (dict(host, unclaimed=_unclaimed) if _unclaimed else host),
         "fx": fx,
         "ai_accounts": ai_accounts,
         "cost": costblk,
