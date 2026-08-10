@@ -1,5 +1,11 @@
 # 云平台总览 · status.linzezhang.com
 
+> **主机变更(2026-08-10):** 生产已从 OVH VPS-1(`139.99.61.6`)迁到 VPS-3
+> (`15.235.141.201`)。VPS-1 已退役。下面命令里的 IP 都已换成新机;如果你在别处
+> 看到旧 IP,别照着连 —— 退役机可能还能登进去,而"连上了但改的不是生产"最难发现。
+
+
+
 自建只读总览页：把 Coolify 部署记录、主机指标、证书、备份、自愈规则、汇率与成本汇总成一张静态页。
 **这里就是它的唯一源码位置**（它曾被误建为独立仓 `LinzeStatus`，已整体迁入本目录，那个仓不再使用）。
 
@@ -36,13 +42,13 @@ ubuntu 在这台机器上是 NOPASSWD ALL，那等于把 root 交出去。
 整目录同步会把你在后台改过的价格库覆盖回旧值。主机上的 `private/`、`.secrets/` 同理，仓内根本没有。
 
 ```bash
-rsync -av --exclude 'data/' --exclude 'private/' --exclude '.secrets/' status/ ubuntu@139.99.61.6:/srv/linze/apps/status/
+rsync -av --exclude 'data/' --exclude 'private/' --exclude '.secrets/' status/ ubuntu@15.235.141.201:/srv/linze/apps/status/
 ```
 
 只改了采集器时，同步那一个文件最稳：
 
 ```bash
-rsync -av status/collector/collect.py ubuntu@139.99.61.6:/srv/linze/apps/status/collector/collect.py
+rsync -av status/collector/collect.py ubuntu@15.235.141.201:/srv/linze/apps/status/collector/collect.py
 ```
 
 `collector/` 的改动在下一次 cron（≤1 分钟）生效；`web/` 与 `deploy/` 的改动需重启 `linze-status` 容器。
