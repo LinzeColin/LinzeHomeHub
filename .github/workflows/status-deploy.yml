@@ -41,7 +41,7 @@ jobs:
 
       - name: 同步 status/ 到 OVH
         env:
-          TARGET: ubuntu@139.99.61.6
+          TARGET: ubuntu@15.235.141.201
         run: |
           # ★ 不加 --delete:实测它会删掉主机上的 collect.log / github.log / selfheal.log。
           # ★ data/ private/ .secrets/ runtime/ spool/ 全部排除 —— 那是线上活数据,
@@ -54,7 +54,7 @@ jobs:
 
       - name: 重启并在主机内自检
         env:
-          TARGET: ubuntu@139.99.61.6
+          TARGET: ubuntu@15.235.141.201
         run: |
           # 闸门自己会验内容并在失败时返回非零(直连容器,不打前置代理)
           ssh -i ~/.ssh/status_deploy -o BatchMode=yes -o IdentitiesOnly=yes "$TARGET" deploy-finalize
