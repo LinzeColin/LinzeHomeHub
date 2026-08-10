@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LinzeStatus 采集器 —— 在 OVH VPS-1 主机上由 cron 每 15 分钟运行一次。
+LinzeStatus 采集器 —— 在 OVH VPS-3 主机上由 cron 每 15 分钟运行一次。
 把 Coolify 数据库、主机指标、证书、备份、汇率、价格库汇总成 data/snapshot.json,
 供 status.linzezhang.com 的静态页读取渲染。只读采集,唯一写动作是价格库(人工编辑)之外的快照文件。
 所有面向用户的时间统一「北京时间 UTC+8」。
@@ -31,41 +31,41 @@ SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyb
 # 备份(backup)/ agent 依赖度(agent:无/低/中)。运行状态靠实时探测。
 PROJECTS = [
     {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"], "repo": "LinzeHomeHub",
-     "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
+     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "linze-home-hub"}},
     {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
+     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "nab"}},
     {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
+     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "pfi-public"}},
     {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
+     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "serenity-public"}},
     {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "repo": "KMOS",
-     "host": "OVH VPS-1", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
+     "host": "OVH VPS-3", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
      "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉", "owns": {"container": ["app-", "skills-"], "coolify": "kmfa-kmos-p1"}},
     {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
-     "host": "OVH VPS-1", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
+     "host": "OVH VPS-3", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
      "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件", "owns": {"container": ["identity-"]}},
     {"name": "EEI",      "url": "https://eei.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
+     "host": "OVH VPS-3", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
      "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无(内部服务)", "owns": {"container": ["eei-"]}},
     {"name": "Alpha",    "url": "https://alpha.linzezhang.com",    "parts": ["前台", "后台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "OVH 文件 · 交易账本 sqlite", "store": "OVH 文件",
+     "host": "OVH VPS-3", "db": "OVH 文件 · 交易账本 sqlite", "store": "OVH 文件",
      "deploy": "host-direct systemd ×5", "backup": "随主机 + 账本邮件归档", "agent": "低", "notify": "邮件", "owns": {"systemd": ["alpha-"]}},
     {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "Cloudflare Workers", "db": "CF D1 · adp", "store": "CF D1 + R2",
      "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件", "owns": {"cloudflare": ["adp"]}},
     {"name": "CyberBoss", "url": "https://cyberboss.linzezhang.com", "parts": ["控制面"], "repo": "MetaDatabase",
-     "host": "OVH VPS-1", "db": "无独立库 · 受保护运行态（Private-Database 同步待验收）", "store": "OVH 受保护文件 · CB-510 runtime",
+     "host": "OVH VPS-3", "db": "无独立库 · 受保护运行态（Private-Database 同步待验收）", "store": "OVH 受保护文件 · CB-510 runtime",
      "deploy": "Linux systemd + Cloudflare Tunnel", "backup": "主机加密备份已覆盖；R2/OCI 专属验证待 CB-530",
      "agent": "无（运行期模型调用 0）", "notify": "WeChat 凭据待接入", "owns": {"systemd": ["cyberboss-"]}},
     {"name": "Uptime",   "url": "https://uptime.linzezhang.com",   "parts": ["前台"],
-     "host": "OVH VPS-1", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
+     "host": "OVH VPS-3", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
      "backup": "随主机", "agent": "无", "notify": "无", "owns": {"container": ["monitoring-gatus"]}},
     {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"], "repo": "LinzeHomeHub",
-     "host": "OVH VPS-1", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
+     "host": "OVH VPS-3", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
      "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无", "owns": {"container": ["linze-status"], "cron": ["linze-status", "linze-github", "linze-selfheal"]}},
 ]
 
@@ -613,7 +613,7 @@ def externals():
 
 
 def ovh_self_state(host):
-    """OVH VPS-1 的状态 —— 从**真实读到的**本机指标派生,读不到就是未知。
+    """OVH VPS-3 的状态 —— 从**真实读到的**本机指标派生,读不到就是未知。
 
     这台机器不是「外部状态页」,是采集器自己跑着的那台主机,所以它的死活不该去问
     OVH 的官网,而应该看我们这一轮真的读到了什么。/proc/uptime 读得出来,
@@ -868,7 +868,7 @@ def usage_block(prev, host):
     if host.get("disk_used_b") and host.get("disk_total_b"):
         out.append({"key": "disk", "label": "主机磁盘", "used": host["disk_used_b"],
                     "limit": host["disk_total_b"], "unit": "bytes", "source": "auto",
-                    "note": "OVH VPS-1 系统盘"})
+                    "note": "OVH VPS-3 系统盘"})
 
     # R2/D1:优先自动值,拿不到才用人工兜底
     out.append(r2 or MANUAL_USAGE[0])
@@ -940,20 +940,20 @@ def cert_cached(prev):
 def externals_cached(prev, host=None):
     """外部状态页缓存 5 分钟;本机派生的那条**不进缓存**。
 
-    OVH VPS-1 是从本轮 host_metrics() 派生的,而供应商卡是每轮现算的 ——
+    OVH VPS-3 是从本轮 host_metrics() 派生的,而供应商卡是每轮现算的 ——
     如果把它一起缓存 5 分钟,同一个页面上两处会显示互相矛盾的主机状态。
     """
     pe, pat = prev.get("externals"), prev.get("externals_at")
     if pe and pat and age_min(pat) < 5:
-        out, at = [e for e in pe if e.get("name") != "OVH VPS-1"], pat
+        out, at = [e for e in pe if e.get("name") != "OVH VPS-3"], pat
     else:
         out, at = externals(), fmt(now_cn())
     ok, note = ovh_self_state(host)
-    return out + [{"name": "OVH VPS-1", "ok": ok, "note": note}], at
+    return out + [{"name": "OVH VPS-3", "ok": ok, "note": note}], at
 
 
 # ---------- 资产总览(按供应商:状态/成本/风险/健康)----------
-def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
+def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch, prices=None):
     cny = fx.get("aud_cny")
     umap = {u.get("key"): u for u in (usage or [])}
     extmap = {e.get("name"): e for e in (ext or [])}
@@ -969,7 +969,7 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
         return {"level": level, "text": text}
 
     cards = []
-    # —— OVH VPS-1 ——
+    # —— OVH VPS-3 ——
     dp, mp = host.get("disk_pct"), host.get("mem_pct")
     r = []
     if dp is not None and dp >= 85:
@@ -978,15 +978,28 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch):
         r.append(R("warn", "磁盘 %d%% 需留意" % dp))
     if mp is not None and mp >= 90:
         r.append(R("warn", "内存 %d%%" % mp))
-    if ovh.get("days") is not None and ovh["days"] <= 7:
-        r.append(R("warn", "续费仅剩 %d 天" % ovh["days"]))
+    # 2026-08-10 换机后这段全部改按 VPS-3 说。原来它讲的是 VPS-1:A$7/月、下次扣费
+    # 2026-08-17 —— 那台当天就退役关机了,卡片却还拿它的价和续费日当生产事实,
+    # 于是页面顶上长期挂着"OVH VPS-1 即将扣费,剩 6 天"这条**指向一台已停机器**的待办。
+    v3 = (ovh.get("vps3") or {})
+    _end_days = v3.get("end_days")
+    if _end_days is not None and _end_days <= 30:
+        r.append(R("warn", "服务 %s 到期,无宽限期(剩 %d 天)" % (v3.get("service_end", "—"), _end_days)))
     if not r:
         r = [R("ok", "无")]
-    cost_ovh = "A$7/月" + (" 约 ¥%d" % round(7 * cny) if cny else "")
-    if ovh.get("date"):
-        cost_ovh += " · 下次 %s(%s天)" % (ovh["date"], ovh.get("days", "—"))
+    # **金额不编。** VPS-3 是半年付,实付金额只有 owner 知道;我拿不到就写"待登记",
+    # 而不是把 VPS-1 的 A$7 挂到 VPS-3 名下 —— 那会造出一个看起来精确的错数字,
+    # 比"待登记"难发现得多。登记后这里自然显示真值。
+    _p = (prices or {}).get("ovh_vps3_aud_per_month") if isinstance(prices, dict) else None
+    if _p:
+        cost_ovh = "A$%s/月" % _p + (" 约 ¥%d" % round(float(_p) * cny) if cny else "")
+    else:
+        cost_ovh = "半年付 · 金额待登记(在价格库加 ovh_vps3_aud_per_month)"
+    if v3.get("service_end"):
+        cost_ovh += " · 服务到期 %s(%s天,到期直接停机)" % (
+            v3["service_end"], _end_days if _end_days is not None else "—")
     cards.append({
-        "key": "ovh", "name": "OVH VPS-1", "role": "云服务器 · 所有程序 + 自建数据库都在这台跑",
+        "key": "ovh", "name": "OVH VPS-3", "role": "云服务器 · 所有程序 + 自建数据库都在这台跑",
         # 与「外部服务」列表共用 ovh_self_state():读得到指标才判绿,读不到就是未知。
         # 原来这里写死 "ok": True —— note 里的数字是真的,那个绿点却不是。
         "status": dict(zip(("ok", "note"), ovh_self_state(host))),
@@ -2484,7 +2497,7 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
         lines.append({
             "name": e["name"], "kind": "platform" if is_platform else "business",
             "url": e.get("url") or "", "repo": repo or "", "role": e.get("role") or "",
-            "host": e.get("host") or "OVH VPS-1", "agent": e.get("agent") or "—",
+            "host": e.get("host") or "OVH VPS-3", "agent": e.get("agent") or "—",
             "cells": cells, "units": len(mine),
             "unit_ids": [u["id"] for u in mine][:8],
             "na": na, "judged": len(STAGES) - na, "stages_total": len(STAGES),
@@ -2749,7 +2762,7 @@ def project_graph(projects, gh):
             edges.append({"s": a, "t": b, "rel": rel})
 
     # 供应商层
-    v_ovh = node("v:ovh", "OVH VPS-1", "vendor", role="云服务器")
+    v_ovh = node("v:ovh", "OVH VPS-3", "vendor", role="云服务器")
     v_cf = node("v:cf", "Cloudflare", "vendor", role="门口/边缘")
     v_gh = node("v:github", "GitHub", "vendor", role="代码+备份")
     v_oci = node("v:oci", "OCI", "vendor", role="异地备份")
@@ -3004,7 +3017,7 @@ def main():
         "externals_at": ext_at,
         "usage": usage,
         "usage_seats_at": usage_seats_at,
-        "inventory": inventory(host, fx, costblk, usage, ext, backup, cert, ovh_renew, ch),
+        "inventory": inventory(host, fx, costblk, usage, ext, backup, cert, ovh_renew, ch, prices),
         "selfheal": selfheal_state(ch, cert, backup, seats),
         "github": github_public_block(),
         "deploy_calendar": deploy_calendar(),
