@@ -2292,11 +2292,14 @@ function vRuntime(){
 }
 function segHost(){
   return `<div class="grid k5" id="rtKpis"></div>
-  <h2>项目清单 <span class="hint">点表头可排序;每个项目跑在哪 / 存哪 / 怎么部署 / 怎么备份</span></h2>
+  <h2>项目清单 <span class="hint">点表头可排序;每个项目跑在哪 / 吃掉多少内存和存储 / 怎么部署 / 怎么备份</span></h2>
   <div class="card p0 scroll"><table><thead><tr>
-    <th class="s">项目</th><th>组成</th><th class="s">运行主机</th><th>数据库</th><th>文件存储</th>
+    <th class="s">项目</th><th>组成</th><th class="s">运行主机</th>
+    <th class="s">内存</th><th class="s">存储</th>
+    <th>数据库</th><th>文件存储</th>
     <th class="s">部署方式</th><th>备份</th><th class="s">Agent 依赖</th><th class="s">状态</th>
-  </tr></thead><tbody id="rtRows"></tbody></table></div>
+  </tr></thead><tbody id="rtRows"></tbody></table>
+  <div class="muted" id="rtResFoot" style="padding:8px 12px;font-size:12px;line-height:1.7"></div></div>
   <h2>本站实时访问 <span class="hint">读容器 access log,每分钟更新——这是真正实时的那一层</span></h2>
   <div class="grid k4" id="lvKpi"></div>
   <div class="grid k2" style="margin-top:13px">
@@ -2394,14 +2397,44 @@ function syncHost(){
   ]);
   const agentCol=a=>{const m={'无':'var(--ok)','低':'var(--ok)','中':'var(--warn)','高':'var(--danger)'};
     return `<span style="color:${m[a]||'var(--t2)'};font-weight:550">${esc(a||'—')}</span>`};
+  // 内存 / 存储:**绝对值和百分比一起给**。Owner 要拿它核对配额(平台 ≤20%、单项目 ≤10%),
+  // 光有 MB 看不出"占了这台机器多少",光有 % 又没法横向比项目大小 —— 两个都得摆出来。
+  // 分母是整机(host.res_base),不是"已用",所以百分比可以直接和铁律里的阈值比。
+  const rb=(h&&h.res_base)||{};
+  const fmtMB=v=>v==null?'—':(v>=1024?(v/1024).toFixed(1)+' GB':Math.round(v)+' MB');
+  // 0 不显示成"—":0 和"没数据"是两回事,前者是真的没占,后者是没认出来。
+  const resCell=(mb,pct,cap)=>{
+    if(mb==null&&pct==null)return `<td class="muted" data-v="-1">—</td>`;
+    const over=(cap!=null&&pct!=null&&pct>cap);
+    return `<td data-v="${mb??0}" style="white-space:nowrap">${fmtMB(mb)}`
+      +`<span class="muted" style="font-size:12px"> · ${pct==null?'—':pct+'%'}</span>`
+      +(over?`<span style="color:var(--warn);font-weight:600" title="超过单项目 ${cap}% 配额"> ⚑</span>`:'')+`</td>`;
+  };
   const rows=(s.projects||[]).map(p=>{
     const nm=p.url?`<a href="${p.url}" target="_blank" rel="noopener">${esc(p.name)}</a>`:esc(p.name);
     const parts=(p.parts||[]).map(t=>`<span class="tag ${t==='前台'?'fe':'be'}">${t}</span>`).join('');
     const b={run:['run','运行中'],access:['access','Access 保护'],down:['down','离线']}[p.status]||['run','运行中'];
     const c=x=>`<td class="muted">${esc(x||'—')}</td>`;
-    return `<tr><td data-v="${esc(p.name)}">${nm}</td><td>${parts}</td>${c(p.host)}${c(p.db)}${c(p.store)}${c(p.deploy)}${c(p.backup)}
+    return `<tr><td data-v="${esc(p.name)}">${nm}</td><td>${parts}</td>${c(p.host)}`
+      +resCell(p.mem_mb,p.mem_pct,10)+resCell(p.storage_mb,p.storage_pct,10)
+      +`${c(p.db)}${c(p.store)}${c(p.deploy)}${c(p.backup)}
       <td data-v="${esc(p.agent)}">${agentCol(p.agent)}</td>
       <td data-v="${p.status}"><span class="badge ${b[0]}">${b[1]}</span></td></tr>`;}).join('');
+  // 页脚:分母 + 未归属。没有这两个数,上面那列百分比就没法核对 ——
+  // "各项目加起来不等于整机用量"时,得看得见差额去了哪,否则只会以为数字算错了。
+  (function(){
+    const el=q('#rtResFoot'); if(!el)return;
+    const u=(h&&h.unclaimed)||null;
+    const sm=(s.projects||[]).reduce((a,p)=>a+(p.mem_mb||0),0);
+    const ss=(s.projects||[]).reduce((a,p)=>a+(p.storage_mb||0),0);
+    el.innerHTML=rb.mem_total_mb
+      ? `百分比的分母是整机:内存 ${fmtMB(rb.mem_total_mb)} · 磁盘 ${fmtMB(rb.disk_total_mb)}。`
+        +`已归属合计 内存 ${fmtMB(sm)} / 存储 ${fmtMB(ss)}`
+        +(u?` · <b>未归属</b> 内存 ${fmtMB(u.mem_mb)}(${u.mem_pct??'—'}%)、存储 ${fmtMB(u.storage_mb)}(${u.storage_pct??'—'}%)`
+            +`,来自 ${u.containers??0} 个容器 + ${u.units??0} 个系统服务 —— 认不到主的不摊派、不猜。`:'')
+        +` ⚑ = 超过单项目 10% 配额。`
+      : '资源归属数据缺失(采集器未产出 host.res_base)。';
+  })();
   const tb=q('#rtRows'); if(tb&&tb.dataset.k!==rows.length+':'+(s.updated_at||'')){tb.innerHTML=rows;tb.dataset.k=rows.length+':'+(s.updated_at||'')}
   // 趋势
   const seg=q('#rtSeg'); if(seg&&!seg.dataset.w){seg.dataset.w='1';
