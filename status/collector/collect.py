@@ -217,13 +217,64 @@ def project_resources():
             except Exception:
                 pass
 
-    claimed_c, claimed_s = set(), set()
+    # Coolify 应用名 → uuid。owns.coolify 里写的是应用名(如 "linze-home-hub"),
+    # 但 Coolify 起的容器是按 **uuid** 命名的(如 "0d8c4960-0e59-…-105446583581"),
+    # 名字压根不出现在容器名里 —— 所以 owns.coolify 这条匹配从来就没生效过,
+    # Home / PFI / Serenity 三个项目一直显示 0 MB。2026-08-10 换机时才发现:
+    # 换机后 uuid 全变了,而这三个项目的数字"依然是 0",于是暴露了它本来就是 0。
+    # 查一次 Coolify 自己的库把名字翻成 uuid,是唯一可靠的对应关系。
+    coolify_uuid = {}
+    try:
+        raw = run(
+            "docker exec coolify-db psql -U coolify -tAc "
+            "\"SELECT name || '|' || uuid FROM applications\"",
+            timeout=20,
+        )
+        for line in raw.splitlines():
+            nm, _, uu = line.strip().partition("|")
+            if nm and uu:
+                coolify_uuid[nm] = uu
+    except Exception:
+        pass
+
+    # systemd 型项目(host-direct 部署,没有容器)的内存:MemoryCurrent 是 cgroup 实测值,
+    # 单位 byte;单元没跑或内核没开 memory accounting 时返回 "[not set]" 或极大哨兵值。
+    #
+    # ⚠️ 必须排除 docker/containerd:它们的 cgroup **包含旗下所有容器**的内存,
+    # 一旦混进来,容器的内存会被数两遍(一遍算给项目,一遍算给 docker.service),
+    # 加总能轻松超过整机内存,页面上就成了"占用 140%"这种一眼假的数字。
+    CGROUP_PARENTS = ("docker.service", "containerd.service", "snapd.service")
+    unit_mem = {}
+    try:
+        raw = run(
+            "systemctl show --type=service --state=running --property=Id "
+            "--property=MemoryCurrent --no-pager",
+            timeout=20,
+        )
+        cur_id = None
+        for line in raw.splitlines():
+            k, _, v = line.strip().partition("=")
+            if k == "Id":
+                cur_id = v
+            elif k == "MemoryCurrent" and cur_id:
+                # 2^64-1 是 systemd 的"未知"哨兵,当成 0 处理,别把它算进项目配额
+                if v.isdigit() and int(v) < (1 << 63) and cur_id not in CGROUP_PARENTS:
+                    unit_mem[cur_id] = int(v) / 1024 / 1024
+                cur_id = None
+    except Exception:
+        pass
+
+    claimed_c, claimed_s, claimed_u = set(), set(), set()
     out = {}
     for proj in list(PROJECTS) + list(PLATFORM):
         owns = proj.get("owns") or {}
         pats = list(owns.get("container") or [])
         if owns.get("coolify"):
             pats.append(owns["coolify"])
+            # 容器实际叫 uuid,把 uuid 也加进匹配式
+            uu = coolify_uuid.get(owns["coolify"])
+            if uu:
+                pats.append(uu)
         m = 0.0
         hit = []
         for cname, cmb in mem.items():
@@ -231,6 +282,13 @@ def project_resources():
                 m += cmb
                 hit.append(cname)
                 claimed_c.add(cname)
+        # systemd 部署的项目(Alpha、CyberBoss 这种 host-direct)之前完全没参与计算,
+        # 于是明明在跑却显示 0 MB —— 那比"没有数字"更糟,它看起来像"没占资源"。
+        for uname, umb in unit_mem.items():
+            if any(uname.startswith(x) for x in (owns.get("systemd") or [])):
+                m += umb
+                hit.append(uname)
+                claimed_u.add(uname)
         st = 0
         for sname, smb in store.items():
             if any(x.strip("-_") and (sname.startswith(x.strip("-_")) or x.strip("-_") in sname) for x in pats):
@@ -246,12 +304,19 @@ def project_resources():
             "storage_pct": round(st / host_disk_mb * 100, 1) if host_disk_mb else None,
         }
 
-    _um = round(sum(v for k, v in mem.items() if k not in claimed_c), 1)
+    # 未归属要把 systemd 那部分也算上,否则"各项目之和 + 未归属"永远对不上整机用量,
+    # 而对不上的时候没人知道差额去哪了 —— 那正是这个函数想消灭的盲区。
+    _um = round(
+        sum(v for k, v in mem.items() if k not in claimed_c)
+        + sum(v for k, v in unit_mem.items() if k not in claimed_u),
+        1,
+    )
     _us = sum(v for k, v in store.items() if k not in claimed_s)
     out["_unclaimed"] = {
         "mem_mb": _um,
         "storage_mb": _us,
         "containers": len([k for k in mem if k not in claimed_c]),
+        "units": len([k for k in unit_mem if k not in claimed_u]),
         "mem_pct": round(_um / host_mem_mb * 100, 1) if host_mem_mb else None,
         "storage_pct": round(_us / host_disk_mb * 100, 1) if host_disk_mb else None,
     }
