@@ -166,6 +166,14 @@ def project_resources():
     认不到主的部分不摊派、不猜,统一归到 "未归属",宁可显示缺口也不编数字。
     整个函数只跑 3 条只读命令,不给这台已经很紧的机器添负担。
     """
+    # 分母:全机内存与磁盘总量,百分比要相对它算
+    host_mem_mb = host_disk_mb = 0
+    try:
+        host_mem_mb = int(run("free -m | awk 'NR==2{print $2}'") or 0)
+        host_disk_mb = int(run("df -Pm / | awk 'NR==2{print $2}'") or 0)
+    except Exception:
+        pass
+
     # 容器内存:docker stats 一次拿全
     mem = {}
     for line in run("docker stats --no-stream --format '{{.Name}}|{{.MemUsage}}'").splitlines():
@@ -232,13 +240,22 @@ def project_resources():
             "mem_mb": round(m, 1),
             "storage_mb": st,
             "containers": len(hit),
+            # 百分比和绝对值一起给:光有 MB 看不出"占了这台机器多少",
+            # 光有 % 又没法横向比项目大小。owner 要用它核对是否守配额,两个都得有。
+            "mem_pct": round(m / host_mem_mb * 100, 1) if host_mem_mb else None,
+            "storage_pct": round(st / host_disk_mb * 100, 1) if host_disk_mb else None,
         }
 
+    _um = round(sum(v for k, v in mem.items() if k not in claimed_c), 1)
+    _us = sum(v for k, v in store.items() if k not in claimed_s)
     out["_unclaimed"] = {
-        "mem_mb": round(sum(v for k, v in mem.items() if k not in claimed_c), 1),
-        "storage_mb": sum(v for k, v in store.items() if k not in claimed_s),
+        "mem_mb": _um,
+        "storage_mb": _us,
         "containers": len([k for k in mem if k not in claimed_c]),
+        "mem_pct": round(_um / host_mem_mb * 100, 1) if host_mem_mb else None,
+        "storage_pct": round(_us / host_disk_mb * 100, 1) if host_disk_mb else None,
     }
+    out["_host"] = {"mem_total_mb": host_mem_mb, "disk_total_mb": host_disk_mb}
     return out
 
 
@@ -402,6 +419,16 @@ def subscription_ledger(costblk, red_days=7, warn_days=14):
             "due_soon": [x for x in due if x["level"] == "bad"],
             "tracked": len(due), "total": len(due) + len(blind),
             "threshold_days": red_days}
+
+
+def _days_until(date_str):
+    """到某个日期还剩几天。VPS-3 是 No commitment + Cancellation scheduled,
+    没有"下次续费日",只有一个服务终止日,renew_days 那套周期逻辑套不上。"""
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=CN)
+        return (d.date() - now_cn().date()).days
+    except Exception:
+        return None
 
 
 def renew_days(purchase, cadence):
@@ -2843,28 +2870,37 @@ def main():
         for _p in projects:
             _r = _res.get(_p.get("name"))
             if _r:
-                _p["mem_mb"] = _r["mem_mb"]
-                _p["storage_mb"] = _r["storage_mb"]
-                _p["containers"] = _r["containers"]
+                # 绝对值和百分比都给 —— owner 要拿这两个数核对项目有没有守配额
+                for _k in ("mem_mb", "storage_mb", "containers", "mem_pct", "storage_pct"):
+                    _p[_k] = _r.get(_k)
         _unclaimed = _res.get("_unclaimed")
+        _res_host = _res.get("_host")
     except Exception:
-        _unclaimed = None   # 采不到就整段留空,绝不用估算值糊上去
+        _unclaimed = _res_host = None   # 采不到就整段留空,绝不用估算值糊上去
     dep = deploy_stats()
     usage, usage_seats_at = usage_block(prev, host)
     ovh_date, ovh_days = renew_days("2026-07-17", "monthly")
     ovh_renew = {"date": ovh_date, "days": ovh_days}
     # VPS-3 新加坡:2026-08-10 下单,半年付。订单信息写在这里,页面才有唯一事实源;
     # 之前只有 VPS-1 的续费日,新机一到就会出现两台机器对不上账的情况。
-    _v3_date, _v3_days = renew_days("2026-08-10", "semiannual")
+    # 2026-08-10 按 OVH 控制台实况更正:承诺方式是 No commitment(不是半年承诺),
+    # 服务期 2026-08-09 → 2027-02-09;My offer 状态是 Cancellation scheduled,
+    # 即到期不自动续、直接停机,没有宽限期。
     ovh_renew["vps3"] = {
-        "ordered": "2026-08-10",
+        "ordered": "2026-08-09",
+        "host": "vps-bab7f9dc.vps.ovh.ca",
+        "ipv4": "15.235.141.201",
+        "ipv6": "2402:1f00:8000:800::3c3a",
         "plan": "VPS-3 2027 (6 vCore / 12 GB / 100 GB NVMe)",
-        "dc": "Singapore",
-        "term": "6 months",
-        "renew_date": _v3_date,
-        "renew_days": _v3_days,
-        "auto_renew": "待确认",   # owner 需在 OVH 控制台关掉;关掉后改成 "off"
-        "state": "processing",    # processing -> delivered,交付后改这里
+        "dc": "Singapore (SGP) · os-sgp2",
+        "commitment": "No commitment",
+        "service_end": "2027-02-09",
+        "end_days": _days_until("2027-02-09"),
+        "auto_renew": "off",              # 控制台显示 Cancellation scheduled
+        "expiry_behavior": "到期直接停机,无宽限期",
+        "state": "active",
+        "automated_backup": "Standard",
+        "snapshot": "disabled",
     }
     ch = container_health()
     backup = backup_status()
@@ -2892,7 +2928,7 @@ def main():
             "subs": subs,
             "restarts": ch["restarts"],
         },
-        "host": (dict(host, unclaimed=_unclaimed) if _unclaimed else host),
+        "host": (dict(host, unclaimed=_unclaimed, res_base=_res_host) if _unclaimed else host),
         "fx": fx,
         "ai_accounts": ai_accounts,
         "cost": costblk,
