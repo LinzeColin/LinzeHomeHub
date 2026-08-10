@@ -51,6 +51,14 @@ class RegistryCompletenessTest(unittest.TestCase):
         self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cloud.service"))
         self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cf-tunnel.service"))
 
+    def test_jobhuntbot_online_owns_its_compose_runtime(self):
+        project = next(p for p in C.PROJECTS if p["name"] == "JobHuntBot Online")
+        self.assertEqual(project["url"], "https://jobhunt.linzezhang.com")
+        self.assertEqual(project["repo"], "MetaDatabase")
+        self.assertEqual(project["host"], "OVH VPS-3")
+        self.assertEqual(project["notify"], "真实邮件生命周期暂停（Owner 指令）；公开注册关闭")
+        self.assertEqual(project["owns"].get("container"), ["jobhuntbot-online-"])
+
 
 class NoFalseAlarmTest(unittest.TestCase):
     """每一条都对应一次实测出来的误报,不是假想。"""
