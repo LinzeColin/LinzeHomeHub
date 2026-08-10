@@ -123,5 +123,45 @@ class WiringTest(unittest.TestCase):
         import collect  # noqa: F401
 
 
+
+
+class RetiredSubscriptionTest(unittest.TestCase):
+    """退役的服务:既不"即将扣费",也不"盯不住"。
+
+    2026-08-10 实测踩到的顺序:VPS-1 退役后先把 track_renew 关掉 —— 它就从
+    「即将扣费」(错)变成了「盯不住」(也错)。**关掉跟踪 ≠ 标记退役**,
+    不显式区分就只是把假红换个位置。
+    """
+
+    def _ledger(self, items):
+        import collect
+        return collect.subscription_ledger({"items": items})
+
+    def test_retired_item_in_neither_bucket(self):
+        r = self._ledger([{"name": "OVH VPS-1", "retired": "2026-08-10",
+                           "renew_date": None, "renew_days": None}])
+        self.assertEqual([x["name"] for x in r["items"]], [])
+        self.assertEqual([x["name"] for x in r["blind"]], [],
+                         "退役的服务不该被报成「盯不住」")
+        self.assertEqual([x["name"] for x in r["retired"]], ["OVH VPS-1"])
+
+    def test_retired_not_counted_in_total(self):
+        r = self._ledger([{"name": "退役的", "retired": "2026-08-10"},
+                          {"name": "在用的", "renew_date": "2027-02-09", "renew_days": 182}])
+        self.assertEqual(r["total"], 1, "total 应只数需要有人盯的订阅")
+
+    def test_non_retired_without_date_still_blind(self):
+        # 负控方向:没标 retired 且算不出日期的,必须照旧进 blind ——
+        # 别为了消红把这条一起放过,那是真正会漏掉扣费的一类。
+        r = self._ledger([{"name": "没登记日期的", "renew_date": None, "renew_days": None}])
+        self.assertEqual([x["name"] for x in r["blind"]], ["没登记日期的"])
+
+    def test_retired_flag_is_explicit_not_derived_from_track_renew(self):
+        # track_renew=False 但没标 retired 的,仍然算需要盯(可能只是忘了开跟踪)
+        r = self._ledger([{"name": "关了跟踪但没退役", "renew_date": None, "renew_days": None,
+                           "track_renew": False}])
+        self.assertEqual([x["name"] for x in r["blind"]], ["关了跟踪但没退役"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

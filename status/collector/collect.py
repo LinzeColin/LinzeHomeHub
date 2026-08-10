@@ -466,9 +466,16 @@ def subscription_ledger(costblk, red_days=7, warn_days=14):
       **算不出 ≠ 没事** —— 这类最容易漏,因为它连红都不会红。
       blind 必须进 total,不许从分母里消失。
     """
-    due, blind = [], []
+    due, blind, retired = [], [], []
     for it in (costblk or {}).get("items") or []:
         nm = it.get("name") or "?"
+        # 已退役的服务两边都不进:它既不会"即将扣费",也不该被报成"盯不住"。
+        # 2026-08-10 实测踩到:VPS-1 退役后我先把 track_renew 关掉,结果它从
+        # "即将扣费"(错的)变成了"盯不住"(也是错的)—— 一台已经关机、到期即失效的
+        # 机器不需要任何人盯。**关掉跟踪 ≠ 标记退役**,得显式区分,否则只是把假红换个位置。
+        if it.get("retired"):
+            retired.append({"name": nm, "retired": it.get("retired")})
+            continue
         dt, dleft = it.get("renew_date"), it.get("renew_days")
         if dt is None or dleft is None:
             blind.append({"name": nm, "cadence": it.get("cadence"),
@@ -480,7 +487,9 @@ def subscription_ledger(costblk, red_days=7, warn_days=14):
                     "level": "bad" if dleft <= red_days
                              else ("warn" if dleft <= warn_days else "ok")})
     due.sort(key=lambda x: x["days"])
-    return {"items": due, "blind": blind,
+    # retired 单独列出但**不进 total** —— total 的含义是"需要有人盯的订阅数",
+    # 退役的不需要盯。同时把它露出来,免得"这条怎么不见了"变成新的盲区。
+    return {"items": due, "blind": blind, "retired": retired,
             "due_soon": [x for x in due if x["level"] == "bad"],
             "tracked": len(due), "total": len(due) + len(blind),
             "threshold_days": red_days}
@@ -987,14 +996,22 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch, prices=None)
         r.append(R("warn", "服务 %s 到期,无宽限期(剩 %d 天)" % (v3.get("service_end", "—"), _end_days)))
     if not r:
         r = [R("ok", "无")]
-    # **金额不编。** VPS-3 是半年付,实付金额只有 owner 知道;我拿不到就写"待登记",
-    # 而不是把 VPS-1 的 A$7 挂到 VPS-3 名下 —— 那会造出一个看起来精确的错数字,
-    # 比"待登记"难发现得多。登记后这里自然显示真值。
-    _p = (prices or {}).get("ovh_vps3_aud_per_month") if isinstance(prices, dict) else None
-    if _p:
-        cost_ovh = "A$%s/月" % _p + (" 约 ¥%d" % round(float(_p) * cny) if cny else "")
+    # **金额从价格库按名字取,不硬编码。** 原来这里写死 "A$7/月" —— 那是 VPS-1 的价,
+    # 换机后它被原样挂到 VPS-3 名下,造出一个看起来精确的错数字(比"未知"难发现得多)。
+    # 价格库(data/prices.json)是 owner 可在 /admin 编辑的唯一事实源,这里只读它。
+    # 真取不到才写"待登记" —— 宁可显示缺口,也不猜一个数。
+    _v3 = None
+    for _it in ((prices or {}).get("items") or []):
+        if str(_it.get("name", "")).strip() == "OVH VPS-3":
+            _v3 = _it
+            break
+    if _v3 and _v3.get("amount"):
+        _amt, _cur = float(_v3["amount"]), str(_v3.get("currency", "AUD")).upper()
+        cost_ovh = "%s%s/月" % ("A$" if _cur == "AUD" else _cur + " ", _amt)
+        if cny and _cur == "AUD":
+            cost_ovh += " 约 ¥%d" % round(_amt * cny)
     else:
-        cost_ovh = "半年付 · 金额待登记(在价格库加 ovh_vps3_aud_per_month)"
+        cost_ovh = "金额待登记(在 /admin 价格库补 OVH VPS-3 一条)"
     if v3.get("service_end"):
         cost_ovh += " · 服务到期 %s(%s天,到期直接停机)" % (
             v3["service_end"], _end_days if _end_days is not None else "—")

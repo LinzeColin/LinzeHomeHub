@@ -6,7 +6,7 @@
 <title>云平台总览 · status.linzezhang.com</title>
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232a78d6'/><path d='M5 17h4l3-8 4 14 3-9h8' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <!-- 主题在 <head> 里同步应用,早于首次绘制:否则存了深色的用户每次进来都会先闪一下浅色。
-     和 /hub.html、/agent-governance.html 共用 localStorage 的 theme 键。 -->
+     和 /hub.html 共用 localStorage 的 theme 键。 -->
 <script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <!-- STATUS_DUAL_THEME_PREFLIGHT_V0.0.0.3 BEGIN -->
 <script id="statusDualThemePreflight">(() => {
@@ -557,11 +557,10 @@ const ICON={
   github:'<path d="M9 19c-4 1.4-4-2-6-2.5m12 4.5v-3.3a2.9 2.9 0 0 0-.8-2.2c2.7-.3 5.4-1.3 5.4-5.9a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2S17 2.8 14 4.8a12 12 0 0 0-6 0C5 2.8 4.1 3.2 4.1 3.2A4.3 4.3 0 0 0 4 6.4a4.6 4.6 0 0 0-1.3 3.2c0 4.6 2.7 5.6 5.4 5.9a2.9 2.9 0 0 0-.8 2.2V21"/>',
   cost:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5c-.7-.8-1.8-1.2-3.1-1.2-1.8 0-3.1.9-3.1 2.2 0 1.2 1.1 1.8 3.2 2.2 2 .4 3 1 3 2.2 0 1.5-1.4 2.5-3.4 2.5-1.5 0-2.8-.5-3.6-1.4M12 5.5v13"/>',
   timeline:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 1.9"/>',
-  governance:'<path d="M12 3 20 7v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7l8-4Z"/><path d="m9 12 2 2 4-4"/>',
 };
-/* 顶栏 7 个入口:现有 6 个 hash 路由 + 新增「治理」独立页。
-   「治理」必须是 status/web/agent-governance.html 这个独立文件(冻结验收 test_ui_contract
-   直接按这三个文件名读),所以它带 href 走整页跳转,不是 hash 路由。 */
+/* 顶栏入口。原来还有第 7 个「治理」独立页(/agent-governance.html),
+   2026-08-11 按 owner 要求整页删除 —— 页面、它的 JS、以及每小时给它产数据的
+   systemd timer 一并移除,不留只产数据没人看的空转任务。 */
 const PAGES=[
   {id:'',       name:'总览',   icon:'overview'},
   {id:'flow',   name:'业务流', icon:'flow'},   // 软件**内部**功能实现程度:业务基线 × 各项目自定义阶段
@@ -569,8 +568,6 @@ const PAGES=[
   {id:'github', name:'GitHub', icon:'github'},
   {id:'cost',   name:'成本',   icon:'cost'},
   {id:'timeline',name:'时间轴',icon:'timeline'},
-  {id:'governance',name:'治理',icon:'governance',href:'/agent-governance.html',
-   hint:'Agent 开发治理 · 证据链 · 基础设施'},
 ];
 // 「运行」页内的分段:软件基线 / 主机与自愈。**分段不是二级入口**,不进 PAGES。
 const RSEGS=[{id:'base',name:'软件基线'},{id:'host',name:'主机与自愈'}];
@@ -808,60 +805,6 @@ async function load(){
 function probeEdit(){if(PROBED)return;PROBED=true;
   fetch('/admin/api/prices').then(r=>{if(r.ok){CAN_EDIT=true;mount(true);}}).catch(()=>{})}
 
-/* ---------- 治理投影(顶栏「治理」角标) ----------
-   独立页 /agent-governance.html 自己会完整渲染这份数据;顶栏只取一个结论词,
-   让 Owner 不进二级页也能看见「能不能发布」—— 这条信息原来挂在已被 #70 删掉的
-   acceptance.html 顶栏上,整合时必须留住,不能随那个页面一起消失。
-   fail-closed:取不到、解析失败、或证据不新鲜,一律显示「证据不足」,绝不沿用旧绿色。 */
-const GOV_LABEL={READY:'可发布',BLOCKED:'暂不可发布',UNKNOWN:'证据不足',STALE:'证据陈旧'};
-let GOV={badge:'证据不足',state:'UNKNOWN'};
-let GOV_EXPIRY_TIMER=null;
-function governanceProjectionExpiryEpoch(data){
-  const freshness=data&&data.freshness&&typeof data.freshness==='object'?data.freshness:{};
-  const evidence=freshness.evidence&&typeof freshness.evidence==='object'?freshness.evidence:{};
-  const expiresAt=typeof evidence.expires_at==='string'?Date.parse(evidence.expires_at):NaN;
-  return Number.isFinite(expiresAt)?expiresAt:NaN;
-}
-function governanceProjectionIsFresh(data){
-  const freshness=data&&data.freshness&&typeof data.freshness==='object'?data.freshness:{};
-  const evidence=freshness.evidence&&typeof freshness.evidence==='object'?freshness.evidence:{};
-  const expiresAt=governanceProjectionExpiryEpoch(data);
-  return freshness.state==='CURRENT'&&evidence.state==='CURRENT'&&Number.isFinite(expiresAt)&&Date.now()<expiresAt;
-}
-function scheduleGovernanceExpiryRefresh(data){
-  if(GOV_EXPIRY_TIMER!==null){clearTimeout(GOV_EXPIRY_TIMER);GOV_EXPIRY_TIMER=null;}
-  if(!data||data.schema_version!==3)return;
-  const expiresAt=governanceProjectionExpiryEpoch(data);
-  if(!Number.isFinite(expiresAt)||expiresAt<=Date.now())return;
-  GOV_EXPIRY_TIMER=window.setTimeout(()=>{GOV_EXPIRY_TIMER=null;loadGovernance();},Math.min(Math.max(0,expiresAt-Date.now())+20,2147483647));
-}
-function governanceProjectionState(data){
-  // v3 是签名的最小披露投影；签名、新鲜度或本地时钟上的 expires_at 不成立时必须回落，不能把静态 READY 当成当前绿色。
-  if(data&&data.schema_version===3){
-    const signed=data.signature_state==='PASS';
-    const fresh=governanceProjectionIsFresh(data);
-    const declared=GOV_LABEL[data.state]?data.state:'UNKNOWN';
-    return signed&&fresh?declared:'STALE';
-  }
-  const decision=data&&data.release_decision||{};
-  const fresh=!!(data&&data.source&&data.source.evidence_fresh);
-  return fresh?(decision.state||'UNKNOWN'):'STALE';
-}
-async function loadGovernance(){
-  try{
-    const r=await fetch('data/agent-governance.json?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error(String(r.status));
-    const d=await r.json();
-    const state=governanceProjectionState(d);
-    GOV={state,badge:GOV_LABEL[state]||'证据不足'};
-    scheduleGovernanceExpiryRefresh(d);
-  }catch(e){
-    if(GOV_EXPIRY_TIMER!==null){clearTimeout(GOV_EXPIRY_TIMER);GOV_EXPIRY_TIMER=null;}
-    GOV={state:'UNKNOWN',badge:'证据不足'};
-  }
-  if(S)renderTabs();
-}
-
 function tickAgo(){
   if(!lastAt)return;
   const sec=Math.round((Date.now()-lastAt)/1000);
@@ -884,8 +827,7 @@ function renderTabs(){
               (S&&S.selfheal?S.selfheal.armed+'/'+S.selfheal.total:''),
     'cost':S?'A$'+(S.cost.month_cash_aud??'—'):'',
     'timeline':S&&S.ops&&S.ops.subs?((S.ops.subs.due_soon||[]).length?S.ops.subs.due_soon.length+' 条到期':(S.ops.subs.tracked||0)+' 条'):'',
-    'github':g.available?g.repos_total+'仓':'',
-    'governance':GOV.badge};
+    'github':g.available?g.repos_total+'仓':''};
   const nav=q('#tabs');
   const svg=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]||''}</svg>`;
   nav.innerHTML='<span class="tabink" id="tabink"></span>'+PAGES.map(p=>{
@@ -2957,9 +2899,7 @@ D.addEventListener('visibilitychange',()=>{if(!D.hidden){tickAgo();load();
     if(!localStorage.getItem('theme'))apply('system');});
 })();
 load().then(probeEdit);
-loadGovernance();
 setInterval(load,REFRESH);
-setInterval(loadGovernance,REFRESH*4);   // 治理投影由 systemd timer 产出,不需要和快照同频
 </script>
 <!-- STATUS_DUAL_THEME_JS_V0.0.0.3 BEGIN -->
 <script src="/assets/status-dual-theme.js" defer data-status-dual-theme="v0.0.0.3"></script>
