@@ -83,7 +83,18 @@ jobs:
           #   digest 与 index.html 完全相同。所以状态码在这个站上没有任何鉴别力,
           #   只能比对仓内文件与线上响应的 sha256。
           fail=0
-          for f in index.html hub.html agent-governance.html agent-governance.css agent-governance.js; do
+          # ★ 清单**从仓里现有文件动态取**,不写死。
+          #   2026-08-11 教训:这里原本写死 5 个文件,其中 3 个是治理页的。治理页按 owner 要求
+          #   删掉后这一步就一直红(sha256sum: No such file),而 rsync、主机自检全绿 ——
+          #   失败被推到最后一步,看起来像"部署坏了",实际是**验收清单没跟着功能一起改**。
+          #   写死的清单迟早和现实脱节;现在只验仓里真实存在的顶层页面/样式。
+          # 用 find 而不是 ls+glob:在 `set -euo pipefail` 下,`ls *.css` 找不到匹配会让整步退出。
+          # 实测过 —— 删掉 agent-governance.css 之后顶层就没有 .css 了,第一版当场退出码 1。
+          files="$(cd status/web && find . -maxdepth 1 -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) -printf "%P\n" | sort)"
+          [ -n "$files" ] || { echo '::error::status/web 下没找到可验的文件'; exit 1; }
+          n=$(printf "%s\n" "$files" | wc -l | tr -d " ")
+          echo "本次验收 $n 个文件"
+          for f in $files; do
             repo="$(sha256sum "status/web/$f" | cut -d' ' -f1)"
             live="$(curl -sS --retry 5 --retry-delay 3 --retry-all-errors \
                       "https://status.linzezhang.com/$f" | sha256sum | cut -d' ' -f1)"
@@ -98,7 +109,7 @@ jobs:
           idx="$(sha256sum status/web/index.html | cut -d' ' -f1)"
           [ "$bogus" = "$idx" ] || { echo "FAIL 兜底路径没有返回 index —— 站点行为与预期不符"; fail=1; }
           [ "$fail" -eq 0 ] || { echo '::error::公网 digest 验收未通过'; exit 1; }
-          echo '公网验收通过:仓内 = 线上,5/5'
+          echo "公网验收通过:仓内 = 线上,$n/$n"
 
       - name: 失败时留下可回滚的线索
         if: failure()
