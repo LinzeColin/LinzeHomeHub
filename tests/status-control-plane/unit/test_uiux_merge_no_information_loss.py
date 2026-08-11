@@ -7,7 +7,8 @@ v0.0.0.2 把已批准的冷蓝设计方向套到全站,顺手新增了治理/证
 所以这里把整合前(main@c02f3a6,快照在
 _protected/uiux-snapshots/linzehomehub-status-web-20260729-c02f3a6)那一版的
 **全部信息点**写死成清单,逐条断言仍然在。要删任何一条,必须先改这个清单 ——
-让"我要删掉这块信息"变成一个显式动作,而不是一次手滑。
+让"我要删掉这块信息"变成一个显式动作,而不是一次手滑。已获 owner 明确授权
+下线的治理页是唯一例外，测试必须锁住其删除状态，防止旧资产反复回流。
 """
 
 from __future__ import annotations
@@ -20,7 +21,6 @@ from test_support import locate
 REPO, _, _ = locate()
 
 INDEX = REPO / "status" / "web" / "index.html"
-GOV = REPO / "status" / "web" / "agent-governance.html"
 
 # 整合前六个视图的全部区块标题(逐字取自 c02f3a6 的 index.html)
 LEGACY_SECTIONS = [
@@ -48,16 +48,10 @@ LEGACY_EXITS = {
     "中枢体检": "/hub.html",
 }
 
-# 整合新增的信息(只增不减的另一半:新增的也不许在后续改动里蒸发)
-ADDED_SECTIONS = ["Agent 开发飞轮", "证据与来源追溯", "基础设施事实边界",
-                  "执行与验收的信任边界", "自动失效规则", "事实流向"]
-
-
 class NoInformationLossTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.index = INDEX.read_text(encoding="utf-8")
-        cls.gov = GOV.read_text(encoding="utf-8")
 
     def test_every_legacy_section_survives(self):
         missing = [name for name in LEGACY_SECTIONS if name not in self.index]
@@ -92,19 +86,20 @@ class NoInformationLossTests(unittest.TestCase):
         for token in ("--h0", "--h1", "--h2", "--h3", "--h4"):
             self.assertIn(token, self.index, f"贡献热力少了 {token}")
 
-    def test_governance_entry_is_wired_and_styled(self):
-        """任务包补丁原样插进来的是一个裸 <a>,会破坏「更多」弹层的结构与无障碍语义。
-        整合后它必须是顶栏的一等入口,而不是弹层里那行没有 role 的裸链接。"""
-        self.assertIn("/agent-governance.html", self.index)
-        self.assertNotIn('<a href="/agent-governance.html">Agent 开发治理</a>', self.index)
+    def test_more_popup_entries_keep_menuitem_roles(self):
+        """「更多」弹层的每个可点击出口必须保留菜单语义。"""
         popup = re.search(r'<div class="pop" id="morePop".*?</div>', self.index, re.S)
         self.assertIsNotNone(popup, "「更多」弹层不见了")
         for item in re.findall(r"<a [^>]*>", popup.group(0)):
             self.assertIn('role="menuitem"', item, f"弹层里有条目丢了 role=menuitem:{item}")
 
-    def test_added_governance_sections_exist(self):
-        missing = [name for name in ADDED_SECTIONS if name not in self.gov]
-        self.assertEqual(missing, [], f"治理页少了这些新增区块:{missing}")
+    def test_owner_removed_governance_surface_stays_removed(self):
+        self.assertNotRegex(self.index, r'<a\b[^>]*href=["\']/agent-governance\.html',
+                            "已下线路径仍被渲染为可点击链接")
+        self.assertNotIn("id:'governance'", self.index)
+        for relative in ("agent-governance.html", "agent-governance.css", "agent-governance.js"):
+            with self.subTest(file=relative):
+                self.assertFalse((INDEX.parent / relative).exists(), f"已下线资产意外回流:{relative}")
 
     def test_timeline_scrolls_inside_itself_not_the_whole_page(self):
         """订阅历史轨道写死 560px、行标签又挂在轨道外,窄屏会把整页顶出横向滚动。
