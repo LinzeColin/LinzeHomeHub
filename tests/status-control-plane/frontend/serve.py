@@ -21,15 +21,19 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(urlparse(self.path).path)
         if path == "/":
             path = "/index.html"
-        root = self.server.data_root if path.startswith("/data/") else self.server.web_root
-        relative = path.removeprefix("/data/") if path.startswith("/data/") else path.lstrip("/")
+        is_data_request = path.startswith("/data/")
+        root = self.server.data_root if is_data_request else self.server.web_root
+        relative = path.removeprefix("/data/") if is_data_request else path.lstrip("/")
         target = (root / relative).resolve()
         try:
             target.relative_to(root.resolve())
         except ValueError:
             return self.send_error(403)
         if not target.is_file():
-            return self.send_error(404)
+            if is_data_request:
+                return self.send_error(404)
+            # Match the production Nginx try_files fallback for public routes.
+            target = root / "index.html"
         body = target.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")

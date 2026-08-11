@@ -56,7 +56,7 @@ class RegistryCompletenessTest(unittest.TestCase):
         self.assertEqual(project["url"], "https://jobhunt.linzezhang.com")
         self.assertEqual(project["repo"], "MetaDatabase")
         self.assertEqual(project["host"], "OVH VPS-3")
-        self.assertEqual(project["notify"], "标准 SMTP 注册已开放；真实验收邮件受安全冷却与收件人限速保护")
+        self.assertEqual(project["notify"], "标准 SMTP 已配置；真实邮件验收须再次明确授权，禁止自动重试，受 24 小时冷却与收件人限速保护")
         self.assertEqual(project["owns"].get("container"), ["jobhuntbot-online-"])
 
 

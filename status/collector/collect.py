@@ -35,7 +35,7 @@ PROJECTS = [
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "linze-home-hub"}},
     {"name": "JobHuntBot Online", "url": "https://jobhunt.linzezhang.com", "parts": ["前台", "后台", "调度"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "Docker PostgreSQL · jobhuntbot-online-postgres-1", "store": "Docker volumes · uploads + encrypted backups", "deploy": "host-direct Docker Compose",
-     "backup": "加密恢复包已验证；运行态投影非权威；R2 未配置（零付费策略）", "agent": "无（Scheduler/Worker 自运行）", "notify": "标准 SMTP 注册已开放；真实验收邮件受安全冷却与收件人限速保护", "owns": {"container": ["jobhuntbot-online-"]}},
+     "backup": "加密恢复包已验证；运行态投影非权威；R2 未配置（零付费策略）", "agent": "无（Scheduler/Worker 自运行）", "notify": "标准 SMTP 已配置；真实邮件验收须再次明确授权，禁止自动重试，受 24 小时冷却与收件人限速保护", "owns": {"container": ["jobhuntbot-online-"]}},
     {"name": "Nab",      "url": "https://nab.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "nab"}},

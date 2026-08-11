@@ -35,6 +35,17 @@ SECRET=[
     re.compile(r'\bsk-[A-Za-z0-9_-]{16,}'),re.compile(r'(?i)bearer\s+[A-Za-z0-9._~+/=-]{20,}'),
 ]
 TEXT={'.py','.js','.mjs','.html','.css','.json','.yaml','.yml','.toml','.ini','.conf','.sh','.service','.timer','.md','.txt'}
+# Keep this scanner's production surface identical to `npm run validate`.
+# `controlplane/` contains development-time policy definitions that necessarily
+# spell out forbidden hosts; it is not part of the deployed Status runtime.
+RUNTIME_ROOTS = ('collector', 'deploy', 'web', 'admin')
+
+
+def runtime_source_files(target: Path):
+    for root in RUNTIME_ROOTS:
+        directory = target / root
+        if directory.is_dir():
+            yield from directory.rglob('*')
 
 
 def main() -> int:
@@ -42,7 +53,7 @@ def main() -> int:
     args=parser.parse_args(); repo,module_root,_=locate()
     target=Path(args.repo).resolve()/'status' if (Path(args.repo).resolve()/'status').is_dir() else module_root
     violations=[]
-    for path in target.rglob('*'):
+    for path in runtime_source_files(target):
         if not path.is_file() or path.suffix.lower() not in TEXT or any(x in path.parts for x in ('.git','node_modules','data','private','runtime')): continue
         try: text=path.read_text(encoding='utf-8')
         except UnicodeDecodeError: continue

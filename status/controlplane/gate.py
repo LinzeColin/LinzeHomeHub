@@ -4,8 +4,13 @@ from __future__ import annotations
 
 try:
     from status.controlplane.v3.gate import legacy_observation_gate as _legacy_observation_gate
-except ImportError:
-    from v3.gate import legacy_observation_gate as _legacy_observation_gate
+except ModuleNotFoundError as exc:
+    # The frozen unit runner imports this module as ``controlplane.gate`` after
+    # adding ``status/`` to sys.path.  Keep that supported without masking an
+    # unrelated missing dependency inside the v3 implementation.
+    if exc.name != "status":
+        raise
+    from .v3.gate import legacy_observation_gate as _legacy_observation_gate
 from datetime import datetime, timezone
 from hashlib import sha256
 import json

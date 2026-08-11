@@ -63,9 +63,13 @@ class CiDeploySafetyTests(unittest.TestCase):
         self.assertIn("deploy-finalize", self.gate)
         self.assertRegex(self.gate, r"exit 77", "闸门没有对未知命令返回拒绝码")
 
-    def test_gate_finalize_fails_loudly_when_page_is_not_deployed(self):
-        """自检必须能红。实测过:把 agent-governance.html 挪走后闸门返回非零并说明原因。"""
-        self.assertIn("Agent 开发治理", self.gate, "闸门没有验治理页的内容")
+    def test_gate_finalize_fails_loudly_when_homepage_contract_is_not_deployed(self):
+        """自检必须能红：当前首页的用户可见契约缺失时不得放行。"""
+        self.assertIn('grep -q "云平台总览"', self.gate, "闸门没有验首页标题")
+        self.assertIn('grep -q ">内存</th>"', self.gate, "闸门没有验项目资源列")
+        self.assertIn('grep -q "rtResFoot"', self.gate, "闸门没有验资源页脚")
+        self.assertIn('[[ "$index_body" == "$gov_body" ]]', self.gate,
+                      "闸门没有验证已删除的治理路径回落到首页")
         self.assertRegex(self.gate, r'exit 7[56]', "闸门自检失败时没有返回非零")
         self.assertIn("container_ip", self.gate,
                       "闸门应直连容器验;打主机前置代理只会拿到 302,等于没验")
