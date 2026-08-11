@@ -94,3 +94,56 @@ class AssetStampTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class StampConvergenceTest(unittest.TestCase):
+    """打戳必须收敛:连跑两次结果一致。
+
+    这条是隔壁 social-archive 会话踩出来告诉我的,当时我这边还没有这个问题 ——
+    **但它是会退化的**:一旦哪天有资产内部引用了另一个带戳的资产(比如 sw.js 写预缓存
+    清单、app.js 写 SW 地址),写进去的戳就会改变下次算出来的戳,**永远不收敛**,
+    每次部署都产生新戳、每次都强制全量回源。
+
+    他们的解法是哈希前先把所有 `?v=…` 归一成 `?v=`。我这边资产目前不含戳
+    (实测:三个资产里 `?v=` 出现 0 次),所以还不需要归一;
+    但先把「跑两次必须一样」钉住 —— 等有人加了嵌套引用,是这条测试先红,
+    而不是线上每次部署都换一批缓存键。
+    """
+
+    def test_stamping_twice_is_stable(self):
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            backup = os.path.join(td, "index.html")
+            shutil.copy2(INDEX, backup)
+            try:
+                subprocess.run([sys.executable, STAMPER], capture_output=True, text=True, check=True)
+                once = open(INDEX, "rb").read()
+                subprocess.run([sys.executable, STAMPER], capture_output=True, text=True, check=True)
+                twice = open(INDEX, "rb").read()
+            finally:
+                shutil.copy2(backup, INDEX)
+        self.assertEqual(once, twice,
+                         "打戳不收敛 —— 多半是某个资产内部引用了带戳的 URL,"
+                         "哈希前需要先把所有 ?v=… 归一成 ?v=")
+
+    def test_no_stamped_asset_contains_a_stamp(self):
+        # 上面那条是结果层的判据,这条是原因层的:直接检查资产内部有没有 ?v=。
+        #
+        # 两条**射程不同**,实测过:往资产里塞一个静态的 `?v=deadbeef` 字符串时,
+        # 只有这条(原因层)报红 —— 结果层不红,因为打戳脚本不改资产内部,两次跑仍然一致。
+        # 真正会让结果层红的是"资产由构建生成、且生成时把当前戳写进去"那种循环。
+        # 所以两条都留:一条抓得早、直接指出是哪个文件,一条兜住我没想到的路径。
+        offenders = []
+        for m in PATTERN.finditer(index_src()):
+            p = os.path.join(WEB, m.group(1).lstrip("/"))
+            if not os.path.isfile(p):
+                continue
+            try:
+                body = open(p, encoding="utf-8", errors="replace").read()
+            except Exception:
+                continue
+            if "?v=" in body:
+                offenders.append(m.group(1))
+        self.assertEqual(offenders, [],
+                         "这些资产内部含 ?v=,会让打戳不收敛,需在哈希前归一:%s" % offenders)
