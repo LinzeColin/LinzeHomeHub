@@ -31,6 +31,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ★ 闸在 rsync **之前**。
+      #
+      # 2026-08-11 之前这条流水线是 checkout → rsync → finalize,中间一个检查都没有:
+      # 改了 status/web/assets/*.js 忘了重新打缓存戳,照样部署成功、日志全绿,
+      # 而**用户最长 4 小时拿不到新代码**(Cloudflare 的 Browser Cache TTL 默认 14400 秒,
+      # 会覆盖源站的 no-cache —— 源站怎么设都不是杠杆,换缓存键才是)。
+      # 那类失效完全静默,只能靠部署前拦住。
+      #
+      # 放在 rsync 前而不是后:失败时线上还是旧版本(可用),而不是一半新一半旧。
+      - name: 部署前校验(缓存戳 + 采集器测试)
+        run: |
+          set -euo pipefail
+          echo "── 缓存戳是否与资产内容一致 ──"
+          python3 status/deploy/stamp-assets.py --check
+          echo "── 采集器与页面契约测试 ──"
+          cd status/collector && python3 -m unittest discover -s tests -p "test_*.py" -v 2>&1 | tail -5
+
       - name: 准备受限部署密钥
         run: |
           install -d -m 0700 ~/.ssh
