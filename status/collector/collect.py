@@ -33,6 +33,10 @@ PROJECTS = [
     {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "linze-home-hub"}},
+    {"name": "个人日程", "url": "https://mydairy.linzezhang.com", "parts": ["前台", "认证", "数据"], "repo": "MetaDatabase",
+     "host": "Cloudflare edge · ChatGPT Sites", "db": "ChatGPT Sites D1 logical binding · DB（租户隔离）", "store": "ChatGPT Sites R2 logical binding · FILES（私有对象）", "deploy": "ChatGPT Sites Saved Version",
+     "backup": "Saved Version 可回滚；D1/R2 物理对账待独立验收", "backup_state": "unverified", "data_state": "unverified",
+     "agent": "无（运行期模型调用 0）", "notify": "站内认证；status 仅作只读健康投影", "owns": {"cloudflare": ["mydairy"]}},
     {"name": "JobHuntBot Online", "url": "https://jobhunt.linzezhang.com", "parts": ["前台", "后台", "调度"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "Docker PostgreSQL · jobhuntbot-online-postgres-1", "store": "Docker volumes · uploads + encrypted backups", "deploy": "host-direct Docker Compose",
      "backup": "加密恢复包已验证；运行态投影非权威；R2 未配置（零付费策略）", "agent": "无（Scheduler/Worker 自运行）", "notify": "标准 SMTP 已配置；真实邮件验收须再次明确授权，禁止自动重试，受 24 小时冷却与收件人限速保护", "owns": {"container": ["jobhuntbot-online-"]}},
@@ -2467,6 +2471,12 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
         db = e.get("db") or ""
         if is_platform:
             cells["data"] = _cell("na", "平台组件")
+        elif e.get("data_state") == "unverified":
+            # A hosted data plane may be logically bound while its physical
+            # provider mapping is still awaiting an independent receipt. Keep
+            # that distinction visible instead of inferring green from the
+            # absence of an OVH database container.
+            cells["data"] = _cell("warn", db)
         elif db.startswith("无"):
             cells["data"] = _cell("na", db)
         else:
@@ -2476,13 +2486,19 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
                                    "%s · %d 个库容器在跑" % (db, len(dbu))) if dbu
                              else _cell("ok", db))
 
-        cells["backup"] = (_cell("ok" if backup.get("ok") else "warn",
-                                 "%s · 最近 %s" % (e.get("backup") or e.get("heal") or "—",
-                                                   backup.get("at") or "无记录"))
-                           if not is_platform else
-                           _cell("ok" if backup.get("ok") else "warn",
-                                 "%s · 主机整体备份 %s" % (e.get("heal") or "—",
-                                                          backup.get("at") or "无记录")))
+        if e.get("backup_state") == "unverified":
+            # Do not attribute the VPS-wide backup timestamp to a separately
+            # hosted service. Its own rollback path is useful, but it is not a
+            # substitute for a provider-level data-plane reconciliation.
+            cells["backup"] = _cell("warn", e.get("backup") or "备份证据待独立验收")
+        else:
+            cells["backup"] = (_cell("ok" if backup.get("ok") else "warn",
+                                     "%s · 最近 %s" % (e.get("backup") or e.get("heal") or "—",
+                                                       backup.get("at") or "无记录"))
+                               if not is_platform else
+                               _cell("ok" if backup.get("ok") else "warn",
+                                     "%s · 主机整体备份 %s" % (e.get("heal") or "—",
+                                                              backup.get("at") or "无记录")))
 
         cells["monitor"] = (_cell("ok", "Gatus 存活探测 + 本站日志逐分钟") if host in monitored
                             else _cell("ok", "Gatus 存活探测") if e.get("url")
