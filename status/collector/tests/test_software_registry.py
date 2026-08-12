@@ -13,6 +13,7 @@
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import collect as C                                          # noqa: E402
@@ -50,6 +51,40 @@ class RegistryCompletenessTest(unittest.TestCase):
         self.assertEqual(cyberboss["owns"].get("systemd"), ["cyberboss-"])
         self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cloud.service"))
         self.assertIsNotNone(C.SYSTEMD_SERVICE_PATTERN.match("cyberboss-cf-tunnel.service"))
+
+    def test_personal_workbench_is_registered_as_a_redacted_hosted_service(self):
+        personal_workbench = next(p for p in C.PROJECTS if p["name"] == "个人日程")
+        self.assertEqual(personal_workbench["url"], "https://mydairy.linzezhang.com")
+        self.assertEqual(personal_workbench["repo"], "MetaDatabase")
+        self.assertEqual(personal_workbench["host"], "Cloudflare edge · ChatGPT Sites")
+        self.assertEqual(personal_workbench["db"], "ChatGPT Sites D1 logical binding · DB（租户隔离）")
+        self.assertEqual(personal_workbench["store"], "ChatGPT Sites R2 logical binding · FILES（私有对象）")
+        self.assertEqual(personal_workbench["owns"].get("cloudflare"), ["mydairy"])
+        self.assertEqual(personal_workbench["data_state"], "unverified")
+        self.assertEqual(personal_workbench["backup_state"], "unverified")
+
+        serialized = str(personal_workbench)
+        for forbidden in ("@", "经期", "体重", "账单", "日记", "图片键", "同意明细", "token"):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_unverified_hosted_data_and_backup_are_never_rendered_green(self):
+        personal_workbench = next(p for p in C.PROJECTS if p["name"] == "个人日程")
+        with patch.object(C, "discover_units", return_value=[]):
+            rows = C.software_runtime(
+                [personal_workbench],
+                {},
+                {"ok": True, "at": "2026-08-12T00:00:00Z"},
+                {"days": None},
+                {},
+                {"sites": [{"site": "mydairy.linzezhang.com"}]},
+                {},
+                {"log": []},
+            )
+        row = next(item for item in rows["lines"] if item["name"] == "个人日程")
+        self.assertEqual(row["cells"]["data"]["s"], "warn")
+        self.assertEqual(row["cells"]["backup"]["s"], "warn")
+        self.assertEqual(row["cells"]["run"]["s"], "na")
+        self.assertEqual(row["cells"]["heal"]["s"], "na")
 
     def test_jobhuntbot_online_owns_its_compose_runtime(self):
         project = next(p for p in C.PROJECTS if p["name"] == "JobHuntBot Online")
