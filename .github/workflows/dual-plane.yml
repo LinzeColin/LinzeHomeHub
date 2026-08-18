@@ -26,3 +26,9 @@ jobs:
           SCRIPT="machine/tools/check_dual_plane_ci.py"
           [[ -f "$SCRIPT" ]] || { echo "FAIL: 缺少 $SCRIPT" >&2; exit 1; }
           python3 "$SCRIPT" --root . --require-projects
+      - name: kit 漂移门（副本必须与 Governance 唯一真源一致）
+        run: |
+          set -Eeuo pipefail
+          SCRIPT="machine/tools/check_kit_drift.py"
+          [[ -f "$SCRIPT" ]] || { echo "FAIL: 缺少 $SCRIPT" >&2; exit 1; }
+          python3 "$SCRIPT" --root .

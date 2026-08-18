@@ -26,7 +26,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-TOOLS = ["render_human.py", "check_doc_budget.py", "check_blocker_stop.py", "check_dual_plane_ci.py"]
+TOOLS = ["render_human.py", "check_doc_budget.py", "check_blocker_stop.py",
+         "check_dual_plane_ci.py", "check_kit_drift.py"]
 
 # 被双平面取代的旧人类可读文件（--archive-legacy 时移入 machine/legacy/）
 LEGACY_HUMAN = ["功能清单.md", "开发记录.md", "模型参数文件.md", "模型参数.md", "HANDOFF.md"]
