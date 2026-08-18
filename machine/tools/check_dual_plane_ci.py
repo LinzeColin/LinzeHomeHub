@@ -45,6 +45,33 @@ def discover(root: Path):
     return sorted(set(found))
 
 
+SELF_TOOLS = Path(__file__).resolve().parent
+
+
+def tool_path(proj: Path, name: str) -> str:
+    """项目里有就用项目里那份；没有就回退到本校验器身边那份。
+
+    为什么要回退：kit 的 7 个工具靠复制分发，全工作间 124 份 / 25192 行，
+    去重后只需 1456 行 —— 94% 是复制品，而且会各自漂移
+    （2026-08-18 实测 render_human.py 曾漂成 7 个版本，其中一个带着
+    「变更记录取反」的 bug 藏了一个月）。
+
+    有了回退，一个仓只需留一份工具，其余项目目录可以清空。
+    保留项目内副本仍然有效 —— 这是**向后兼容**的增强，不是行为变更。
+    MooMooAU 早就证明零 vendoring 可行：它有 governance.no_framework_copy
+    守卫，复制共享工具进它的 machine/tools/ 直接 FAIL。
+
+    返回相对 proj 的路径或绝对路径，供 subprocess 以 cwd=proj 调用。
+    """
+    local = proj / "machine" / "tools" / name
+    if local.is_file():
+        return f"machine/tools/{name}"
+    shared = SELF_TOOLS / name
+    if shared.is_file():
+        return str(shared)
+    return f"machine/tools/{name}"      # 让调用方以「缺文件」的方式失败，信息更直白
+
+
 def check_project(proj: Path, failures: list):
     name = proj.name
     docs = proj / "文档"
@@ -62,7 +89,7 @@ def check_project(proj: Path, failures: list):
         p = docs / f
         before[f] = p.read_text(encoding="utf-8") if p.is_file() else None
     r = subprocess.run(
-        [sys.executable, "machine/tools/render_human.py", "--root", "."],
+        [sys.executable, tool_path(proj, "render_human.py"), "--root", "."],
         cwd=proj, capture_output=True, text=True,
     )
     if r.returncode != 0:
@@ -138,7 +165,7 @@ def check_project(proj: Path, failures: list):
     for tool, arg in [("check_doc_budget.py", ["--docs", "文档"]),
                       ("check_blocker_stop.py", ["--machine", "machine"])]:
         rr = subprocess.run(
-            [sys.executable, f"machine/tools/{tool}"] + arg,
+            [sys.executable, tool_path(proj, tool)] + arg,
             cwd=proj, capture_output=True, text=True,
         )
         if rr.returncode != 0:
