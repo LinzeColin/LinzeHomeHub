@@ -15,6 +15,17 @@ manifest 是唯一真源（规格），副本是它的镜像；对不上就是�
 清单就永远绿 —— 那不是门，是装饰。所以发现多份清单直接 FAIL。
 清单本身被人改写来消音，会明晃晃留在 PR diff 里，那是人的责任边界，门不负责。
 
+**有些副本是有意分叉的，不是漂移。** KMFA 的 render_human.py 是 819 行、kit 只有
+482 行 —— 它多出一整套 canonical / release_policy 渲染逻辑，照 kit 覆盖等于毁掉
+KMFA 的渲染。这类副本在清单 forks 段里按路径登记，并**必须写清理由**：
+
+    "forks": {
+      "KMFA/machine/tools/render_human.py": "KMFA 专有 canonical 渲染，非 kit 可承载"
+    }
+
+登记过的报 FORK 不 FAIL；没登记的照旧 FAIL。理由留空 = FAIL —— 「先斩后奏地静音」
+和「想清楚了记一笔」必须是两件不同难度的事，否则 forks 段会退化成消音开关。
+
 用法:
   python3 machine/tools/check_kit_drift.py                  # 校验本仓全部副本
   python3 machine/tools/check_kit_drift.py --root .         # 指定扫描根
@@ -141,14 +152,37 @@ def main() -> int:
         print(f"PASS —— 本仓没有 kit 副本，无需核对（清单: {manifest_path}）")
         return 0
 
-    drifted, ok = [], 0
+    forks = manifest.get("forks") or {}
+    bad_decl = [k for k, v in forks.items() if not (isinstance(v, str) and v.strip())]
+    if bad_decl:
+        print(f"FAIL: forks 段有 {len(bad_decl)} 条没写理由。")
+        for k in sorted(bad_decl):
+            print(f"  - {k}")
+        print("\n  空理由的分支声明就是消音开关。想分叉可以，写清为什么。")
+        return 1
+
+    stale = [k for k in forks if not (root / k).is_file()]
+    if stale:
+        print(f"FAIL: forks 段登记了 {len(stale)} 条已不存在的路径。")
+        for k in sorted(stale):
+            print(f"  - {k}")
+        print("\n  文件没了声明还留着 —— 下次同名文件出现会被无声豁免。删掉它。")
+        return 1
+
+    drifted, ok, declared = [], 0, []
     for f in copies:
+        rel = str(f.relative_to(root))
         got = sha256_of(f)
         want = expected[f.name]
         if got == want:
             ok += 1
+        elif rel in forks:
+            declared.append((rel, forks[rel]))
         else:
             drifted.append((f.relative_to(root), got, want))
+
+    for rel, why in sorted(declared):
+        print(f"  ⊘ FORK {rel}\n      理由: {why}")
 
     if drifted:
         print(f"FAIL —— {len(drifted)} 份副本已漂离 kit（另有 {ok} 份一致）\n")
@@ -161,7 +195,8 @@ def main() -> int:
         print("     跑 check_kit_drift.py --update 更新清单，再同步其余副本。")
         return 1
 
-    print(f"PASS —— {ok} 份副本与 kit 一致（清单: {manifest_path.name}）")
+    tail = f"，另有 {len(declared)} 份已登记分支" if declared else ""
+    print(f"PASS —— {ok} 份副本与 kit 一致{tail}（清单: {manifest_path.name}）")
     return 0
 
 
