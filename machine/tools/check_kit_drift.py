@@ -11,6 +11,14 @@ check_kit_drift.py —— 双平面 kit 漂移门
 这道门只做一件事：拿 kit_manifest.json 里登记的 sha256，逐个核对本仓的副本。
 manifest 是唯一真源（规格），副本是它的镜像；对不上就是漂移，必须先解释再合并。
 
+**清单带代次号 kit_generation。** 这道门比的是「本仓副本 vs 本仓清单」，
+清单是跟着副本一起复制进来的 —— 所以整个仓一起落后于 kit 时，它照样全绿。
+2026-08-18 实测：语义门回灌 kit 之后，MetaDatabase 全部 9 个副本、LinzeHomeHub、
+AgentDatabase 都还停在回灌前的版本，而三个仓的漂移门都是 PASS：
+自洽但过期，门看不见。跨仓比对超出这道门的边界（铁律 4 不跨仓），
+所以改成把代次号印在每次输出里 —— 落后多少代，看一眼 CI 日志就知道，
+不必等下一次事故来提醒。
+
 **一个仓只允许有一份清单。** 如果每个子项目各带一份，漂移的副本配一份同样漂移的
 清单就永远绿 —— 那不是门，是装饰。所以发现多份清单直接 FAIL。
 清单本身被人改写来消音，会明晃晃留在 PR diff 里，那是人的责任边界，门不负责。
@@ -97,12 +105,23 @@ def cmd_update(root: Path, manifest_path: Path) -> int:
     if not tools:
         print(f"FAIL: {KIT_TOOLS} 里没有 .py，无法生成清单")
         return 2
+    prev = {}
+    if manifest_path.is_file():
+        try:
+            prev = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except ValueError:
+            prev = {}
+    generation = int(prev.get("kit_generation", 0))
+    if prev.get("tools") != tools:
+        generation += 1          # 内容变了才进位，重跑 --update 不会空涨
+    payload = {"kit_generation": generation, "source": str(KIT_TOOLS), "tools": tools}
+    if prev.get("forks"):
+        payload["forks"] = prev["forks"]
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
-        json.dumps({"source": str(KIT_TOOLS), "tools": tools},
-                   ensure_ascii=False, indent=2) + "\n",
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8")
-    print(f"已写入 {manifest_path} —— 登记 {len(tools)} 个工具")
+    print(f"已写入 {manifest_path} —— 第 {generation} 代，登记 {len(tools)} 个工具")
     for n, h in tools.items():
         print(f"  {h[:12]}  {n}")
     return 0
@@ -196,7 +215,9 @@ def main() -> int:
         return 1
 
     tail = f"，另有 {len(declared)} 份已登记分支" if declared else ""
-    print(f"PASS —— {ok} 份副本与 kit 一致{tail}（清单: {manifest_path.name}）")
+    gen = manifest.get("kit_generation")
+    gen_txt = f"kit 第 {gen} 代" if gen is not None else "清单无代次号（旧格式，跑一次 --update 补上）"
+    print(f"PASS —— {ok} 份副本与 kit 一致{tail}｜{gen_txt}")
     return 0
 
 
