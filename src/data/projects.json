@@ -39,6 +39,19 @@
     "repo": "MetaDatabase"
   },
   {
+    "id": "fifa-daily",
+    "name": "FIFA 足球研究日报",
+    "category": "Football Research",
+    "compatibilityLevel": "L2",
+    "deploymentStatus": "Live",
+    "futureLevel": "L3 gated",
+    "summary": "每天两次自动出的足球研究日报：未来 14 天比赛的胜平负概率，只研究不下注。",
+    "liveUrl": "https://fifa.linzezhang.com",
+    "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/FIFA/daily-research",
+    "mode": "voyage",
+    "repo": "MetaDatabase"
+  },
+  {
     "id": "account",
     "name": "Account / 统一登录",
     "category": "Identity & SSO",
