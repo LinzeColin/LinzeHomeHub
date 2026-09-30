@@ -16,7 +16,7 @@ Private-Database 禁止 `git clone`；派生/临时物走 `.gitignore`。**一�
 - Supports six hero models: `星图仪`, `漂浮岛`, `档案书`, `宇宙罗盘`, `黑金花园`, `能量核心`.
 - Uses scroll direction and speed as a shared gravity signal for particles, readouts, and Rapier bodies.
 - Renders project planets from `src/data/projects.json`; whole-card links use `liveUrl` first and `fallbackUrl` second.
-- Presents a three-surface Launch Constellation for EEI, PFI, and Serenity-Alipay (plus the Account entry). MemoryAtlas and Archive/nab were retired on 2026-09-30 (Owner decision) and their cards removed; restore the two entries in `src/data/projects.json` and `scripts/validate-homehub.mjs` if either comes back.
+- Presents a nine-card Launch Constellation (EEI, PFI, Serenity-Alipay, FIFA, Account, ADP, Alpha, Signal-Lattice, Status); the single data source is `src/data/projects.json`, checked against the `status/collector/collect.py` registry. A card may only be `Live` with a verified `liveUrl`; ADP stays `Deploy-ready` (source link) until its public site passes acceptance. MemoryAtlas and Archive/nab were retired on 2026-09-30 (Owner decision) and their cards removed; restore the two entries in `src/data/projects.json` and `scripts/validate-homehub.mjs` if either comes back.
 - Supports `?quality=low|medium|ultra` and `prefers-reduced-motion`.
 
 ## Local Development

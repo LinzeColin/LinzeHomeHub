@@ -25,6 +25,11 @@ page.on('pageerror', (error) => {
   consoleMessages.push(`pageerror: ${error.message}`);
 });
 
+// 门户按登录身份过滤卡片；验收用一个本地伪造的令牌（不联网、不签名）看到全部卡片。
+await page.addInitScript(() => {
+  const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '');
+  localStorage.setItem('linze_home_token', `${b64({ alg: 'none' })}.${b64({ name: 'preview', exp: 4102444800, repo_access: ['/repo:MetaDatabase', '/repo:LinzeHomeHub'] })}.x`);
+});
 await page.goto(baseUrl, { waitUntil: 'networkidle' });
 await page.waitForSelector('h1:text("Linze Home Hub")', { timeout: 15000 });
 await page.waitForTimeout(1400);
@@ -60,12 +65,11 @@ expect(Boolean(initial.quality), 'quality profile missing');
 expect(initial.oldSubtitle === false, 'removed subtitle is visible');
 expect(initial.modeButtons.length === 4, 'mode switcher count mismatch');
 expect(initial.modelButtons.length === 6, 'model switcher count mismatch');
-expect(initial.projectLinks.length === 5, 'launch constellation count mismatch');
+expect(initial.projectLinks.length === 9, 'launch constellation count mismatch');
 expect(initial.projectLinks.every((link) => link.href && !/last updated/i.test(link.text ?? '')), 'project link contract failed');
 expect(initial.projectLinks.every((link) => /L2/.test(link.text ?? '')), 'project L2 badges missing');
-expect(initial.projectLinks.filter((link) => /Live/.test(link.text ?? '')).length === 4, 'verified live surface count mismatch');
-expect(initial.projectLinks.some((link) => /Protected/.test(link.text ?? '')), 'protected surface missing');
-expect(initial.projectLinks.every((link) => !/Deploy-ready/.test(link.text ?? '')), 'stale deploy-ready state remains');
+expect(initial.projectLinks.filter((link) => /Live/.test(link.text ?? '')).length === 8, 'verified live surface count mismatch');
+expect(initial.projectLinks.filter((link) => /Deploy-ready/.test(link.text ?? '')).length === 1, 'deploy-ready surface count mismatch (only ADP expected)');
 expect(initial.canvas && initial.canvas.width > 0 && initial.canvas.height > 0, 'canvas has no drawing buffer');
 expect(initial.canvas && initial.canvas.dataUrlLength > 10000, 'canvas appears blank or unreadable');
 expect(initial.overflow <= 1, `desktop horizontal overflow ${initial.overflow}`);
