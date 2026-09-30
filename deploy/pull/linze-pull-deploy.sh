@@ -309,6 +309,11 @@ do_run() {
   docker network connect "$DOCKER_NETWORK" "$CAND" || fail "新容器接入网络 $DOCKER_NETWORK 失败"
   # update 会产生一个容器事件，Traefik 的 docker provider 据此重读配置、把新容器纳入；同时设上自动重启
   docker update --restart unless-stopped "$CAND" >/dev/null 2>&1 || log "警告：没能给 $CAND 设 restart=unless-stopped"
+  # 修复（首次部署）：实测 Traefik 的 docker provider 只在容器 start / die / health_status 事件时重读配置，network connect 与 update 都不触发。
+  # 上面靠「下面停旧容器（die 事件）」顺带触发；首次部署没有旧容器可停时，Traefik 会一直保留「新容器只挂在隔离网络上」的旧视图，
+  # 路由指向不可达地址（症状：TLS 通、请求挂起）。这里起停一个一次性容器（start + die）主动触发一次重读；对已有旧容器的部署无害。
+  # 要求镜像里有 true（nginx/alpine/debian 系都有）；没有只会打一条警告，行为与修复前一致。
+  docker run --rm --network none --entrypoint true "$IMAGE:$sha" >/dev/null 2>&1 || log "警告：没能触发 Traefik 重读配置"
   sleep 3
 
   # 停旧：本脚本标签的旧容器 + RETIRE_FILTER 指定的遗留容器（如旧 Coolify 容器，只停不删）
