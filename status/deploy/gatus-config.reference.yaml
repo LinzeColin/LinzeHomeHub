@@ -30,16 +30,6 @@ endpoints:
     url: "https://home.linzezhang.com"
     interval: 60s
     conditions: ["[STATUS] < 500"]
-  - name: nab
-    group: 现有站
-    url: "https://nab.linzezhang.com"
-    interval: 60s
-    conditions: ["[STATUS] < 500"]
-  - name: memoryatlas
-    group: 现有站
-    url: "https://memoryatlas.linzezhang.com"
-    interval: 60s
-    conditions: ["[STATUS] < 500"]
   - name: adp
     group: 现有站
     url: "https://adp.linzezhang.com"

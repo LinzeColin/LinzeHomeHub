@@ -46,10 +46,8 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
   // rejects both omission and unreviewed additions without rewriting project data.
   const verifiedProjects = {
     eei: ['Live', 'https://eei.linzezhang.com', 'L3 gated'],
-    'memory-atlas': ['Protected', 'https://memoryatlas.linzezhang.com', 'L3 gated'],
     pfi: ['Live', 'https://pfi.linzezhang.com', 'L3 gated'],
     'serenity-alipay': ['Live', 'https://serenity.linzezhang.com', 'L3 gated'],
-    nab: ['Live', 'https://nab.linzezhang.com', 'L2'],
     account: ['Live', 'https://account.linzezhang.com', 'L3 gated'],
   };
   const requiredIds = Object.keys(verifiedProjects);
