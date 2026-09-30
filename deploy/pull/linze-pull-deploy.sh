@@ -4,8 +4,9 @@
 # 每次被 systemd timer 唤醒：
 #   1. git ls-remote 看公开仓 BRANCH 的最新提交（一次极小的 HTTPS 请求）；
 #   2. 与线上容器标签 linze.pull.commit 比，一样就退出；
-#   3. 不一样：浅取该提交 -> docker build -> 起新容器（带 Traefik 标签；Docker 健康检查通过前
-#      Traefik 不送流量）-> 直连探活 -> 停旧容器 -> 经 Traefik 回测（同域名、走真 TLS、内容与新容器逐字节一致）；
+#   3. 不一样：浅取该提交 -> docker build -> 起新容器（先放在隔离网络里，Traefik 看不见它）-> 健康检查通过
+#      + 直连探活（状态码与内容都对）-> 才接入 Traefik 所在网络 -> 停旧容器 -> 经 Traefik 回测
+#      （同域名、走真 TLS、内容与新容器逐字节一致）；
 #   4. 任何一步失败：删掉新容器、把已停的旧容器拉起来，线上版本不变；同一提交按退避重试
 #      （5 分钟起翻倍，封顶 6 小时），有新提交立刻重来。
 #
@@ -51,6 +52,7 @@ HEALTH_BODY_REGEX=${HEALTH_BODY_REGEX:-}
 HEALTH_TIMEOUT=${HEALTH_TIMEOUT:-90}
 VERSION_PATH=${VERSION_PATH:-}
 DOCKER_NETWORK=${DOCKER_NETWORK:-coolify}
+STAGING_NETWORK=${STAGING_NETWORK:-bridge}
 CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
 MEMORY=${MEMORY:-256m}
 BUILD_TIMEOUT=${BUILD_TIMEOUT:-900}
@@ -197,8 +199,9 @@ start_candidate() {
   docker rm -f "$name" >/dev/null 2>&1
   # 先记名字：即使 run 半途失败，fail() 也会把它清掉
   CAND=$name
-  # 切换成功前不设自动重启：崩溃的候选容器应当直接暴露为 exited，而不是反复重启
-  docker run -d --name "$name" --network "$DOCKER_NETWORK" --restart no \
+  # 先放进隔离网络（Traefik 不在这个网络上，看不见它）：直连探活通过后才 network connect 接入 $DOCKER_NETWORK，
+  # 这样内容不对的新版本不会有一秒钟接到线上流量。切换成功前不设自动重启：崩溃的候选容器直接暴露为 exited。
+  docker run -d --name "$name" --network "$STAGING_NETWORK" --restart no \
     --memory "$MEMORY" --pids-limit 256 --security-opt no-new-privileges \
     --log-opt max-size=10m --log-opt max-file=3 \
     --health-cmd "wget -q -O /dev/null '$hp' || curl -fsS -o /dev/null '$hp'" \
@@ -206,11 +209,12 @@ start_candidate() {
     "${largs[@]}" "$IMAGE:$sha" >/dev/null
 }
 
-wait_healthy() {
-  local c=$1 t=0 st
+WH_STATE=""
+wait_healthy() { # 0=健康；1=没起来/已退出/超时（最后状态在 WH_STATE）
+  local c=$1 t=0
   while [ "$t" -lt "$HEALTH_TIMEOUT" ]; do
-    st=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$c" 2>/dev/null)
-    case "$st" in
+    WH_STATE=$(docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' "$c" 2>/dev/null)
+    case "$WH_STATE" in
       "running healthy") return 0 ;;
       exited*|dead*|restarting*|"") return 1 ;;
     esac
@@ -219,15 +223,23 @@ wait_healthy() {
   return 1
 }
 
-postcheck() { # 切流量之后：同域名、走真 TLS 回测；内容必须与新容器直连结果逐字节一致
-  local want=$1 i=0 code tmp="$STATE_DIR/post.body"
+postcheck() { # 切流量之后：同域名、走真 TLS 回测；内容必须与新容器直连结果逐字节一致；配了 VERSION_PATH 时还要报出新提交号
+  local want=$1 want_sha=$2 i=0 code vcode ok=0 tmp="$STATE_DIR/post.body" vtmp="$STATE_DIR/post.version"
   local -a ins=(); [ "$POSTCHECK_INSECURE" = 1 ] && ins=(-k)
   while [ "$i" -lt 20 ]; do
     code=$(http_probe "https://$DOMAIN$HEALTH_PATH" "$tmp" ${ins[@]+"${ins[@]}"} --resolve "$DOMAIN:443:127.0.0.1")
-    if [ "$code" = "$HEALTH_CODE" ] && [ "$(sha256_of "$tmp")" = "$want" ]; then break; fi
+    if [ "$code" = "$HEALTH_CODE" ] && [ "$(sha256_of "$tmp")" = "$want" ]; then
+      ok=1
+      if [ -n "$VERSION_PATH" ]; then
+        ok=0
+        vcode=$(http_probe "https://$DOMAIN$VERSION_PATH" "$vtmp" ${ins[@]+"${ins[@]}"} --resolve "$DOMAIN:443:127.0.0.1")
+        [ "$vcode" = 200 ] && [ "$(tr -d '[:space:]' < "$vtmp")" = "$want_sha" ] && ok=1
+      fi
+    fi
+    [ "$ok" = 1 ] && break
     sleep 3; i=$(( i + 1 ))
   done
-  [ "$i" -lt 20 ] || return 1
+  [ "$ok" = 1 ] || return 1
   code=$(http_probe "http://$DOMAIN$HEALTH_PATH" /dev/null --resolve "$DOMAIN:80:127.0.0.1")
   case "$code" in 301|302|307|308) return 0 ;; *) log "80 端口未重定向到 https（得到 $code）"; return 1 ;; esac
 }
@@ -288,12 +300,16 @@ do_run() {
   check_drift
   build_image "$sha" || fail "docker build 失败（日志尾部见上）"
   start_candidate "$sha" || fail "新容器启动失败"
-  wait_healthy "$CAND" || fail "新容器 ${HEALTH_TIMEOUT}s 内没变健康"
-  direct_ip=$(docker inspect -f "{{with index .NetworkSettings.Networks \"$DOCKER_NETWORK\"}}{{.IPAddress}}{{end}}" "$CAND")
-  [ -n "$direct_ip" ] || fail "拿不到新容器在网络 $DOCKER_NETWORK 上的 IP"
+  wait_healthy "$CAND" || fail "新容器没变健康（最后状态：${WH_STATE:-未知}，最多等 ${HEALTH_TIMEOUT}s）"
+  direct_ip=$(docker inspect -f "{{with index .NetworkSettings.Networks \"$STAGING_NETWORK\"}}{{.IPAddress}}{{end}}" "$CAND")
+  [ -n "$direct_ip" ] || fail "拿不到新容器在隔离网络 $STAGING_NETWORK 上的 IP"
   code=$(http_probe "http://$direct_ip:$CONTAINER_PORT$HEALTH_PATH" "$direct_tmp")
   probe_ok "$code" "$direct_tmp" || fail "新容器直连探活不合格（状态 $code，期望 $HEALTH_CODE${HEALTH_BODY_REGEX:+，内容需匹配 $HEALTH_BODY_REGEX}）"
-  log "新容器 $CAND 健康、直连探活通过，切换流量"
+  log "新容器 $CAND 健康、直连探活通过，接入 $DOCKER_NETWORK 并切换流量"
+  docker network connect "$DOCKER_NETWORK" "$CAND" || fail "新容器接入网络 $DOCKER_NETWORK 失败"
+  # update 会产生一个容器事件，Traefik 的 docker provider 据此重读配置、把新容器纳入；同时设上自动重启
+  docker update --restart unless-stopped "$CAND" >/dev/null 2>&1 || log "警告：没能给 $CAND 设 restart=unless-stopped"
+  sleep 3
 
   # 停旧：本脚本标签的旧容器 + RETIRE_FILTER 指定的遗留容器（如旧 Coolify 容器，只停不删）
   for c in $(docker ps -q --filter "label=linze.pull.app=$APP" --filter status=running; \
@@ -305,9 +321,8 @@ do_run() {
     log "停旧容器 $(name_of "$c")"
     docker stop -t 15 "$c" >/dev/null 2>&1
   done
-  postcheck "$(sha256_of "$direct_tmp")" || fail "切换后经 Traefik 回测不合格（域名 $DOMAIN）"
+  postcheck "$(sha256_of "$direct_tmp")" "$sha" || fail "切换后经 Traefik 回测不合格（域名 $DOMAIN）"
 
-  docker update --restart unless-stopped "$CAND" >/dev/null 2>&1 || log "警告：没能给 $CAND 设 restart=unless-stopped"
   S_state=up-to-date; S_deployed_sha=$sha; S_container=$CAND; S_last_deploy_at=$(date -u +%FT%TZ)
   S_last_error=""; S_fail_sha=""; S_fail_count=0; S_next_retry_epoch=""
   save_state
