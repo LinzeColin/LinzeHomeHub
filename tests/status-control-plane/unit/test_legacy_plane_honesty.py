@@ -5,7 +5,7 @@
 S6-T1 收敛时对照探测器逐条实测,发现三处「测试全绿、线上却是写死的绿」:
 
   1. externals() 里 NitroSend / OVH VPS-1 直接写 "ok": True —— 从来没探过;
-  2. 供应商卡 OCI 写 "ok": True —— 那是条只写、读不回来的 PAR 通道,永远无法验证;
+  2. 供应商卡 OCI 写 "ok": True —— 那是条只写、读不回来的 PAR 通道,永远无法验证(OCI 已于 2026-09 退役,卡片撤掉,守卫改为盯住「别加回来」);
   3. index.html 渲染自愈规则时 `includes(state)?state:'ok'` —— 认不出的状态一律当绿。
 
 这三条都命中冻结验收 INV-005「UNKNOWN/UNVERIFIED 等永不聚合成 PASS 或绿」。
@@ -119,51 +119,34 @@ class ExternalsHaveNoHardcodedGreenTests(unittest.TestCase):
         self.assertIn(True, values, "把 True 塞回去之后守卫却没看见 —— 守卫是装饰品")
 
 
-class OciCardIsNeverGreenTests(unittest.TestCase):
-    """OCI 是单向 PAR:结构上读不回来,所以它的状态**永远**不能是绿。"""
+class OciCardIsRetiredTests(unittest.TestCase):
+    """OCI 已于 2026-09 过期退役(Owner 2026-09-30),供应商卡整张撤掉。
+
+    原来这里守的是「OCI 是单向 PAR、读不回来,所以永远不能是绿」。卡片撤掉后,
+    最强的保证就是**它不存在**:页面上没有 OCI 卡,就不可能有 OCI 的绿点。
+    守卫改成盯住「别把它加回来」;若有人重新引入 OCI 卡,必须先说明 OCI 为什么复活。
+    """
 
     def setUp(self):
         self.source = COLLECT.read_text(encoding="utf-8")
 
-    def _oci_ok_literal(self, source: str):
-        """定位 OCI 卡片那个 dict 的 status.ok 字面量。"""
+    def _has_oci_card(self, source: str) -> bool:
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Dict):
                 continue
-            keys = {k.value for k in node.keys if isinstance(k, ast.Constant)}
-            if "key" not in keys:
-                continue
-            pairs = dict(zip(
-                [k.value if isinstance(k, ast.Constant) else None for k in node.keys],
-                node.values,
-            ))
-            key_node = pairs.get("key")
-            if not (isinstance(key_node, ast.Constant) and key_node.value == "oci"):
-                continue
-            status = pairs.get("status")
-            if isinstance(status, ast.Dict):
-                for k, v in zip(status.keys, status.values):
-                    if isinstance(k, ast.Constant) and k.value == "ok" and isinstance(v, ast.Constant):
-                        return v.value, True
-            return None, True
-        return None, False
+            for k, v in zip(node.keys, node.values):
+                if (isinstance(k, ast.Constant) and k.value == "key"
+                        and isinstance(v, ast.Constant) and v.value in ("oci", "oci_backup")):
+                    return True
+        return False
 
-    def test_oci_status_is_not_true(self):
-        value, found = self._oci_ok_literal(self.source)
-        self.assertTrue(found, "没找到 OCI 供应商卡 —— 守卫失去了目标,当作失败处理")
-        self.assertIsNot(value, True, "OCI 单向通道被写成绿:投递成功不等于可恢复(OP-003)")
+    def test_no_oci_card_or_usage_item(self):
+        self.assertFalse(self._has_oci_card(self.source), "OCI 已退役,不该再出现 OCI 卡或用量项")
 
-    def test_negative_control_green_oci_is_caught(self):
-        sabotaged = self.source.replace(
-            '"status": {"ok": None, "note": "单向投递 · 读不回来,无法验证可恢复"}',
-            '"status": {"ok": True, "note": "离机副本 · 只写保险柜"}',
-            1,
-        )
-        self.assertNotEqual(sabotaged, self.source, "破坏没生效,这条破坏测试本身是坏的")
-        value, found = self._oci_ok_literal(sabotaged)
-        self.assertTrue(found)
-        self.assertIs(value, True, "OCI 被改回绿,守卫却没抓到")
+    def test_negative_control_reintroduced_oci_card_is_caught(self):
+        sabotaged = self.source + '\n_X = {"key": "oci", "status": {"ok": True}}\n'
+        self.assertTrue(self._has_oci_card(sabotaged), "把 OCI 卡加回去,守卫却没抓到")
 
 
 class FrontendUnknownStateFallsBackSafeTests(unittest.TestCase):
