@@ -3,12 +3,13 @@
   "items": [
     {
       "name": "OVH VPS-1",
-      "amount": 7,
+      "amount": 0.0,
       "currency": "AUD",
       "cadence": "monthly",
       "purchase": "2026-07-17",
-      "track_renew": true,
-      "note": "新加坡 · 2C/3.7G/40G"
+      "track_renew": false,
+      "note": "已于 2026-08-10 退役关机,业务已迁到 VPS-3。保留此条只为留痕,金额归 0、不再跟踪到期。",
+      "retired": "2026-08-10"
     },
     {
       "name": "域名 linzezhang.com",
@@ -38,7 +39,8 @@
       "amount": 0,
       "currency": "AUD",
       "cadence": "monthly",
-      "note": "备份的备份 · 免费额度"
+      "note": "已退役:OCI 账号 2026-09 过期,所有 OCI 备份停用(Owner 2026-09-30)。保留此条只为留痕,不再跟踪也不告警。",
+      "retired": "2026-09-30"
     }
   ]
 }
