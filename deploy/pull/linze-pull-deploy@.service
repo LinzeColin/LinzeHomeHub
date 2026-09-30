@@ -11,6 +11,8 @@ TimeoutStartSec=25min
 Nice=15
 IOSchedulingClass=idle
 StateDirectory=linze-pull-deploy
+# ProtectHome 让 /root 不可写，docker CLI 的配置目录改放到状态目录
+Environment=DOCKER_CONFIG=/var/lib/linze-pull-deploy/docker-config
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
