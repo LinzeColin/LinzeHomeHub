@@ -207,6 +207,7 @@ tbody tr:last-child td{border-bottom:none}
 .badge.run{color:var(--ok);background:var(--ok-bg)}
 .badge.access{color:var(--accent-t);background:var(--accent-bg)}
 .badge.down{color:var(--danger);background:var(--danger-bg)}
+.badge.stale{color:var(--warn);background:var(--warn-bg)}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
 .dot.ok{background:var(--ok)} .dot.bad{background:var(--danger)} .dot.unk{background:var(--t3)}
 /* warn 原本没有样式 —— 用到它的地方会渲染成一个透明点,状态直接看不见。
@@ -723,7 +724,9 @@ function insights(s){
   const out=[]; const push=(lv,t,d)=>out.push({lv,t,d});
   const h=s.host||{}, o=s.ops||{}, g=s.github||{};
   (s.projects||[]).filter(p=>p.status==='down').forEach(p=>
-    push('bad',`${p.name} 探测失败`,`地址 ${p.url||'内部服务'} 未返回可用状态`));
+    push('bad',`${p.name} 探测失败`,`地址 ${p.url||'内部服务'} 未返回可用状态${p.health_note?'('+p.health_note+')':''}`));
+  (s.projects||[]).filter(p=>p.status==='stale').forEach(p=>
+    push('warn',`${p.name} 业务判据未通过`,`服务在线但${p.health_note||'数据不新鲜'}`));
   if(h.disk_pct>=85)push('bad','磁盘吃紧',`已用 ${h.disk_pct}%,自愈会在 85% 自动清理`);
   else if(h.disk_pct>=75)push('warn','磁盘偏高',`已用 ${h.disk_pct}%,低于 85% 触发线`);
   if(h.mem_pct>=90)push('warn','内存偏高',`已用 ${h.mem_pct}%`);
@@ -1785,7 +1788,7 @@ function syncBase(){
       tone:viol?'bad':'ok'},
     {lab:'未登记违规',val:viol,unit:'',sub:viol?'必须补登记':'全部有归属',tone:viol?'bad':'ok'},
     /* ★ 「不达标段 0」+「17 条线全 100 分」以前是同一个假绿:
-       na(不适用)既不扣分也不进分母,ADP 这种跑在 CF 边缘、主机侧本来就没单元的线,
+       na(不适用)既不扣分也不进分母,(当时的)ADP 这种跑在 CF 边缘(现已搬到 VPS-3,同类如 mydairy)、主机侧本来就没单元的线,
        9 段里 4 段是 na,照样满分。分数于是对所有线都是 100,完全没有区分度。
        现在把「实际判过的段」摆出来 —— na 不是达标,是没测。 */
     (()=>{const cs=w.lines.flatMap(l=>Object.values(l.cells));
@@ -2367,7 +2370,7 @@ function syncHost(){
   const rows=(s.projects||[]).map(p=>{
     const nm=p.url?`<a href="${p.url}" target="_blank" rel="noopener">${esc(p.name)}</a>`:esc(p.name);
     const parts=(p.parts||[]).map(t=>`<span class="tag ${t==='前台'?'fe':'be'}">${t}</span>`).join('');
-    const b={run:['run','运行中'],access:['access','Access 保护'],down:['down','离线']}[p.status]||['run','运行中'];
+    const b={run:['run','运行中'],access:['access','Access 保护'],down:['down','离线'],stale:['stale','业务未就绪']}[p.status]||['run','运行中'];
     const c=x=>`<td class="muted">${esc(x||'—')}</td>`;
     return `<tr><td data-v="${esc(p.name)}">${nm}</td><td>${parts}</td>${c(p.host)}`
       +resCell(p.mem_mb,p.mem_pct,10)+resCell(p.storage_mb,p.storage_pct,10)
