@@ -39,7 +39,7 @@ services:
     environment:
       CF_TEAM_DOMAIN: tiny-scene-b867.cloudflareaccess.com
       CF_ACCESS_AUD: "3154ca98269ded50f05fb4c3cd35398e0e6dc078f76ab2fa244c4ac526a59d74"
-      OWNER_EMAIL: linzezhang35@gmail.com
+      OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL}
       PRICES_PATH: /srv/data/prices.json
       GITHUB_PRIVATE: /srv/private/github.json
     volumes:
