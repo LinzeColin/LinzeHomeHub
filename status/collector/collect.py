@@ -24,31 +24,42 @@ APP_DIR = os.environ.get("STATUS_APP_DIR", "/srv/linze/apps/status")
 DATA_DIR = os.path.join(APP_DIR, "data")
 BACKUP_DIR = os.environ.get("STATUS_BACKUP_DIR", "/srv/linze/backups")
 HISTORY_MAX = 96                            # 24h @ 15min
-SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyberboss)[-.@]")
+SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyberboss|fifa|serenity)[-.@]")
 
 # 项目静态配置(存不存在库、通知渠道等靠运维已知;运行状态靠实时探测)
 # 每个项目的运行逻辑:跑在哪(host)/ 数据库(db)/ 文件存储(store)/ 部署方式(deploy)/
 # 备份(backup)/ agent 依赖度(agent:无/低/中)。运行状态靠实时探测。
 PROJECTS = [
     {"name": "Home",     "url": "https://home.linzezhang.com",     "parts": ["前台"], "repo": "LinzeHomeHub",
-     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "linze-home-hub"}},
+     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)",
+     # 2026-09-30 起:服务器每 5 分钟自己去 GitHub 拉 main,健康检查通过才切流量(deploy/pull/)。
+     # 看它活着:线上 /version.txt 应等于 main 提交;`systemctl list-timers 'linze-pull-deploy@*'`。
+     "deploy": "拉取式自动部署(linze-pull-deploy,每 5 分钟)",
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无",
+     "owns": {"coolify": "linze-home-hub", "systemd": ["linze-pull-deploy@"]}},
     {"name": "个人日程", "url": "https://mydairy.linzezhang.com", "parts": ["前台", "认证", "数据"], "repo": "MetaDatabase",
      "host": "Cloudflare edge · ChatGPT Sites", "db": "ChatGPT Sites D1 logical binding · DB（租户隔离）", "store": "ChatGPT Sites R2 logical binding · FILES（私有对象）", "deploy": "ChatGPT Sites Saved Version",
      "backup": "Saved Version 可回滚；D1/R2 物理对账待独立验收", "backup_state": "unverified", "data_state": "unverified",
-     "agent": "无（运行期模型调用 0）", "notify": "站内认证；status 仅作只读健康投影", "owns": {"cloudflare": ["mydairy"]}},
+     "agent": "无（运行期模型调用 0）", "notify": "站内认证；status 仅作只读健康投影",
+     # tvimect… 是 Coolify 库里 personal-workbench-postgresql 的容器(随机名),应用 personal-workbench 的域名就是 mydairy
+     "owns": {"cloudflare": ["mydairy"], "container": ["tvimectzmlksbupvgs6vgjnd"]}},
     {"name": "JobHuntBot Online", "url": "https://jobhunt.linzezhang.com", "parts": ["前台", "后台", "调度"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "Docker PostgreSQL · jobhuntbot-online-postgres-1", "store": "Docker volumes · uploads + encrypted backups", "deploy": "host-direct Docker Compose",
      "backup": "加密恢复包已验证；运行态投影非权威；R2 未配置（零付费策略）", "agent": "无（Scheduler/Worker 自运行）", "notify": "标准 SMTP 已配置；真实邮件验收须再次明确授权，禁止自动重试，受 24 小时冷却与收件人限速保护", "owns": {"container": ["jobhuntbot-online-"]}},
     {"name": "PFI",      "url": "https://pfi.linzezhang.com",      "parts": ["前台"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
      "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "pfi-public"}},
-    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-3", "db": "无(纯静态前台)", "store": "无(构建产物在镜像内)", "deploy": "Golden Path 自动",
-     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无", "owns": {"coolify": "serenity-public"}},
+    # serenity-tick:每个工作日北京时间 08:30–17:30 整点半共 10 次,拉公开数据、生成日报写进私有 Release。
+    # 看它活着:`systemctl list-timers serenity-tick.timer`,上一次 `systemctl status serenity-tick.service`。
+    {"name": "Serenity", "url": "https://serenity.linzezhang.com", "parts": ["前台", "定时分析"], "repo": "MetaDatabase",
+     "host": "OVH VPS-3", "db": "无(前台纯静态;分析状态在主机 /var/lib/serenity)", "store": "无(构建产物在镜像内) + 私有 Release 日报",
+     "deploy": "前台 Golden Path 自动 + 分析 systemd 定时器 serenity-tick",
+     "backup": "随主机镜像 + 源码在 GitHub", "agent": "低", "notify": "无",
+     "owns": {"coolify": "serenity-public", "systemd": ["serenity-tick"]}},
     {"name": "KMFA",     "url": "https://kmfa.linzezhang.com",     "parts": ["前台", "后台"], "repo": "KMOS",
      "host": "OVH VPS-3", "db": "无独立库·报告写文件", "store": "OVH 文件", "deploy": "Coolify + cron worker",
-     "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉", "owns": {"container": ["app-", "skills-"], "coolify": "kmfa-kmos-p1"}},
+     "backup": "私有备份仓 + 随主机", "agent": "中", "notify": "钉钉", "owns": {"container": ["app-", "skills-"], "coolify": "kmfa-kmos-p1",
+              "image": ["kmfa-daily-funds"]}},          # 每日资金报告容器(Coolify 生成的随机名,只能按镜像认领)
     {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
      "host": "OVH VPS-3", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
      "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件", "owns": {"container": ["identity-"]}},
@@ -63,14 +74,39 @@ PROJECTS = [
      "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件", "owns": {"cloudflare": ["adp"]}},
     {"name": "CyberBoss", "url": "https://cyberboss.linzezhang.com", "parts": ["控制面"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "无独立库 · 受保护运行态（Private-Database 同步待验收）", "store": "OVH 受保护文件 · CB-510 runtime",
-     "deploy": "Linux systemd + Cloudflare Tunnel", "backup": "主机加密备份已覆盖；R2/OCI 专属验证待 CB-530",
+     "deploy": "Linux systemd + Cloudflare Tunnel", "backup": "主机加密备份已覆盖；R2 专属验证待 CB-530（OCI 已于 2026-09 退役）",
      "agent": "无（运行期模型调用 0）", "notify": "WeChat 凭据待接入", "owns": {"systemd": ["cyberboss-"]}},
     {"name": "Uptime",   "url": "https://uptime.linzezhang.com",   "parts": ["前台"],
      "host": "OVH VPS-3", "db": "无(探活服务)", "store": "SQLite 探测历史", "deploy": "Coolify compose",
      "backup": "随主机", "agent": "无", "notify": "无", "owns": {"container": ["monitoring-gatus"]}},
     {"name": "Status",   "url": "https://status.linzezhang.com",   "parts": ["前台"], "repo": "LinzeHomeHub",
      "host": "OVH VPS-3", "db": "OVH 文件 · prices.json", "store": "OVH 文件", "deploy": "host-direct rsync",
-     "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无", "owns": {"container": ["linze-status"], "cron": ["linze-status", "linze-github", "linze-selfheal"]}},
+     "backup": "每日加密 → GitHub", "agent": "无(纯 cron)", "notify": "无", "owns": {"container": ["linze-status"],
+              "cron": ["linze-status", "linze-github", "linze-selfheal", "linze-daily-review"]}},
+    # KMBid 对外看板:只有标准库的单文件小服务,零状态(反馈只追加 jsonl)。
+    # 看它活着:GET /健康 回 ok,`docker logs kmbid-web`。
+    {"name": "KMBid", "url": "https://kmbid.linzezhang.com", "parts": ["前台"],
+     "host": "OVH VPS-3", "db": "无(零状态)", "store": "OVH 文件 · /srv/linze/apps/kmbid(页面 + 反馈 jsonl)",
+     "deploy": "host-direct Docker(python:3.12-alpine + 标准库单文件)",
+     "backup": "未单独备份;是否被整机备份未核实", "backup_state": "unverified",
+     "agent": "无(纯标准库)", "notify": "无", "owns": {"container": ["kmbid-web"]}},
+    # Social Archive:收藏/网页归档系统,自带备份与复制的 systemd 定时单元。
+    # 看它活着:GET /health(含 backup.stale、worker 版本),细节见主机 /opt/social-archive/HANDOFF.md。
+    {"name": "Social-Archive", "url": "https://social-archive-api.linzezhang.com", "parts": ["前台", "后台"],
+     "host": "OVH VPS-3", "db": "OVH 运行库(见其 HANDOFF)", "store": "OVH 文件 + Cloudflare R2 对象",
+     "deploy": "host-direct Docker Compose + 专属 Cloudflare Tunnel",
+     "backup": "自带备份/复制定时单元;异地副本以其 /health 为准(其文档仍写 OCI,OCI 已退役)",
+     "backup_state": "unverified",
+     "agent": "无", "notify": "无", "owns": {"container": ["social-archive-"]}},
+    # FIFA 日报:每天两次(UTC 20:37 / 08:47)生成研究报告,站点挂在门户 home.linzezhang.com/fifa。
+    # 每 10 分钟去公开仓看代码有没有更新,有就拉取、跑测试、再出一份新报告。
+    # 看它活着:门户 /fifa 页面上的日期应为今天;`systemctl list-timers 'fifa-daily*'`;
+    # 主机 /var/lib/fifa-daily/current/status.json 的 ok / fresh_today。
+    {"name": "FIFA-daily", "url": "https://home.linzezhang.com/fifa", "parts": ["后台"], "repo": "MetaDatabase",
+     "host": "OVH VPS-3", "db": "无(静态站点目录 + 运行账本)", "store": "OVH 文件 · /var/lib/fifa-daily",
+     "deploy": "拉取式(fifa-daily-pull 每 10 分钟) + systemd 定时生成 + nginx 容器",
+     "backup": "站点按发布目录保留多份,可回滚;无独立异地备份", "backup_state": "unverified",
+     "agent": "无", "notify": "失败时邮件/通知脚本(fifa-daily-notify)", "owns": {"systemd": ["fifa-daily"]}},
 ]
 
 
@@ -488,6 +524,7 @@ def subscription_ledger(costblk, red_days=7, warn_days=14):
         due.append({"name": nm, "date": dt, "days": dleft,
                     "auto_renew": bool(it.get("auto_renew")),
                     "cadence": it.get("cadence"),
+                    "end_only": bool(it.get("end_only")),
                     "level": "bad" if dleft <= red_days
                              else ("warn" if dleft <= warn_days else "ok")})
     due.sort(key=lambda x: x["days"])
@@ -583,7 +620,21 @@ def cost(prices, fx):
             "month_cost_aud": round(cash_aud, 2),      # 当月实付 AUD
             "month_cost_cny": round(cash_aud * cny_rate, 2) if cny_rate else None,
         }
-        if purchase and it.get("track_renew"):
+        if it.get("retired"):
+            # 已退役:原样带进快照,subscription_ledger 靠它把这条排除在「需要盯」之外。
+            # 2026-09-30 实测:这个字段在价格库里早就写了(VPS-1 retired=2026-08-10),
+            # 但这里构造 row 时把它丢了,于是 ledger 永远看不到,已关机的 VPS-1 被当成
+            # 「没登记购买日期、盯不住」。漏在这一步传递上,不是漏在价格库。
+            row["retired"] = it["retired"]
+        elif it.get("service_end") and it.get("track_renew"):
+            # 有明确「服务终止日」的(如 VPS-3:No commitment + Cancellation scheduled)
+            # 没有周期性续费日 —— 按 purchase+cadence 推出的「下次扣费」是套用月付假设的
+            # 估算,与 OVH 控制台记录的终止日互相矛盾(2026-09-30 页面上同时出现 10-09 与
+            # 2027-02-09)。这类条目提醒的是「何时停机」,日期取控制台记录的终止日。
+            row["renew_date"] = it["service_end"]
+            row["renew_days"] = _days_until(it["service_end"])
+            row["end_only"] = True
+        elif purchase and it.get("track_renew"):
             row["renew_date"], row["renew_days"] = renew_days(purchase, cadence)
         items.append(row)
     return {
@@ -702,21 +753,23 @@ def _read_secret(name):
         return None
 
 
-def oci_usage():
-    """OCI PAR 只写不可删  累计上传量  远端占用。顺带从日志日期还原历史,用于测增速。"""
-    total, series = 0, []
+# 每天 03:40(UTC)自动备份一次,本机备份判「健康」的口径是 26 小时(backup_status);
+# GitHub 这一份沿用同一口径 —— 一天一份 + 2 小时余量,超过就说明备份停了。
+GITHUB_BACKUP_MAX_AGE_H = 26
+
+
+def last_github_upload_code():
+    """备份脚本日志最后一行里 GitHub 上传的 HTTP 码(github=201);读不到就是 None(未知)。"""
+    last = None
     try:
         with open(OFFSITE_LOG) as f:
             for line in f:
-                m = re.search(r"^(\d{4}-\d{2}-\d{2})T.*offsite=200 size=(\d+)B", line)
+                m = re.search(r"\bgithub=(\d{3})\b", line)
                 if m:
-                    total += int(m.group(2))
-                    series.append({"d": m.group(1), "u": total})
+                    last = m.group(1)
     except Exception:
         return None
-    return {"key": "oci_backup", "label": "OCI 离机备份(备份的备份)", "used": total,
-            "limit": 20 * GB, "unit": "bytes", "source": "auto", "series": series,
-            "note": "已改为每周日一次;远端不可删,只增不减"}
+    return last
 
 
 def github_backup_usage():
@@ -731,8 +784,23 @@ def github_backup_usage():
         rel = json.loads(urllib.request.urlopen(req, timeout=15).read())
         assets = [a for a in rel.get("assets", []) if a.get("name", "").startswith("linze-backup-")]
         size = sum(a.get("size", 0) for a in assets)
+        # 滚动保留:份数到 30 就删最旧,「满额」是设计内常态,不是风险。
+        # 真正会出事的只有两种 —— 最新一份太久没更新(备份停了)、最近一次上传失败。
+        # 所以这里给出这两个事实,由页面判定;份数占比不再当风险(见 web/index.html insights)。
+        latest = None
+        for a in assets:
+            try:
+                t = datetime.strptime(a["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=timezone.utc).timestamp()
+            except (KeyError, ValueError):
+                continue
+            if latest is None or t > latest:
+                latest = t
         return {"key": "github_backup", "label": "GitHub 备份(滚动保留)", "used": len(assets),
                 "limit": 30, "unit": "count", "source": "auto", "bounded": True,
+                "latest_epoch": int(latest) if latest else None,
+                "max_age_h": GITHUB_BACKUP_MAX_AGE_H,
+                "last_upload_code": last_github_upload_code(),
                 "note": "合计 %.1f MB · 满 30 份自动删最旧" % (size / 1048576)}
     except Exception:
         return None
@@ -852,10 +920,6 @@ def usage_block(prev, host):
     net_at = prev.get("usage_seats_at")
     stale = not (net_at and age_min(net_at) < 30)
 
-    o = oci_usage()
-    if o:
-        out.append(o)
-
     tok = _read_secret("cf_r2d1_token")
     seats = pu.get("cf_access")
     gh = pu.get("github_backup")
@@ -863,7 +927,7 @@ def usage_block(prev, host):
     d1 = pu.get("d1")
     need_r2d1 = tok and (r2 is None or r2.get("source") != "auto" or d1 is None or d1.get("source") != "auto")
     # 过期要刷;某项从没自动取到过也必须刷(否则节流会一直挡住首次取数)
-    if stale or seats is None or gh is None or need_r2d1:
+    if stale or seats is None or gh is None or "max_age_h" not in gh or need_r2d1:
         fresh_seats, fresh_gh = access_seats(), github_backup_usage()
         fresh_r2 = r2_usage(tok) if tok else None
         fresh_d1 = d1_usage(tok) if tok else None
@@ -874,6 +938,8 @@ def usage_block(prev, host):
             d1 = fresh_d1 or d1
             net_at = fmt(now_cn())
     if gh:
+        # 上传结果读的是本机日志,不走网络,不该跟着 30 分钟节流一起变旧
+        gh = dict(gh, last_upload_code=last_github_upload_code())
         out.append(gh)
     if seats:
         out.append(seats)
@@ -1019,6 +1085,18 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch, prices=None)
     if v3.get("service_end"):
         cost_ovh += " · 服务到期 %s(%s天,到期直接停机)" % (
             v3["service_end"], _end_days if _end_days is not None else "—")
+        # 两个来源互相矛盾时如实写出来,不替 Owner 悄悄选一个:
+        #   A 价格库:按 purchase+cadence(月付)推出的「下次扣费日」—— 是套用月付假设的估算;
+        #   B OVH 控制台 2026-08-10 的记录:No commitment + Cancellation scheduled,服务期至 service_end。
+        # 页面的提醒(需要你处理的事)采用 B:自动续费没开、已排定取消,意味着到期停机,没有月度扣费。
+        if _v3 and _v3.get("purchase") and _v3.get("cadence") in ("monthly", "semiannual", "yearly"):
+            _alt, _alt_days = renew_days(_v3["purchase"], _v3["cadence"])
+            if _alt != v3["service_end"]:
+                cost_ovh += (" · 两个来源不一致:价格库按「%s付」推算下次扣费 %s(剩 %d 天);"
+                             "OVH 控制台记录为「无承诺 + 已排定取消」,到期 %s、无月度续费。"
+                             "提醒按控制台记录,金额与扣费方式待 Owner 对账单核对"
+                             % ({"monthly": "月", "semiannual": "半年", "yearly": "年"}[_v3["cadence"]],
+                                _alt, _alt_days, v3["service_end"]))
     cards.append({
         "key": "ovh", "name": "OVH VPS-3", "role": "云服务器 · 所有程序 + 自建数据库都在这台跑",
         # 与「外部服务」列表共用 ovh_self_state():读得到指标才判绿,读不到就是未知。
@@ -1065,42 +1143,27 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch, prices=None)
     # —— GitHub ——
     gh, gh_ok = umap.get("github_backup"), extmap.get("GitHub", {}).get("ok")
     r = []
-    p = pctof(gh)
-    if p is not None and p >= 80:
-        r.append(R("warn", "备份份数 %.0f%%(满自动删最旧)" % p))
+    # 备份份数占比不是风险:滚动保留 30 份,满了自动删最旧,常年 100% 是设计内常态。
+    # 该报的只有「最新一份超过 N 小时没更新」和「最近一次上传失败」。
+    _latest = (gh or {}).get("latest_epoch")
+    _max_h = (gh or {}).get("max_age_h") or GITHUB_BACKUP_MAX_AGE_H
+    _age_h = (time.time() - _latest) / 3600 if _latest else None
+    if _age_h is not None and _age_h > _max_h:
+        r.append(R("danger", "最新一份备份已 %.0f 小时没更新(超过 %d 小时)" % (_age_h, _max_h)))
+    _code = (gh or {}).get("last_upload_code")
+    if _code and not _code.startswith("2"):
+        r.append(R("danger", "最近一次上传失败(GitHub 返回 %s)" % _code))
     r.append(R("ok", "Actions 分钟未监控 · 目前免费额度充裕"))
     h = []
     if gh:
-        h.append({"label": "备份份数", "value": "%s / %s" % (gh["used"], gh["limit"])})
-    h.append({"label": "最新备份", "value": backup.get("at") or "—"})
+        h.append({"label": "备份份数", "value": "%s / %s · 满自动删最旧" % (gh["used"], gh["limit"])})
+    _latest_txt = (datetime.fromtimestamp(_latest, CN).strftime("%Y-%m-%d %H:%M") if _latest
+                   else (backup.get("at") or "—"))
+    h.append({"label": "最新备份", "value": _latest_txt})
     h.append({"label": "官方状态", "value": "正常" if gh_ok else "查不到"})
     cards.append({
         "key": "github", "name": "GitHub", "role": "代码仓库 + 每日加密备份的落地点",
         "status": {"ok": gh_ok, "note": "官方状态正常" if gh_ok else "官方状态查不到"},
-        "cost": "免费额度内 · A$0", "risks": r, "health": h})
-    # —— OCI ——
-    oci = umap.get("oci_backup")
-    r = []
-    p = pctof(oci)
-    if p is not None and p >= 70:
-        r.append(R("warn", "只写不可删 · 累计 %.0f%%" % p))
-    if not r:
-        r = [R("ok", "仅每周日写入 · 余量充足")]
-    h = []
-    if oci:
-        h.append({"label": "累计上传", "value": fmt_bytes(oci["used"]) + " / " + fmt_bytes(oci["limit"])})
-    h.append({"label": "角色", "value": "备份的备份"})
-    cards.append({
-        "key": "oci", "name": "OCI(甲骨文云)", "role": "备份的备份 · 每周日再抄一份异地副本",
-        # ★ 这条腿是 PAR 单向预授权链接:只能写进去,结构上读不回来。
-        #   原来写死 "ok": True + "离机备份 · 只写保险柜",页面上是个绿点 ——
-        #   看的人会读成「异地备份没问题」,但从来没有任何回读证明它能恢复。
-        #   「投递成功」不等于「可恢复」,这正是 OP-003 要分开的两件事。
-        #   按 owner 授权的 DA-004 修订(docs/governance/TASKPACK_V0001_ACCEPTANCE_AMENDMENT.md
-        #   §4「反假绿约束」第 1 条):OCI 只记投递回执,永不并入「已验证恢复」。
-        #   所以它的状态**结构性地**只能是未知 —— 不是这次没测出来,是这个通道
-        #   本身就不提供可验证性。要变绿只能换成可读的异地存储(需 owner 决定)。
-        "status": {"ok": None, "note": "单向投递 · 读不回来,无法验证可恢复"},
         "cost": "免费额度内 · A$0", "risks": r, "health": h})
     return cards
 
@@ -2193,6 +2256,14 @@ PLATFORM = [
      "owns": {"cron": ["linze-offsite-backup", "linze-identity-backup"]}, "heal": "cron 自运行 + 自愈看门狗"},
     {"name": "链路巡检", "role": "外链健康 / Access 席位熔断",
      "owns": {"cron": ["linze-link-health", "linze-cf-seat-fuse"]}, "heal": "cron 自运行"},
+    {"name": "端到端巡检", "role": "交付流水线第 8 关:每日从公网走一遍各站点旅程(Playwright,跑在 docker 里)",
+     "owns": {"systemd": ["linze-e2e"]},
+     "heal": "systemd 定时器每天 07:30(悉尼)自运行;退出码 2(执行器自身出错)才让单元变红,结果看 journalctl -u linze-e2e"},
+    {"name": "主机守卫", "role": "存储保留 / R2 免费额度 / 僵尸循环 / 迁移验收 —— 主机自己的定时体检",
+     "owns": {"cron": ["linze-d1-retention", "linze-retention", "linze-r2-freetier-guard",
+                       "linze-loop-guard", "linze-migration-goal"]},
+     "heal": "cron 自运行;日志在 /srv/linze/logs 与 /var/log/linze-d1-retention.log,"
+             "迁移验收看 journalctl -t linze-migration-goal"},
     # 自动探测把它挖出来之前,这个单元没出现在任何一张视图里 —— 正是这条治理规则要防的情况
     {"name": "Cloudflare 隧道", "role": "CF Tunnel 入站(部分域名不经公网源站)",
      "owns": {"systemd": ["cloudflared"]}, "heal": "systemd Restart + cloudflared-update 定时更新"},
@@ -2798,7 +2869,6 @@ def project_graph(projects, gh):
     v_ovh = node("v:ovh", "OVH VPS-3", "vendor", role="云服务器")
     v_cf = node("v:cf", "Cloudflare", "vendor", role="门口/边缘")
     v_gh = node("v:github", "GitHub", "vendor", role="代码+备份")
-    v_oci = node("v:oci", "OCI", "vendor", role="异地备份")
 
     # 项目层 + 存储层
     for p in projects:
@@ -2872,7 +2942,6 @@ def project_graph(projects, gh):
                               "why": e.get("why")})
     # 备份链
     edge(v_ovh, v_gh, "每日备份")
-    edge(v_ovh, v_oci, "每周备份")
 
     # 只保留两端都存在的连线(避免悬空)
     edges = [e for e in edges if e["s"] in nodes and e["t"] in nodes]

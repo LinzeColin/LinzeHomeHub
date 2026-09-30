@@ -728,6 +728,18 @@ function insights(s){
   else if(h.disk_pct>=75)push('warn','磁盘偏高',`已用 ${h.disk_pct}%,低于 85% 触发线`);
   if(h.mem_pct>=90)push('warn','内存偏高',`已用 ${h.mem_pct}%`);
   (s.usage||[]).forEach(u=>{if(!u.limit)return;const p=u.used/u.limit*100;
+    /* ★ 滚动保留的项(GitHub 备份:满 30 份自动删最旧)满额是设计内常态,份数占比不是风险。
+       2026-09-30 之前它「30/30 = 100%」被报成「接近额度」并扣健康分 —— 假红。
+       真正该报的只有两件:最新一份太久没更新(备份停了)、最近一次上传失败。 */
+    if(u.bounded){
+      if(u.latest_epoch&&s.updated_epoch&&u.max_age_h){
+        const ageH=(s.updated_epoch-u.latest_epoch)/3600;
+        if(ageH>u.max_age_h)push('bad',`${u.label} 已 ${Math.round(ageH)} 小时没更新`,`最新一份备份超过 ${u.max_age_h} 小时,备份可能停了`);
+      }
+      if(u.last_upload_code&&!String(u.last_upload_code).startsWith('2'))
+        push('bad',`${u.label} 最近一次上传失败`,`GitHub 返回 ${u.last_upload_code}`);
+      return;
+    }
     if(p>=80)push('bad',`${u.label} 接近额度`,`${p.toFixed(1)}% 已用`);
     else if(p>=50)push('warn',`${u.label} 过半`,`${p.toFixed(1)}% 已用${u.eta_date?' · 预计触顶 '+u.eta_date:''}`);});
   if(o.cert&&o.cert.days!=null&&o.cert.days<=14)push('warn','证书临近到期',`${o.cert.date} · 剩 ${o.cert.days} 天(自动续期)`);
@@ -736,8 +748,8 @@ function insights(s){
      又一次「口径只覆盖子集却当成全局」。 */
   const sb=o.subs||{};
   (sb.items||[]).filter(x=>x.level!=='ok').forEach(x=>
-    push(x.level, `${x.name} ${x.days<=0?'已到期':'即将扣费'}`,
-      `${x.date} · 剩 ${x.days} 天${x.auto_renew?' · 自动续费开着':' · 自动续费没开'}`));
+    push(x.level, `${x.name} ${x.days<=0?'已到期':(x.end_only?'即将到期停机':'即将扣费')}`,
+      `${x.date} · 剩 ${x.days} 天${x.end_only?' · 到期直接停机':''}${x.auto_renew?' · 自动续费开着':' · 自动续费没开'}`));
   /* ★ 算不出到期日的**必须单独报**。算不出不等于没事 —— 这类最容易漏。 */
   if((sb.blind||[]).length)
     push('warn', `${sb.blind.length} 条订阅盯不住`,
@@ -2498,7 +2510,7 @@ SYNC['cost']=function(){
       scales:{x:{ticks:{color:ink,font:{size:10}},grid:{display:false}},y:{ticks:{color:ink},grid:{color:grid}}}})});
   q('#cUsage').innerHTML=(s.usage||[]).map(u=>{
     const pct=u.limit?Math.min(100,u.used/u.limit*100):0;
-    const col=pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)');
+    const col=u.bounded?'var(--ok)':(pct>=80?'var(--danger)':(pct>=50?'var(--warn)':'var(--ok)'));
     const src=u.source==='auto'?'<span class="src auto">自动</span>':`<span class="src manual">人工 ${esc(u.checked||'')}</span>`;
     const val=u.unit==='bytes'?`${fmtBytes(u.used)} / ${fmtBytes(u.limit)}`:`${num(u.used)} / ${num(u.limit)}`;
     const eta=u.eta_date?`<b style="color:${pct>=50?'var(--warn)':'var(--t1)'}">预计触顶 ${u.eta_date}</b>`:`<span class="muted">${esc(u.eta_note||'—')}</span>`;
@@ -2811,7 +2823,7 @@ SYNC['timeline']=function(){
     // derive periods: items 按 date+cadence 反推
     const derive=s=>{
       const rd=new Date(s.date+'T00:00:00');
-      const C=s.cadence==='yearly'?12:1;
+      const C=s.cadence==='yearly'?12:(s.end_only?6:1);   // 有终止日的(VPS-3 半年服务期)按一整段画,不按月切
       let e=new Date(rd);const ps=[];
       while(e>T0){
         let st=new Date(e);st.setMonth(st.getMonth()-C);if(st<T0)st=T0;
@@ -2851,6 +2863,8 @@ SYNC['timeline']=function(){
            <div class="muted" style="font-size:11.5px;margin-top:10px">
              到「价格设置」里补上购买日期,这里就能自动算出下次扣费时间。</div></div>`
       : '<div class="card"><div style="display:flex;align-items:center;gap:10px"><span class="dot ok"></span><b>全部订阅均可追踪</b></div></div>';
+    const rt=sb.retired||[];
+    if(rt.length)bl.innerHTML+=`<div class="muted" style="font-size:11.5px;margin-top:10px">已退役、不再跟踪也不告警:${rt.map(x=>esc(x.name)+'('+esc(x.retired)+')').join('、')}</div>`;
   }
 };
 
