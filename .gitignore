@@ -11,3 +11,6 @@ status/runtime/
 status/private/
 status/spool/
 .secrets/
+
+# Cloudflare wrangler local cache (contains account id); never commit
+.wrangler/
