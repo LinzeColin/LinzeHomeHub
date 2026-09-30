@@ -16,7 +16,7 @@ Private-Database 禁止 `git clone`；派生/临时物走 `.gitignore`。**一�
 - Supports six hero models: `星图仪`, `漂浮岛`, `档案书`, `宇宙罗盘`, `黑金花园`, `能量核心`.
 - Uses scroll direction and speed as a shared gravity signal for particles, readouts, and Rapier bodies.
 - Renders project planets from `src/data/projects.json`; whole-card links use `liveUrl` first and `fallbackUrl` second.
-- Presents a five-surface Launch Constellation for EEI, OpenAIDatabase / MemoryAtlas, PFI, Serenity-Alipay, and Archive/nab.
+- Presents a three-surface Launch Constellation for EEI, PFI, and Serenity-Alipay (plus the Account entry). MemoryAtlas and Archive/nab were retired on 2026-09-30 (Owner decision) and their cards removed; restore the two entries in `src/data/projects.json` and `scripts/validate-homehub.mjs` if either comes back.
 - Supports `?quality=low|medium|ultra` and `prefers-reduced-motion`.
 
 ## Local Development
@@ -66,11 +66,11 @@ Suggested domain: `home.linzezhang.com`, with `linzezhang.com` available as a la
 
 - `Live` requires a URL that was actually reached and verified.
 - `Deploy-ready` means build, safety scan, and Wrangler dry-run are ready, but the public deployment is not yet verified.
-- `Protected` requires a verified URL plus an explicit access-control boundary; MemoryAtlas uses owner-allowlist Cloudflare Access and is not presented as anonymous public access.
+- `Protected` requires a verified URL plus an explicit access-control boundary (no card currently uses it; MemoryAtlas, the previous user, was retired on 2026-09-30).
 - Empty `liveUrl` values fall back to the public GitHub source path.
 - Every card remains L2 static-first; future L3 data, auth, write, and automation capabilities stay gated.
 
-Current verified routing: EEI, PFI, Serenity-Alipay, and Archive/nab are `Live`; MemoryAtlas is `Protected`. No card currently relies on a deploy-ready fallback.
+Current verified routing: EEI, PFI, and Serenity-Alipay are `Live`. No card currently relies on a deploy-ready fallback.
 
 ## Safety
 

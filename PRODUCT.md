@@ -6,7 +6,7 @@ brand
 
 ## Users
 
-Linze and visitors who need a memorable, high-trust entry point into mature personal systems, especially MemoryAtlas and OpenAIDatabase. They arrive from a domain, GitHub, or shared link and should quickly understand that this is a living systems gateway rather than a generic personal landing page.
+Linze and visitors who need a memorable, high-trust entry point into mature personal systems. They arrive from a domain, GitHub, or shared link and should quickly understand that this is a living systems gateway rather than a generic personal landing page.
 
 ## Product Purpose
 
@@ -34,6 +34,6 @@ Respect `prefers-reduced-motion`, keep keyboard access for mode/model switching 
 
 ## Cloudflare L2 Experience
 
-The gateway is the public status surface for five bounded adapters: EEI, OpenAIDatabase / MemoryAtlas, PFI, Serenity-Alipay, and Archive/nab. Each whole-card node carries three distinct facts: current L2 compatibility, verified deployment state, and a future L3 gate. A card may claim `Live` only when its public target URL has been reached and checked; an intentionally access-controlled URL may use `Protected` only when both its URL and access boundary are verified. A successful local build or Wrangler dry-run alone remains `Deploy-ready`.
+The gateway is the public status surface for three bounded adapters: EEI, PFI, and Serenity-Alipay (MemoryAtlas and Archive/nab were retired on 2026-09-30). Each whole-card node carries three distinct facts: current L2 compatibility, verified deployment state, and a future L3 gate. A card may claim `Live` only when its public target URL has been reached and checked; an intentionally access-controlled URL may use `Protected` only when both its URL and access boundary are verified. A successful local build or Wrangler dry-run alone remains `Deploy-ready`.
 
 The HomeHub itself is static-first. Disabling an optional Worker enhancement must never remove the core gateway, project descriptions, safety boundaries, or outbound links. Private databases, financial records, payment connections, schedulers, mail senders, and account actions are outside this product surface.

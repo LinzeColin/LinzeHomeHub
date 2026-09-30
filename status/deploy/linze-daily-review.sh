@@ -65,7 +65,7 @@ else
 fi
 
 # ---------- 2. 12 个域名探活(两次,躲开滚动部署空窗) ----------
-HOSTS="home nab pfi serenity kmfa account eei status alpha adp uptime server"
+HOSTS="home pfi serenity kmfa account eei status alpha adp uptime server"
 for h in $HOSTS; do
   c=$(code "https://$h.linzezhang.com/")
   case "$c" in
