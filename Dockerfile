@@ -11,4 +11,7 @@ FROM nginx:1.27-alpine
 RUN apk upgrade --no-cache
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 线上版本戳：拉取式部署（deploy/pull）构建时传入提交号，curl <域名>/version.txt 即可看到线上是哪一版
+ARG SOURCE_COMMIT=unknown
+RUN printf '%s\n' "$SOURCE_COMMIT" > /usr/share/nginx/html/version.txt
 EXPOSE 80

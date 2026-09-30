@@ -1,0 +1,17 @@
+[Unit]
+Description=Pull-based deploy for %i (git fetch -> build -> health check -> switch, keep old on failure)
+Documentation=https://github.com/LinzeColin/LinzeHomeHub/tree/main/deploy/pull
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/linze-pull-deploy.sh run %i
+TimeoutStartSec=25min
+Nice=15
+IOSchedulingClass=idle
+StateDirectory=linze-pull-deploy
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

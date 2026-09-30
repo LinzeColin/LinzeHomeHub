@@ -40,6 +40,20 @@ The visual acceptance script expects a running preview server at `http://127.0.0
 
 ## Deployment
 
+### 线上部署（拉取式，免令牌）
+
+**怎么部署：把改动合入 `main`，约 5 分钟（最长 8 分钟）内自动上线，不用点任何东西，也不需要任何令牌。**
+生产机上的 systemd 定时器每 5 分钟看一眼 `main`；有新提交就构建新镜像、起新容器、健康检查通过再切流量并停掉旧的，任何一步失败旧版本原样保持在线。
+
+**怎么看它活着：**
+
+- `curl https://home.linzezhang.com/version.txt` —— 线上这一版的提交号，应等于 `main` 最新提交。
+- 服务器上 `sudo linze-pull-deploy.sh status home-hub` —— 状态、容器、下次触发时间；`systemctl list-timers 'linze-pull-deploy@*'`。
+
+脚本、unit、配置都在 [`deploy/pull/`](deploy/pull/README.md)（参数化模板，别的项目改一份 `.env` 即可套用）。
+
+### 早期方案（仅供参考，线上不走这条）
+
 Cloudflare Workers Static Assets is configured in `wrangler.jsonc`:
 
 ```jsonc

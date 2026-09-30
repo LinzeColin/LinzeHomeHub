@@ -5,3 +5,6 @@ machine
 文档
 scripts
 *.md
+.github
+deploy
+status
