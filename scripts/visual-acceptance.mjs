@@ -109,6 +109,10 @@ expect(Boolean(gravity.gy), 'gravity y readout missing after scroll');
 await page.screenshot({ path: resolve(evidenceDir, 'homehub-desktop-after-interaction.png'), fullPage: true });
 
 const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
+await mobile.addInitScript(() => {
+  const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '');
+  localStorage.setItem('linze_home_token', `${b64({ alg: 'none' })}.${b64({ name: 'preview', exp: 4102444800, repo_access: ['/repo:MetaDatabase', '/repo:LinzeHomeHub'] })}.x`);
+});
 await mobile.goto(`${baseUrl}?quality=low`, { waitUntil: 'networkidle' });
 await mobile.waitForSelector('h1:text("Linze Home Hub")', { timeout: 15000 });
 await mobile.waitForTimeout(900);
@@ -120,7 +124,7 @@ const mobileState = await mobile.evaluate(() => ({
 }));
 expect(mobileState.quality === 'low', 'quality query param did not force low');
 expect(mobileState.overflow <= 1, `mobile horizontal overflow ${mobileState.overflow}`);
-expect(mobileState.cards === 5, 'mobile launch constellation cards missing');
+expect(mobileState.cards === 9, 'mobile launch constellation cards missing');
 await mobile.screenshot({ path: resolve(evidenceDir, 'homehub-mobile.png'), fullPage: true });
 
 await mobile.close();

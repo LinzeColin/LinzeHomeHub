@@ -74,6 +74,9 @@
   transform: rotate(12deg);
 }
 
+/* 卡片变多后容器变高，rotateX(70deg) 的装饰椭圆在透视下会横向撑出页面；只裁横向，不影响卡片 */
+#projects { overflow-x: clip; }
+
 .project-orbit-wrap {
   position: relative;
   min-height: 620px;
@@ -118,7 +121,7 @@
   overflow: hidden;
   border: 1px solid oklch(1 0 0 / 0.12);
   border-radius: 18px;
-  padding: 26px;
+  padding: 26px 26px 64px; /* 底部留出绝对定位的入口文字，说明变长也不重叠 */
   background: linear-gradient(135deg, oklch(0.100 0.020 260 / 0.80), oklch(0.090 0.014 265 / 0.40));
   backdrop-filter: blur(20px);
   cursor: pointer;
@@ -325,7 +328,7 @@
     min-height: auto;
   }
 
-  .planet-card {
+  .planet-card:nth-child(n) {
     grid-column: span 6;
   }
 
@@ -352,7 +355,7 @@
 
   .project-orbit-wrap { padding-inline: 0; }
   #projectNodes { grid-template-columns: 1fr; }
-  .planet-card,
+  .planet-card:nth-child(n),
   .planet-card:last-child { grid-column: 1; min-height: 350px; }
 
   .gravity-lab {
