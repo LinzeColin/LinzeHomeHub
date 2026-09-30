@@ -82,6 +82,11 @@ class RegistryFactsTest(unittest.TestCase):
         # 既有的三处(R2 / D1 用量、Access 席位)都要读令牌才会发请求;总数不得增加
         self.assertEqual(len(re.findall(r"api\.cloudflare\.com", src)), 3)
 
+    def test_fetch_json_sends_non_default_user_agent(self):
+        # 实测:Cloudflare 对默认 Python-urllib UA 回 403,业务探活会被误判成「离线」
+        import inspect
+        self.assertIn('"User-Agent": "linze-status"', inspect.getsource(C._fetch_json))
+
     def test_cloudflare_usage_notes_reflect_retirement(self):
         notes = {m["key"]: m["note"] for m in C.MANUAL_USAGE}
         self.assertIn("待退役", notes["r2"])

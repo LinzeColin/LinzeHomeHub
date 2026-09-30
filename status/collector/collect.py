@@ -1484,7 +1484,9 @@ def _fetch_json(url, cap=262144, timeout=8):
 
     try:
         op = urllib.request.build_opener(_Redir)
-        with op.open(urllib.request.Request(safe, headers={"Accept": "application/json"}),
+        with op.open(urllib.request.Request(safe, headers={"Accept": "application/json",
+                                                              # Cloudflare 会对默认的 Python-urllib UA 回 403(实测 adp 域名)
+                                                              "User-Agent": "linze-status"}),
                      timeout=timeout) as r:
             return json.loads(r.read(cap).decode("utf-8", "replace")), None
     except urllib.error.HTTPError as e:
