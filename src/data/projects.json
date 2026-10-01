@@ -68,10 +68,10 @@
     "name": "ADP 前沿学习",
     "category": "arXiv Daily Push",
     "compatibilityLevel": "L2",
-    "deploymentStatus": "Deploy-ready",
+    "deploymentStatus": "Live",
     "futureLevel": "L3 gated",
-    "summary": "每日 arXiv 论文推送：按关注方向筛选新论文并整理成日报。公开站暂未通过验收，入口先指向源码页。",
-    "liveUrl": "",
+    "summary": "每日 arXiv 论文推送：按关注方向筛选新论文，讲清为什么选它，并按记忆曲线安排复习。",
+    "liveUrl": "https://adp.linzezhang.com",
     "fallbackUrl": "https://github.com/LinzeColin/MetaDatabase/tree/main/arxiv-daily-push",
     "mode": "archive",
     "repo": "MetaDatabase"
