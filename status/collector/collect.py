@@ -24,7 +24,7 @@ APP_DIR = os.environ.get("STATUS_APP_DIR", "/srv/linze/apps/status")
 DATA_DIR = os.path.join(APP_DIR, "data")
 BACKUP_DIR = os.environ.get("STATUS_BACKUP_DIR", "/srv/linze/backups")
 HISTORY_MAX = 96                            # 24h @ 15min
-SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyberboss|fifa|serenity)[-.@]")
+SYSTEMD_SERVICE_PATTERN = re.compile(r"(alpha|eei|linze|kmfa|adp|cloudflared|cyberboss|fifa|serenity|signal-lattice-v2|signal-lattice-tunnel)[-.@]")
 
 # 项目静态配置(存不存在库、通知渠道等靠运维已知;运行状态靠实时探测)
 # 每个项目的运行逻辑:跑在哪(host)/ 数据库(db)/ 文件存储(store)/ 部署方式(deploy)/
@@ -63,15 +63,47 @@ PROJECTS = [
     {"name": "Account",  "url": "https://account.linzezhang.com",  "parts": ["后台"],
      "host": "OVH VPS-3", "db": "OVH Postgres · identity-postgres", "store": "Postgres", "deploy": "Coolify compose",
      "backup": "身份库 cron 03:37 + 随主机", "agent": "低", "notify": "邮件", "owns": {"container": ["identity-"]}},
+    # EEI(2026-09-30 起完全自托管,不再依赖 Cloudflare):
+    #   eei-universe-*  网页容器(nginx 静态站 + 同域 /v1 反代),systemd eei-universe-pull.timer 拉取式部署;
+    #   eei-api-*       公开数据接口容器,只读账号 eei_reader 直读 eei-db,systemd eei-api-pull.timer 拉取式部署;
+    #   eei-db          Postgres;eei-refresh / eei-watch 采集容器,已停止往 Cloudflare D1 发布。
+    # 容器名一律 eei- 开头(拉取式部署器按 <app>-<提交号前 12 位>-<时分秒> 命名),所以前缀 eei- 一条就全认领。
+    # 看它活着:`systemctl list-timers 'eei-*-pull.timer'`;`docker ps --filter name=eei-`。
     {"name": "EEI",      "url": "https://eei.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
-     "host": "OVH VPS-3", "db": "OVH Postgres · eei-db  +  CF D1 · eei-publication", "store": "Postgres + CF D1",
-     "deploy": "Coolify compose", "backup": "随主机 + CF", "agent": "中", "notify": "无(内部服务)", "owns": {"container": ["eei-"]}},
+     "host": "OVH VPS-3", "db": "OVH Postgres · eei-db(数据接口 eei-api 用只读账号 eei_reader 直读)",
+     "store": "Postgres(eei-db)·不再使用 Cloudflare D1",
+     "deploy": "拉取式自动部署(eei-universe-pull.timer + eei-api-pull.timer,各每 10 分钟);采集容器 eei-refresh / eei-watch",
+     "backup": "随主机(eei-db 在主机备份范围内);Cloudflare D1 不再发布,旧库待退役", "agent": "中", "notify": "无(内部服务)",
+     "owns": {"container": ["eei-"], "systemd": ["eei-"]}},
     {"name": "Alpha",    "url": "https://alpha.linzezhang.com",    "parts": ["前台", "后台"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "OVH 文件 · 交易账本 sqlite", "store": "OVH 文件",
      "deploy": "host-direct systemd ×5", "backup": "随主机 + 账本邮件归档", "agent": "低", "notify": "邮件", "owns": {"systemd": ["alpha-"]}},
+    # ADP(2026-10-01 起从 Cloudflare Workers + D1 + R2 搬到 VPS-3,域名切换在 2026-10-01 00:30 UTC 之后):
+    #   网页容器(标签 linze.pull.app=adp,名字 adp-<提交号前 12 位>-<时分秒>),systemd adp-web-pull.timer 拉取式部署;
+    #   SQLite 库 /var/lib/adp/adp.sqlite(宿主机目录,挂进容器 /data);
+    #   每日任务 adp-daily.timer(20:30 UTC)、回填 adp-backfill.timer(02:30 / 08:30 UTC),一次性容器 adp-job-*。
+    # 探活用业务判据,不是看首页 200:GET /api/selfhost/status 的 fresh(最近一次已完成运行距今 ≤30 小时且当天 arXiv>0),
+    # 等价于 /healthz?strict=1 回 200(不新鲜回 503)。域名还指向旧 Cloudflare 时该路径是 404 → 如实显示「离线」。
     {"name": "ADP",      "url": "https://adp.linzezhang.com",      "parts": ["前台", "后台"], "repo": "MetaDatabase",
-     "host": "Cloudflare Workers", "db": "CF D1 · adp", "store": "CF D1 + R2",
-     "deploy": "wrangler", "backup": "随 CF", "agent": "低", "notify": "邮件", "owns": {"cloudflare": ["adp"]}},
+     "host": "OVH VPS-3", "db": "SQLite · /var/lib/adp/adp.sqlite(宿主机数据目录)", "store": "OVH 文件 · /var/lib/adp(库 + 备份 + 任务日志)",
+     "deploy": "拉取式自动部署(adp-web-pull.timer 每 10 分钟)+ systemd 定时任务 adp-daily / adp-backfill",
+     "backup": "每日任务收尾备份库到 /var/lib/adp/backups;异地副本未核实;Cloudflare D1/R2 旧数据待退役",
+     "backup_state": "unverified",
+     "agent": "低", "notify": "邮件",
+     "health": {"kind": "json_true", "url": "https://adp.linzezhang.com/api/selfhost/status", "path": "fresh",
+                "reason_path": "fresh_reason", "age_path": "data_age_hours"},
+     "owns": {"container": ["adp-"], "systemd": ["adp-"]}},
+    # Signal-Lattice 0.0.0.4.1 重建版(2026-09-14 起 v2 上线,v19 只留作回滚,不认领 v19 单元):
+    #   signal-lattice-v2-api 常驻(127.0.0.1:8787)、-loop.timer 每 60 秒一次有界采集、
+    #   -research.timer 美股收盘后与盘中各一次、-backtest.timer 每月 3 日;入口经 signal-lattice-tunnel(Cloudflare Tunnel)。
+    # 探活用业务判据:/health/ready 仅在最新状态为 DATA_READY 时回 200,否则 503(库里 blocked_reason 说明原因)。
+    {"name": "Signal-Lattice", "url": "https://signal-lattice.linzezhang.com", "parts": ["前台", "后台"], "repo": "MetaDatabase",
+     "host": "OVH VPS-3", "db": "无独立库·研究快照/回测写文件(/var/lib/signal-lattice-v2)", "store": "OVH 文件 · /var/lib/signal-lattice-v2",
+     "deploy": "host-direct systemd(signal-lattice-v2-*)+ 专属 Cloudflare Tunnel 入口",
+     "backup": "未单独核实是否被整机备份;快照可由定时器重新生成", "backup_state": "unverified",
+     "agent": "无(规则与定时器,运行期模型调用 0)", "notify": "无",
+     "health": {"kind": "http_ok", "url": "https://signal-lattice.linzezhang.com/health/ready"},
+     "owns": {"systemd": ["signal-lattice-v2-", "signal-lattice-tunnel"]}},
     {"name": "CyberBoss", "url": "https://cyberboss.linzezhang.com", "parts": ["控制面"], "repo": "MetaDatabase",
      "host": "OVH VPS-3", "db": "无独立库 · 受保护运行态（Private-Database 同步待验收）", "store": "OVH 受保护文件 · CB-510 runtime",
      "deploy": "Linux systemd + Cloudflare Tunnel", "backup": "主机加密备份已覆盖；R2 专属验证待 CB-530（OCI 已于 2026-09 退役）",
@@ -698,12 +730,57 @@ def ovh_self_state(host):
 
 
 # ---------- 项目实时状态 ----------
+def project_health(h, fetch=None, code_fn=None):
+    """业务级探活:登记表里项目带 `health` 时,用它代替「首页 200 就算在线」。
+
+    返回 (status, note):
+      run    业务判据通过
+      stale  服务活着,但业务判据不通过(数据陈旧 / 上游没数据 / 状态未就绪)—— 页面标黄,计入告警
+      down   端点不可达 / 不是约定的响应(域名还指向旧服务时也是这个结果,如实显示)
+    kind:
+      json_true  取 JSON 里 `path` 字段,必须严格等于 True(ADP 的 /api/selfhost/status → fresh);
+                 reason_path / age_path 只用来写说明,不参与判定。
+      http_ok    该 URL 必须回 200(Signal-Lattice 的 /health/ready:非 DATA_READY 回 503)。
+    只读 GET;只打登记表里写死的本 estate 域名,不碰 Cloudflare API。
+    """
+    fetch = fetch or _FETCH
+    code_fn = code_fn or http_code
+    kind, url = h.get("kind"), h.get("url") or ""
+    if kind == "json_true":
+        doc, err = fetch(url)
+        if err:
+            return "down", err
+        val, perr = _json_pick(doc, h.get("path") or "")
+        if perr:
+            return "down", perr
+        why = []
+        for k in ("reason_path", "age_path"):
+            v, e = _json_pick(doc, h.get(k) or "") if h.get(k) else (None, None)
+            if v is not None and not e:
+                why.append("%s=%s" % (h[k], v))
+        if val is None:
+            return "down", "端点返回里没有 %s 字段" % h["path"]
+        note = ("%s=%s" % (h["path"], val) + ((" · " + " ".join(why)) if why else ""))[:160]
+        return ("run", note) if val is True else ("stale", note)
+    if kind == "http_ok":
+        code = code_fn(url)
+        if code == "200":
+            return "run", "HTTP 200"
+        if code == "503":
+            return "stale", "HTTP 503(服务在线,业务判据未通过)"
+        return "down", "HTTP %s" % (code or "无响应")
+    return "down", "未知探活类型 %s" % kind
+
+
 def projects_live():
     out = []
     online = 0
     for p in PROJECTS:
-        st = "run"
-        if p["url"]:
+        st, note = "run", None
+        if p.get("health"):
+            st, note = project_health(p["health"])
+            online += 1 if st == "run" else 0
+        elif p["url"]:
             code = http_code(p["url"])
             if code in ("200", "301", "308"):
                 st, online = "run", online + 1
@@ -716,7 +793,7 @@ def projects_live():
             running = run(f"docker ps --format '{{{{.Names}}}}' | grep -i '{p['name'].lower()}' | head -1")
             st = "run" if running else "down"
             online += 1 if running else 0
-        out.append({**p, "status": st})
+        out.append({**p, "status": st, **({"health_note": note} if note else {})})
     return out, online
 
 
@@ -738,10 +815,10 @@ GB = 1024 ** 3
 MANUAL_USAGE = [
     {"key": "r2", "label": "Cloudflare R2 存储", "used": 5054136, "limit": 10 * GB,
      "unit": "bytes", "source": "manual", "checked": "2026-07-24",
-     "note": "adp-raw-artifacts 桶 · 手动核对,变动很慢"},
+     "note": "adp-raw-artifacts 桶 · ADP 已于 2026-10 搬到 VPS-3,只剩待退役的旧数据 · 手动核对(2026-07-24),变动很慢"},
     {"key": "d1", "label": "Cloudflare D1 存储", "used": 53784576, "limit": 5 * GB,
      "unit": "bytes", "source": "manual", "checked": "2026-07-24",
-     "note": "eei-publication + adp-mirror · 手动核对,变动很慢"},
+     "note": "eei-publication(EEI 已停止发布,不再读)+ adp(ADP 已搬走)· 只剩待退役的旧库 · 手动核对(2026-07-24),变动很慢"},
 ]
 
 
@@ -1407,7 +1484,9 @@ def _fetch_json(url, cap=262144, timeout=8):
 
     try:
         op = urllib.request.build_opener(_Redir)
-        with op.open(urllib.request.Request(safe, headers={"Accept": "application/json"}),
+        with op.open(urllib.request.Request(safe, headers={"Accept": "application/json",
+                                                              # Cloudflare 会对默认的 Python-urllib UA 回 403(实测 adp 域名)
+                                                              "User-Agent": "linze-status"}),
                      timeout=timeout) as r:
             return json.loads(r.read(cap).decode("utf-8", "replace")), None
     except urllib.error.HTTPError as e:
@@ -2527,12 +2606,15 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
         if not e.get("url"):
             cells["entry"] = _cell("na", "无对外入口(内部组件)")
         elif st in ("run", "access"):
-            cells["entry"] = _cell("ok", {"run": "对外 200", "access": "受 Access 保护"}[st])
+            cells["entry"] = _cell("ok", {"run": "对外 200", "access": "受 Access 保护"}[st]
+                                   + ((" · 业务判据通过(%s)" % e["health_note"]) if e.get("health_note") else ""))
+        elif st == "stale":
+            cells["entry"] = _cell("bad", "服务在线但业务判据未通过(%s)" % (e.get("health_note") or "—"))
         elif booting:
             cells["entry"] = _cell("warn", "刚完成部署 · 健康检查启动中(%d 秒前起)"
                                    % min(u.get("age_s") or 0 for u in booting))
         else:
-            cells["entry"] = _cell("bad", "对外不可达")
+            cells["entry"] = _cell("bad", "对外不可达" + ((" · " + e["health_note"]) if e.get("health_note") else ""))
         if e.get("url") and cert.get("days") is not None:
             cells["entry"]["v"] += " · 证书剩 %s 天" % cert["days"]
 
@@ -2594,7 +2676,7 @@ def software_runtime(projects, gh, backup, cert, ch, live, heal, dep):
 
         bad = sum(1 for k, _ in STAGES if cells[k]["s"] == "bad")
         warn = sum(1 for k, _ in STAGES if cells[k]["s"] == "warn")
-        # ★ na(不适用)不扣分**也不该被当成达标**:ADP 跑在 CF 边缘,九段里四段是 na,
+        # ★ na(不适用)不扣分**也不该被当成达标**:(当时的)ADP 跑在 CF 边缘,现已搬到 VPS-3;同类的还有 mydairy,九段里四段是 na,
         #   照旧是满分,于是 17 条线全 100 —— 分数对谁都一样就等于没有分数。
         #   这里把「实际判过几段」一起送出去,页面按覆盖率如实呈现。
         na = sum(1 for k, _ in STAGES if cells[k]["s"] == "na")
