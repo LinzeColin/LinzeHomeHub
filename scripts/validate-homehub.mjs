@@ -49,7 +49,11 @@ if (existsSync(join(root, 'src/data/projects.json'))) {
     pfi: ['Live', 'https://pfi.linzezhang.com', 'L3 gated'],
     'serenity-alipay': ['Live', 'https://serenity.linzezhang.com', 'L3 gated'],
     'fifa-daily': ['Live', 'https://fifa.linzezhang.com', 'L3 gated'],
-    account: ['Live', 'https://account.linzezhang.com', 'L3 gated'],
+    account: ['Live', 'https://account.linzezhang.com/realms/linze/account/', 'L3 gated'],
+    adp: ['Live', 'https://adp.linzezhang.com', 'L3 gated'],
+    alpha: ['Live', 'https://alpha.linzezhang.com', 'L3 gated'],
+    'signal-lattice': ['Live', 'https://signal-lattice.linzezhang.com', 'L3 gated'],
+    status: ['Live', 'https://status.linzezhang.com', 'L3 gated'],
   };
   const requiredIds = Object.keys(verifiedProjects);
   for (const id of requiredIds) {
