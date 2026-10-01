@@ -1,6 +1,7 @@
 .artifact-stage {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);   /* 列宽跟着所在栏走，不被 620px 的模型撑开 */
   min-height: 640px;
   isolation: isolate;
   place-items: center;
@@ -9,6 +10,7 @@
 .artifact-viewport {
   position: relative;
   width: min(72vw, 620px);
+  max-width: 100%;            /* 1024 左右的宽度下所在列只有约 470px，固定 620px 会把整页撑出横向滚动 */
   aspect-ratio: 1;
   transform: translateY(var(--artifact-lift, 0px));
   transition: transform 360ms ease;
