@@ -1,6 +1,4 @@
 import projectsData from '../data/projects.json';
-import { initSession, login, logout } from '../auth/oidc';
-import { filterProjects } from '../auth/filterProjects';
 import type { ModeId, ModelId, Project } from '../types';
 import { detectQualityProfile } from './qualityProfile';
 import { ScrollGravityController } from '../motion/scrollGravity';
@@ -28,25 +26,14 @@ export async function initApp(): Promise<void> {
   document.body.dataset.quality = quality.name;
 
   const projectContainer = document.getElementById('projectNodes');
-  // STAGE-15.3: 按登录身份的仓库权限过滤可见项目
-  void (async () => {
-    const session = await initSession();
-    if (projectContainer) {
-      renderProjects(filterProjects(projectsData as Project[], session), projectContainer);
-    }
-    const atlasRoot = document.getElementById('atlasRoot');
-    if (atlasRoot instanceof HTMLElement) {
-      initProjectAtlas(atlasRoot);
-    }
-    const slot = document.querySelector('[data-auth-slot]');
-    if (slot) {
-      const btn = document.createElement('button');
-      btn.className = 'auth-btn';
-      btn.textContent = session ? `退出 (${session.name ?? session.email ?? '已登录'})` : '登录查看全部项目';
-      btn.addEventListener('click', () => (session ? logout() : void login()));
-      slot.appendChild(btn);
-    }
-  })();
+  // 门户不设登录（Owner 11-19「home不需要登录系统」）：所有项目卡人人可见
+  if (projectContainer) {
+    renderProjects(projectsData as Project[], projectContainer);
+  }
+  const atlasRoot = document.getElementById('atlasRoot');
+  if (atlasRoot instanceof HTMLElement) {
+    initProjectAtlas(atlasRoot);
+  }
 
   const canvas = document.getElementById('scene-canvas');
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Missing scene canvas');
