@@ -12,7 +12,7 @@ import re
 import unittest
 
 WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), "web", "index.html")
+    os.path.abspath(__file__)))), "web", "legacy.html")
 
 
 class ChartMustPaintSynchronously(unittest.TestCase):

@@ -109,7 +109,7 @@ class WiringTest(unittest.TestCase):
         if not shutil.which("node"):
             self.skipTest("没有 node，跳过页面行为测试")
         web = os.path.join(os.path.dirname(os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))), "web", "index.html")
+            os.path.dirname(os.path.abspath(__file__)))), "web", "legacy.html")
         src = open(web, encoding="utf-8").read()
         m = re.search(r"(const sb=o\.subs\|\|\{\};.*?没登记购买日期，到期前不会有任何提醒'\);)",
                       src, re.S)

@@ -9,10 +9,16 @@
 自建只读总览页：把 Coolify 部署记录、主机指标、证书、备份、自愈规则、汇率与成本汇总成一张静态页。
 **这里就是它的唯一源码位置**（它曾被误建为独立仓 `LinzeStatus`，已整体迁入本目录，那个仓不再使用）。
 
+
+> **11-19 重做首页（ZL00-261119-05）：** 首页 `web/index.html` 改为「服务器架构」——域名 → 对外通道 → 服务 → 底座的分层图、体检、全部清单，
+> 数据只来自 `collector/arch.py`（root cron `deploy/linze-status-arch.cron`，每 5 分钟实测，写 `data/arch.json` 与 Mermaid 版 `data/arch.mmd`）。
+> 旧首页改名 `web/legacy.html`（页面契约测试与 `stamp-assets.py` 已跟着指向它），保留到 11-26，期间把要留的面板并进新页后删除。
+
 ## 目录
 
 | 路径 | 作用 |
 |---|---|
+| `collector/arch.py` | 架构采集器，root cron **每 5 分钟**，产出 `data/arch.json`、`data/arch.mmd`（首页唯一数据源） |
 | `collector/collect.py` | 主采集器，主机 cron **每 1 分钟**跑一次，产出 `data/snapshot.json` |
 | `collector/collect_github.py` | GitHub 工程面采集，**三层**：fast 每 1 分钟 / traffic 每 15 分钟 / deep 每小时；公开件写 `data/`，私有件写 `private/` |
 | `collector/tests/` | 机器守卫：登记治理、公开面隐私、实时访问分类 |
