@@ -24,7 +24,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.normpath(os.path.join(HERE, "..", "web"))
-INDEX = os.path.join(WEB, "index.html")
+INDEX = os.path.join(WEB, "legacy.html")
 
 # 只戳本站自己的静态资产。data/ 是每分钟变的运行态(nginx 已 expires -1),不戳;
 # 外链 CDN 不归我们管,也戳不了。

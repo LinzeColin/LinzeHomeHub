@@ -1,0 +1,4 @@
+# 架构采集器（ZL00-261119-05，所属线 ZL00）：每 5 分钟实测域名、隧道、服务、底座之间的连线，写 data/arch.json、data/arch.mmd。
+# 以 root 跑：要读 /etc/linze/cf-zl00.env（Cloudflare 只读拉隧道规则）和 /data/coolify/proxy/dynamic；产物属主改回 ubuntu。
+# 装法：sudo install -m 644 status/deploy/linze-status-arch.cron /etc/cron.d/linze-status-arch
+*/5 * * * * root cd /srv/linze/apps/status && flock -n /tmp/linze-status-arch.lock /usr/bin/python3 collector/arch.py >> /srv/linze/apps/status/arch.log 2>&1

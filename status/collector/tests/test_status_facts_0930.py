@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import collect as C  # noqa: E402
 
 WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                   "web", "index.html")
+                   "web", "legacy.html")
 FX = {"aud_cny": 4.7, "rates": {"AUD": 1.0, "USD": 0.66}}
 
 

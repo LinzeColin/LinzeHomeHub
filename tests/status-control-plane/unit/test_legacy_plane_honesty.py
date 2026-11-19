@@ -24,7 +24,7 @@ from test_support import locate
 
 REPO, _MODULE_ROOT, _CONTRACTS = locate()
 COLLECT = REPO / "status" / "collector" / "collect.py"
-INDEX = REPO / "status" / "web" / "index.html"
+INDEX = REPO / "status" / "web" / "legacy.html"
 
 
 def load_collect():

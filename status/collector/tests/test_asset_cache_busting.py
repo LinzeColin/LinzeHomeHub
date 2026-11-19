@@ -29,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 COLLECTOR = os.path.dirname(HERE)
 STATUS = os.path.dirname(COLLECTOR)
 WEB = os.path.join(STATUS, "web")
-INDEX = os.path.join(WEB, "index.html")
+INDEX = os.path.join(WEB, "legacy.html")
 STAMPER = os.path.join(STATUS, "deploy", "stamp-assets.py")
 
 # query 部分必须放宽到「任意非引号内容」。第一版写成 (\?v=([0-9a-f]+))? —— 只认十六进制,

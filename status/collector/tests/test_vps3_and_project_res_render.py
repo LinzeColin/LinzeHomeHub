@@ -21,7 +21,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 COLLECTOR = os.path.dirname(HERE)
-WEB = os.path.join(os.path.dirname(COLLECTOR), "web", "index.html")
+WEB = os.path.join(os.path.dirname(COLLECTOR), "web", "legacy.html")
 sys.path.insert(0, COLLECTOR)
 
 

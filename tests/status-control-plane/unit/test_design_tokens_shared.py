@@ -18,7 +18,7 @@ from test_support import locate
 REPO, _, _ = locate()
 
 WEB = REPO / "status" / "web"
-INDEX = WEB / "index.html"
+INDEX = WEB / "legacy.html"
 HUB_CSS = WEB / "assets" / "hub" / "hub.css"
 
 # 只比对设计系统令牌;--r/--ease 这类几何与缓动也算,因为它们同样决定"看起来是不是一套"。
@@ -54,7 +54,7 @@ class DesignTokenParityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.sources = {
-            "index.html": INDEX.read_text(encoding="utf-8"),
+            "legacy.html": INDEX.read_text(encoding="utf-8"),
             "hub.css": HUB_CSS.read_text(encoding="utf-8"),
         }
 
@@ -63,7 +63,7 @@ class DesignTokenParityTests(unittest.TestCase):
             self.assertTrue(path.is_file(), f"缺少 {path}")
 
     def _assert_scope_agrees(self, selector: str):
-        reference_name = "index.html"
+        reference_name = "legacy.html"
         reference = _tokens(self.sources[reference_name], selector)
         self.assertTrue(reference, f"{reference_name} 里找不到 {selector} 的令牌")
         for name, css in self.sources.items():

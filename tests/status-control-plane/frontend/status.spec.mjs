@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 // 注意：/data/control-plane.json 并未下线 —— hub.js 仍在消费它，采集器保持运行。
 
 test('移动端无非预期横向溢出', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/legacy.html');
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth
   );
