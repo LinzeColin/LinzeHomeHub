@@ -20,7 +20,7 @@ import unittest
 from test_support import locate
 REPO, _, _ = locate()
 
-INDEX = REPO / "status" / "web" / "index.html"
+INDEX = REPO / "status" / "web" / "legacy.html"
 
 # 整合前六个视图的全部区块标题(逐字取自 c02f3a6 的 index.html)
 LEGACY_SECTIONS = [
