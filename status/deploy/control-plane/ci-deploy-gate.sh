@@ -45,16 +45,22 @@ case "$CMD" in
     fail=0
     index_body="$(curl -s --max-time 5 "http://${ip}/")"
     gov_body="$(curl -s --max-time 5 "http://${ip}/agent-governance.html")"
+    legacy_body="$(curl -s --max-time 5 "http://${ip}/legacy.html")"
     # 2026-08-11 更新这几条断言。原来它们断言「首页必须有治理入口」「/agent-governance.html
     # 必须是真页面」—— 而治理页当天已按 owner 要求整页删除。**断言在替一个不存在的功能守门**,
     # 于是每次部署都红:#83 #84 #85 三次连续 failure,而我一直在手工 scp,所以没察觉。
     # 教训:删功能时要连同「为它守门的断言」一起删,否则闸门会拿旧世界的标准判新世界。
-    grep -q "云平台总览" <<<"$index_body"      || { echo "★ 首页内容不对" >&2; fail=1; }
+    # 2026-11-19（ZL00-261119-05）首页重做为「服务器架构」，旧首页改名 legacy.html 保留到 11-26。
+    # 新首页的锚：标题、编号、唯一数据源；旧页的锚原样搬到 legacy.html 上验。
+    grep -q "<title>服务器架构</title>" <<<"$index_body" || { echo "★ 首页内容不对" >&2; fail=1; }
+    grep -q 'content="ZL00-261119-05"' <<<"$index_body"   || { echo "★ 首页编号不对 —— 部署的是旧版本" >&2; fail=1; }
+    grep -q "/data/arch.json" <<<"$index_body"           || { echo "★ 首页没接架构数据" >&2; fail=1; }
+    grep -q "云平台总览" <<<"$legacy_body"     || { echo "★ 旧版明细页内容不对" >&2; fail=1; }
     # 项目资源列 —— owner 明确要过的功能(每个项目吃多少内存/存储),用它当"新代码真上线了"的锚
-    grep -q ">内存</th>" <<<"$index_body"      || { echo "★ 首页缺项目内存列 —— 部署的是旧版本" >&2; fail=1; }
-    grep -q "rtResFoot" <<<"$index_body"       || { echo "★ 首页缺资源页脚(分母/未归属)" >&2; fail=1; }
+    grep -q ">内存</th>" <<<"$legacy_body"     || { echo "★ 旧版明细页缺项目内存列" >&2; fail=1; }
+    grep -q "rtResFoot" <<<"$legacy_body"      || { echo "★ 旧版明细页缺资源页脚(分母/未归属)" >&2; fail=1; }
     # 缓存戳必须在:没有它,改了资产用户最长 4 小时拿不到(CF 覆盖源站 no-cache)
-    grep -qE '(src|href)="[^"]*\.(js|css)\?v=[0-9a-f]{8}"' <<<"$index_body" \
+    grep -qE '(src|href)="[^"]*\.(js|css)\?v=[0-9a-f]{8}"' <<<"$legacy_body" \
                                                || { echo "★ 资产缺内容哈希缓存戳" >&2; fail=1; }
     # 反向断言:治理页已删,它现在**必须**是 index 兜底。
     # 原来这条是"必须不同",现在是"必须相同" —— 方向反了,但守的是同一件事:
