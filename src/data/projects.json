@@ -58,9 +58,9 @@
     "compatibilityLevel": "L2",
     "deploymentStatus": "Live",
     "futureLevel": "L3 gated",
-    "summary": "linzezhang.com 统一身份入口：公开注册、邮箱密码登录，全子站单点登录。",
-    "liveUrl": "https://account.linzezhang.com/realms/linze/account/",
-    "fallbackUrl": "https://account.linzezhang.com/realms/linze/account/",
+    "summary": "linzezhang.com 统一登录入口（Authelia）：门户和各子站共用一套账号。",
+    "liveUrl": "https://kmbid.linzezhang.com/authelia/",
+    "fallbackUrl": "https://kmbid.linzezhang.com/authelia/",
     "mode": "voyage"
   },
   {
