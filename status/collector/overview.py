@@ -68,7 +68,18 @@ def attention(snapshot):
             add("warn", f"{p['name']} 业务判据未通过", f"服务在线但{p.get('health_note') or '数据不新鲜'}")
 
     disk, mem = host.get("disk_pct"), host.get("mem_pct")
-    if at_least(disk, 85):
+    if host.get("disk_x_pct") is not None:
+        # 有附加盘：合计按 75/85 判；系统盘 95% 才告急，85% 提示把大目录搬去附加盘
+        total = host.get("disk_all_pct")
+        if at_least(disk, 95):
+            add("bad", "系统盘告急", f"系统盘已用 {disk}%,附加盘已用 {host.get('disk_x_pct')}%,把大目录搬到附加盘")
+        elif at_least(disk, 85):
+            add("warn", "系统盘偏高", f"系统盘已用 {disk}%,附加盘已用 {host.get('disk_x_pct')}%,可把大目录搬到附加盘(两盘合计 {total}%)")
+        if at_least(total, 85):
+            add("bad", "两盘合计吃紧", f"两盘合计已用 {total}%")
+        elif at_least(total, 75):
+            add("warn", "两盘合计偏高", f"两盘合计已用 {total}%")
+    elif at_least(disk, 85):
         add("bad", "磁盘吃紧", f"已用 {disk}%,自愈会在 85% 自动清理")
     elif at_least(disk, 75):
         add("warn", "磁盘偏高", f"已用 {disk}%,低于 85% 触发线")
@@ -175,6 +186,10 @@ def record_day(history, epoch, snapshot):
                 day["mem_last"] = value
     for key, value in (("disk_pct", percent(host.get("disk_pct"))),
                        ("disk_used_b", host.get("disk_used_b")),
+                       ("disk_all_pct", percent(host.get("disk_all_pct"))),
+                       ("disk_all_used_b", host.get("disk_all_used_b")),
+                       ("disk_x_pct", percent(host.get("disk_x_pct"))),
+                       ("disk_x_used_b", host.get("disk_x_used_b")),
                        ("containers_running", running_containers(snapshot))):
         if value is not None:
             day[key] = value

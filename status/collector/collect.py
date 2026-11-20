@@ -203,8 +203,16 @@ def host_metrics():
                       "used_b": int(p[2]), "total_b": int(p[1]),
                       "pct": round(int(p[2]) / int(p[1]) * 100, 1)})
     disks.sort(key=lambda d: (d["mount"] != "/", d["mount"]))
+    # 合计与附加盘：存储数据分开给、也合并给（Owner 11-20「存储数据、信息、表格、可视化，都要分开和合并」）
+    extra = [d for d in disks if d["mount"] != "/"]
+    all_u, all_t = sum(d["used_b"] for d in disks), sum(d["total_b"] for d in disks)
+    x_u, x_t = sum(d["used_b"] for d in extra), sum(d["total_b"] for d in extra)
     return {
         "disks": disks,
+        "disk_all_used_b": all_u or used_b, "disk_all_total_b": all_t or total_b,
+        "disk_all_pct": round(all_u / all_t * 100, 1) if all_t else (int(disk) if disk.isdigit() else None),
+        "disk_x_used_b": x_u if extra else None, "disk_x_total_b": x_t if extra else None,
+        "disk_x_pct": round(x_u / x_t * 100, 1) if x_t else None,
         "mem_pct": int(mem) if mem.isdigit() else None,
         "disk_pct": int(disk) if disk.isdigit() else None,
         "disk_used_b": used_b,
@@ -3162,10 +3170,22 @@ def main():
     ep = int(time.time())
     mem_v, disk_v = host.get("mem_pct"), host.get("disk_pct")
     load_v = overview.number(host.get("load15"))
+    extra_v = {"disk_all": host.get("disk_all_pct"), "disk_x": host.get("disk_x_pct")}
+
+    def _sync_extra(tier):
+        """合计、附加盘两列跟 t 对齐：旧档左侧补 None，最后一格写本次读数。"""
+        for k, v in extra_v.items():
+            arr = tier.setdefault(k, [])
+            while len(arr) < len(tier["t"]):
+                arr.insert(0, None)
+            del arr[:len(arr) - len(tier["t"])]
+            if arr:
+                arr[-1] = v
     m = hist["min"]
     m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v); m["load"].append(load_v)
     for k in ("t", "mem", "disk", "load"):
         m[k] = m[k][-1440:]                      # 24h @ 1min
+    _sync_extra(m)
     h = hist["hour"]
     cur_hour = ep - (ep % 3600)
     if not h["t"] or h["t"][-1] != cur_hour:
@@ -3176,12 +3196,14 @@ def main():
         h["load"][-1] = max(candidates, default=None)   # 小时桶取峰值,不掩盖高负载
     for k in ("t", "mem", "disk", "load"):
         h[k] = h[k][-744:]                       # 31 天 @ 1hour
+    _sync_extra(h)
     d = hist["day"]
     cur_day = ep - (ep % 86400)
     if not d["t"] or d["t"][-1] != cur_day:
         d["t"].append(cur_day); d["mem"].append(mem_v); d["disk"].append(disk_v)
     else:
         d["mem"][-1] = mem_v; d["disk"][-1] = disk_v
+    _sync_extra(d)
     # 天级别**不设上限**:一天一个点,永久保留(无期限)
     projects, online = projects_live()
     # 把实测的内存/存储挂到每个项目上 —— 光有全机 mem_pct 没法回答"该搬谁"

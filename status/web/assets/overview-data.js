@@ -66,6 +66,9 @@ const OverviewData = (() => {
     return epochs.map((t, i) => ({
       t: num(t), date: num(t) > 0 ? day(t) : '',
       mem: percent(raw.mem?.[i]), disk: percent(raw.disk?.[i]), load: num(loads[i - offset]),
+      // 合计、附加盘两列在 11-20 之后才有；旧档左侧对齐补空
+      diskAll: percent(raw.disk_all?.[i - Math.max(0, epochs.length - (raw.disk_all || []).length)]),
+      diskX: percent(raw.disk_x?.[i - Math.max(0, epochs.length - (raw.disk_x || []).length)]),
     })).filter(p => p.date && p.t <= end);
   }
 
@@ -74,6 +77,7 @@ const OverviewData = (() => {
   function plot(history, period, end, snapshot) {
     const current = snapshot && num(snapshot.updated_epoch) === end ? {
       t: end, date: day(end), mem: percent(snapshot.host?.mem_pct), disk: percent(snapshot.host?.disk_pct),
+      diskAll: percent(snapshot.host?.disk_all_pct), diskX: percent(snapshot.host?.disk_x_pct),
       source: '运行快照（snapshot.json）',
     } : null;
     let points;
@@ -95,6 +99,8 @@ const OverviewData = (() => {
           date, t,
           mem: percent(exact?.mem_last) ?? sampled?.mem ?? old?.mem ?? null,
           disk: percent(exact?.disk_pct) ?? sampled?.disk ?? old?.disk ?? null,
+          diskAll: percent(exact?.disk_all_pct) ?? sampled?.diskAll ?? old?.diskAll ?? null,
+          diskX: percent(exact?.disk_x_pct) ?? sampled?.diskX ?? old?.diskX ?? null,
           source: '历史数据（history.json） · ' + (exact ? '悉尼日统计' : '可用旧档'),
         };
       });
@@ -108,13 +114,16 @@ const OverviewData = (() => {
         const buckets = new Map();
         for (const p of points) {
           const k = Math.floor(p.t / 600) * 600;
-          const b = buckets.get(k) || {t: k, n: 0, memSum: 0, memN: 0, diskSum: 0, diskN: 0, last: p};
+          const b = buckets.get(k) || {t: k, n: 0, memSum: 0, memN: 0, diskSum: 0, diskN: 0, allSum: 0, allN: 0, xSum: 0, xN: 0, last: p};
           if (p.mem !== null && p.mem !== undefined) { b.memSum += p.mem; b.memN += 1; }
           if (p.disk !== null && p.disk !== undefined) { b.diskSum += p.disk; b.diskN += 1; }
+          if (p.diskAll !== null && p.diskAll !== undefined) { b.allSum += p.diskAll; b.allN += 1; }
+          if (p.diskX !== null && p.diskX !== undefined) { b.xSum += p.diskX; b.xN += 1; }
           b.last = p; buckets.set(k, b);
         }
         points = [...buckets.values()].sort((a, b) => a.t - b.t).map(b => ({...b.last, t: b.t,
           mem: b.memN ? b.memSum / b.memN : null, disk: b.diskN ? b.diskSum / b.diskN : null,
+          diskAll: b.allN ? b.allSum / b.allN : null, diskX: b.xN ? b.xSum / b.xN : null,
           source: '历史数据（history.json） · 10 分钟平均'}));
       }
       if (current && hasResources(current)) {
@@ -138,6 +147,8 @@ const OverviewData = (() => {
     return {
       date: '现在', current: true, memAvg: mem, memPeak: mem, disk: percent(host.disk_pct),
       diskBytes: num(host.disk_used_b), loadAvg: load, loadPeak: load,
+      diskAll: percent(host.disk_all_pct), diskAllBytes: num(host.disk_all_used_b),
+      diskX: percent(host.disk_x_pct), diskXBytes: num(host.disk_x_used_b),
       containers: running(snapshot), probes: online !== null && total > 0 && online <= total ? 100 * online / total : null,
       source: `运行快照（${stamp(snapshot.updated_epoch)} · 悉尼 · 负载为 1 分钟均载）`,
     };
@@ -169,6 +180,8 @@ const OverviewData = (() => {
         memAvg: exact?.mem_samples ? exact.mem_sum / exact.mem_samples : mean(values(sampleMean, 'mem')),
         memPeak: maxMem,
         disk, diskBytes: exact?.disk_used_b ?? null,
+        diskAll: percent(exact?.disk_all_pct), diskAllBytes: exact?.disk_all_used_b ?? null,
+        diskX: percent(exact?.disk_x_pct), diskXBytes: exact?.disk_x_used_b ?? null,
         loadAvg: exact?.load_samples ? exact.load_sum / exact.load_samples
           : hasBeforeMin ? null : mean(values(min, 'load')),
         loadPeak: maxLoad,
@@ -357,7 +370,13 @@ function legacyOverviewAttention(s){
     push('bad',`${p.name} 探测失败`,`地址 ${p.url||'内部服务'} 未返回可用状态${p.health_note?'('+p.health_note+')':''}`));
   (s.projects||[]).filter(p=>p.status==='stale').forEach(p=>
     push('warn',`${p.name} 业务判据未通过`,`服务在线但${p.health_note||'数据不新鲜'}`));
-  if(h.disk_pct>=85)push('bad','磁盘吃紧',`已用 ${h.disk_pct}%,自愈会在 85% 自动清理`);
+  if(h.disk_x_pct!=null){
+    if(h.disk_pct>=95)push('bad','系统盘告急',`系统盘已用 ${h.disk_pct}%,附加盘已用 ${h.disk_x_pct}%,把大目录搬到附加盘`);
+    else if(h.disk_pct>=85)push('warn','系统盘偏高',`系统盘已用 ${h.disk_pct}%,附加盘已用 ${h.disk_x_pct}%,两盘合计 ${h.disk_all_pct}%`);
+    if(h.disk_all_pct>=85)push('bad','两盘合计吃紧',`两盘合计已用 ${h.disk_all_pct}%`);
+    else if(h.disk_all_pct>=75)push('warn','两盘合计偏高',`两盘合计已用 ${h.disk_all_pct}%`);
+  }
+  else if(h.disk_pct>=85)push('bad','磁盘吃紧',`已用 ${h.disk_pct}%,自愈会在 85% 自动清理`);
   else if(h.disk_pct>=75)push('warn','磁盘偏高',`已用 ${h.disk_pct}%,低于 85% 触发线`);
   if(h.mem_pct>=90)push('warn','内存偏高',`已用 ${h.mem_pct}%`);
   (s.usage||[]).forEach(u=>{if(!u.limit)return;const p=u.used/u.limit*100;

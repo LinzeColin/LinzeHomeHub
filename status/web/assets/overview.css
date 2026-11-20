@@ -466,3 +466,6 @@ body[data-detail-view] #cost-meters + section { margin-top: 14px; }
 .disk-list li span { color: var(--muted); overflow-wrap: anywhere; }
 .disk-list li b { font-weight: 700; }
 .disk-list li small { grid-column: 1 / -1; color: var(--muted); }
+
+.disk-list li.disk-sum { border-top: 1px dashed var(--soft); padding-top: 6px; }
+.disk-list li.disk-sum span { color: inherit; font-weight: 650; }
