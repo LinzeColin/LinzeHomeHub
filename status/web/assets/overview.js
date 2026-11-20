@@ -61,7 +61,9 @@
   const historyColumns = [
     col('date', '日期', 125, r => `<span title="${esc(r.source)}">${esc(r.date)}</span>`),
     col('memAvg', '内存均值／峰值', 174, memLoad('memAvg', 'memPeak', '%', 1)),
-    col('disk', '磁盘已用', 140, r => esc(fmt(r.disk, '%', 1) + (r.diskBytes == null ? '' : ' · ' + gb(r.diskBytes)))),
+    col('disk', '系统盘已用', 150, r => esc(fmt(r.disk, '%', 1) + (r.diskBytes == null ? '' : ' · ' + gb(r.diskBytes)))),
+    col('diskX', '附加盘已用', 150, r => esc(fmt(r.diskX, '%', 1) + (r.diskXBytes == null ? '' : ' · ' + gb(r.diskXBytes)))),
+    col('diskAll', '两盘合计', 150, r => esc(fmt(r.diskAll, '%', 1) + (r.diskAllBytes == null ? '' : ' · ' + gb(r.diskAllBytes)))),
     col('loadAvg', '负载均值／峰值', 173, memLoad('loadAvg', 'loadPeak', '', 2)),
     col('containers', '在跑容器', 135), col('probes', '探测在线率', 153, r => esc(fmt(r.probes, '%', 1))),
   ];
@@ -70,7 +72,9 @@
   });
   const archiveTable = table('#history-archive', '逐日原始归档', [
     col('date', '日期', 138), col('mem', '内存', 126, row => esc(fmt(row.mem, '%', 1))),
-    col('disk', '磁盘', 126, row => esc(fmt(row.disk, '%', 1))),
+    col('disk', '系统盘', 126, row => esc(fmt(row.disk, '%', 1))),
+    col('diskX', '附加盘', 126, row => esc(fmt(row.diskX, '%', 1))),
+    col('diskAll', '两盘合计', 126, row => esc(fmt(row.diskAll, '%', 1))),
     col('load', '15 分钟负载', 167, row => esc(fmt(row.load, '', 2))), col('t', '采样时间（悉尼）', 280, row => esc(stamp(row.t))),
   ], '按日期', pluck('date'));
   const unowned = $('#org-table');
@@ -137,7 +141,8 @@
       const disks = Array.isArray(host.disks) ? host.disks : [];
       if (disks.length > 1) {
         if (!list) { list = document.createElement('ul'); list.className = 'disk-list'; diskBox.appendChild(list); }
-        list.innerHTML = disks.map(d => `<li><span>${esc(d.role)} ${esc(d.mount)}</span><b>${esc(fmt(d.pct, '%', 1))}</b><small>${esc(gb(d.used_b))} / ${esc(gb(d.total_b))}</small></li>`).join('');
+        list.innerHTML = disks.map(d => `<li><span>${esc(d.role)} ${esc(d.mount)}</span><b>${esc(fmt(d.pct, '%', 1))}</b><small>${esc(gb(d.used_b))} / ${esc(gb(d.total_b))}</small></li>`).join('')
+          + `<li class="disk-sum"><span>两盘合计</span><b>${esc(fmt(host.disk_all_pct, '%', 1))}</b><small>${esc(gb(host.disk_all_used_b))} / ${esc(gb(host.disk_all_total_b))}</small></li>`;
       } else if (list) list.remove();
     }
     text('#snapshot-time', snap
@@ -151,7 +156,9 @@
     ? 1 : Math.min(2, window.devicePixelRatio || 1);
   const resourceSeries = [
     {key: 'mem', name: '内存', stroke: '#2563eb', ink: '#1d4ed8'},
-    {key: 'disk', name: '磁盘', stroke: '#d97706', ink: '#994b05'},
+    {key: 'disk', name: '系统盘', stroke: '#d97706', ink: '#994b05'},
+    {key: 'diskX', name: '附加盘', stroke: '#0f766e', ink: '#0b5c56'},
+    {key: 'diskAll', name: '两盘合计', stroke: '#7c3aed', ink: '#6024c9'},
   ];
   const periodNames = {1: '24 小时', 7: '7 天', 30: '30 天'};
   const percentLabel = value => fmt(value, '%', Number.isInteger(value) ? 0 : 1);
@@ -196,7 +203,7 @@
         const last = dataset.data.findLastIndex(point => point.y !== null);
         if (last < 0) return [];
         const {x, y} = chart.getDatasetMeta(i).data[last];
-        return [{x, y, text: `${dataset.label} ${percentLabel(dataset.data[last].y)}`, ink: resourceSeries[i].ink}];
+        return [{x, y, text: `${dataset.label} ${percentLabel(dataset.data[last].y)}`, ink: dataset.ink}];
       });
       labels.push({x: chartArea.right, y: scales.y.getPixelForValue(diskClean),
         text: `自愈清理线 ${diskClean}%`, ink: '#536174', threshold: true});
@@ -267,8 +274,9 @@
     clearTip();
     historyChart?.destroy();
     if (!drawable) return;
-    const datasets = resourceSeries.map(({key, name, stroke}) => ({
-      label: name, data: points.map(point => ({x: point.t, y: point[key]})),
+    // 附加盘、合计只在有读数时画（11-20 加盘前的时段只有系统盘）
+    const datasets = resourceSeries.filter(({key}) => key === 'mem' || key === 'disk' || points.some(p => p[key] != null)).map(({key, name, stroke, ink}) => ({
+      label: name, ink, data: points.map(point => ({x: point.t, y: point[key] ?? null})),
       borderColor: stroke, backgroundColor: stroke, borderWidth: 2.5,
       cubicInterpolationMode: 'monotone', fill: false, spanGaps: false, pointRadius: 0,
       pointHoverRadius: 4, pointHoverBackgroundColor: stroke, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 1.5,
@@ -328,10 +336,11 @@
   $('#history-csv')?.addEventListener('click', () => {
     const csvQuote = value => '"' + String(value).replaceAll('"', '""') + '"';
     const rows = [
-      ['日期（悉尼）', '内存均值 (%)', '内存峰值 (%)', '磁盘已用 (%)', '磁盘已用 (字节)',
+      ['日期（悉尼）', '内存均值 (%)', '内存峰值 (%)', '系统盘已用 (%)', '系统盘已用 (字节)',
+        '附加盘已用 (%)', '附加盘已用 (字节)', '两盘合计 (%)', '两盘合计 (字节)',
         '负载均值', '负载峰值', '在跑容器 (个)', '探测在线率 (%)', '采样口径'],
       ...dailyRows.map(r => [r.date, fmt(r.memAvg, '', 1), fmt(r.memPeak, '', 1), fmt(r.disk, '', 1),
-        fmt(r.diskBytes), fmt(r.loadAvg, '', 2), fmt(r.loadPeak, '', 2), fmt(r.containers), fmt(r.probes, '', 1), r.source]),
+        fmt(r.diskBytes), fmt(r.diskX, '', 1), fmt(r.diskXBytes), fmt(r.diskAll, '', 1), fmt(r.diskAllBytes), fmt(r.loadAvg, '', 2), fmt(r.loadPeak, '', 2), fmt(r.containers), fmt(r.probes, '', 1), r.source]),
     ];
     const blob = new Blob(['\uFEFF', rows.map(row => row.map(csvQuote).join(',')).join('\r\n'), '\r\n'], {type: 'text/csv;charset=utf-8'});
     const url = URL.createObjectURL(blob);
