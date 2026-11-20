@@ -4,29 +4,93 @@ const OverviewPage = (() => {
   const $$ = selector => [...document.querySelectorAll(selector)];
   const text = (selector, value) => { $(selector).textContent = value; };
   const col = (key, label, width, render, value, search) => ({key, label, width, render, value, search});
-  const table = (id, title, columns, filterLabel, value, options) =>
-    new OverviewTable($(id), columns, {title, filter: {label: filterLabel, value}, ...options});
+  const table = (target, title, columns, filterLabel, value, options) => {
+    const root = typeof target === 'string' ? $(target) : target;
+    return root ? new OverviewTable(root, columns, {title, filter: {label: filterLabel, value}, ...options}) : null;
+  };
+  function tableGroup(root, id, name, columns, filterLabel, value, options) {
+    const block = document.createElement('div');
+    const title = document.createElement('h4');
+    const slot = document.createElement('div');
+    block.className = 'table-group';
+    title.textContent = name;
+    slot.id = id;
+    slot.className = 'table-slot';
+    block.append(title, slot);
+    root.append(block);
+    return table(slot, name, columns, filterLabel, value, options);
+  }
+  const unitRoles = new Map(Object.entries({
+    domain: 'ingress', tunnel: 'ingress', proxy: 'ingress', auth: 'ingress',
+    service: 'services', monitor: 'services', timer: 'timers',
+  }));
+  const unitGroup = role => unitRoles.get(role) || 'runtime';
   const pluck = key => row => row[key];
   const badge = (label, tone = '') => `<span class="status-pill ${tone}">${esc(label)}</span>`;
+  const graphLink = (id, label) => id
+    ? `<button type="button" class="graph-link" data-arch-node="${esc(id)}" aria-label="在架构图中定位 ${esc(label)}">${esc(label)}</button>`
+    : esc(label);
   const backupEpoch = snapshot => snapshot?.ops?.backup?.epoch
     ?? OverviewData.sourceEpoch(snapshot?.ops?.backup?.at, '+00:00');
-  const selectedNode = () => new URLSearchParams(location.search).get('node');
+  const params = new URLSearchParams(location.search);
+  const selectedNode = () => params.get('node');
   const nodeUrl = (path, id, hash) => `${path}${id ? '?node=' + encodeURIComponent(id) : ''}${hash}`;
+  const detailUrl = (view, hash, extra = {}) => `/check.html?${new URLSearchParams({view, ...extra})}${hash}`;
   const sources = {
     snapshot: item => item?.host && Array.isArray(item.projects) && num(item.updated_epoch) > 0,
     history: item => item?.min && item?.hour && item?.day,
     arch: item => Array.isArray(item?.nodes) && Array.isArray(item.edges),
   };
 
+  function anchorTarget(hash) {
+    if (!hash) return null;
+    try { return document.getElementById(decodeURIComponent(hash.slice(1))); } catch { return null; }
+  }
+
+  function placeBelowHeader(target) {
+    if (!target) return;
+    const headerBottom = $('.top').getBoundingClientRect().bottom;
+    scrollTo(0, Math.max(0, Math.floor(scrollY + target.getBoundingClientRect().top - headerBottom)));
+  }
+
+  function mountDetail() {
+    const view = params.get('view');
+    const template = $$('template[data-detail]').find(entry => entry.dataset.detail === view);
+    if (!template) return null;
+    const main = $('#main');
+    main.replaceChildren(template.content.cloneNode(true), main.querySelector('footer'));
+    document.body.dataset.detailView = view;
+    $('#check-link').removeAttribute('aria-current');
+    const links = $$('main [data-directory]').map(section => {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      const mark = document.createElement('span');
+      const label = document.createElement('span');
+      link.href = '#' + section.id;
+      link.dataset.icon = section.dataset.directory;
+      mark.className = 'nav-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = section.dataset.mark;
+      label.textContent = section.dataset.directory;
+      link.append(mark, label);
+      item.append(link);
+      return item;
+    });
+    $('#directory-links').replaceChildren(...links);
+    placeBelowHeader(anchorTarget(location.hash));
+    return view;
+  }
+
   function setupNav() {
     const rail = $('#page-nav'), handheld = matchMedia('(max-width: 800px)');
     const openButton = $('#menu-open'), overlay = $('#menu-close'), fold = $('#rail-toggle');
-    const links = $$('#directory-links a');
+    const directoryLinks = $$('#directory-links a');
+    const links = directoryLinks.filter(link => link.getAttribute('href').startsWith('#'));
     const mobileCurrent = $('.mobile-current');
     const headings = links.map(link => $(link.hash).querySelector('h1, h2'));
     const main = $('#main'), topbar = $('.top');
     let activeIndex = 0, drawerOpen = false;
-    links.forEach(link => { link.title = link.dataset.icon; });
+    directoryLinks.forEach(link => { link.title = link.dataset.icon; });
     const setDrawer = (open, restore = false) => {
       drawerOpen = open;
       document.body.classList.toggle('nav-open', open);
@@ -59,14 +123,44 @@ const OverviewPage = (() => {
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && document.body.classList.contains('nav-open')) setDrawer(false, true);
     });
-    links.forEach((link, index) => link.addEventListener('click', () => {
-      setCurrent(index);
-      if (!handheld.matches) return;
-      setDrawer(false);
+    main.addEventListener('focusin', event => {
+      const target = event.target;
+      if (!target.closest('.table-tools')) return;
+      requestAnimationFrame(() => {
+        if (document.activeElement !== target) return;
+        const safeTop = topbar.getBoundingClientRect().bottom + 6;
+        const top = target.getBoundingClientRect().top;
+        if (top < safeTop) scrollBy(0, top - safeTop);
+      });
+    });
+
+    const plainClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+    function jump(event, index) {
+      if (!plainClick(event)) return;
+      event.preventDefault();
       const heading = headings[index];
+      const {hash} = links[index];
+      if (hash !== location.hash) history.pushState(null, '', hash);
+      if (drawerOpen) setDrawer(false);
+      placeBelowHeader(heading);
+      setCurrent(index);
       heading.tabIndex = -1;
       heading.focus({preventScroll: true});
+    }
+    links.forEach((link, index) => link.addEventListener('click', event => jump(event, index)));
+    directoryLinks.filter(link => !links.includes(link)).forEach(link => link.addEventListener('click', event => {
+      if (drawerOpen && plainClick(event)) setDrawer(false);
     }));
+    mobileCurrent.addEventListener('click', event => jump(event, activeIndex));
+    topbar.addEventListener('click', event => {
+      const link = event.target.closest('a[href]');
+      if (!link || !plainClick(event) || link.origin !== location.origin || link.pathname !== location.pathname ||
+          link.search !== location.search || link.hash) return;
+      event.preventDefault();
+      if (location.hash) history.pushState(null, '', link.href);
+      scrollTo(0, 0);
+      mark();
+    });
 
     function setCurrent(index) {
       activeIndex = index;
@@ -120,6 +214,8 @@ const OverviewPage = (() => {
   function start(keys, render) {
     const updateNav = setupNav();
     const button = $('#refresh'), metadata = $('#site-standard');
+    const landingHash = detailView && performance.getEntriesByType('navigation')[0]?.type === 'navigate' ? location.hash : '';
+    let firstRead = true;
     const data = {};
     let lastAttempt = 0;
     async function read() {
@@ -135,14 +231,19 @@ const OverviewPage = (() => {
           fresh.add(keys[i]);
         }
       });
-      if (fresh.has('snapshot')) {
+      if (fresh.has('snapshot') || fresh.has('arch') && !data.snapshot) {
         const schema = JSON.parse(metadata.textContent);
-        schema.data_updated_at = new Date(data.snapshot.updated_epoch * 1000).toISOString();
-        metadata.textContent = JSON.stringify(schema);
+        const epoch = num(data.snapshot?.updated_epoch ?? data.arch?.generated_epoch);
+        if (epoch !== null && epoch > 0) {
+          schema.data_updated_at = new Date(epoch * 1000).toISOString();
+          metadata.textContent = JSON.stringify(schema);
+        }
       }
       try {
         render(data, fresh);
       } finally {
+        if (firstRead && landingHash && landingHash === location.hash) placeBelowHeader(anchorTarget(landingHash));
+        firstRead = false;
         button.disabled = false;
         button.textContent = '刷新数据';
         document.body.dataset.loaded = 'true';
@@ -156,5 +257,13 @@ const OverviewPage = (() => {
     read();
   }
 
-  return {$, $$, text, col, table, pluck, badge, backupEpoch, selectedNode, nodeUrl, start};
+  const detailView = mountDetail();
+  document.addEventListener('click', event => {
+    const node = event.target.closest('button[data-arch-node]')?.dataset.archNode;
+    if (node) location.assign(detailUrl('arch', '#arch', {node}));
+  });
+  return {
+    $, $$, text, col, table, tableGroup, unitGroup, pluck, badge, graphLink, backupEpoch,
+    selectedNode, nodeUrl, detailUrl, detailView, params, start,
+  };
 })();

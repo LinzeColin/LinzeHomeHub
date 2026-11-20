@@ -341,7 +341,7 @@ const OverviewData = (() => {
         : n.project || (n.role === 'domain' ? byHost.get(n.label) : '');
       if (n.owner) group(n.owner, project || '未登记项目').push(n);
       else missing.push({label: n.label, type: n.role_cn || n.role, project: project || '未登记项目',
-        detail: n.detail || noData, id: n.id});
+        detail: n.detail || noData, id: n.id, role: n.role});
     }
     return {lines, missing};
   }
