@@ -346,7 +346,7 @@ const OverviewData = (() => {
     return {lines, missing};
   }
 
-  return {noData, num, percent, esc, fmt, day, clock, stamp, sourceEpoch, plot, currentRow, daily, routes, organization};
+  return {noData, num, percent, esc, fmt, day, clock, stamp, sourceEpoch, series, plot, currentRow, daily, routes, organization};
 })();
 
 // Captured snapshots predate the collector's attention field.

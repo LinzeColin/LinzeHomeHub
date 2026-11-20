@@ -1,15 +1,16 @@
 (() => {
   const {esc, noData, stamp} = OverviewData;
   const {
-    $, text, col, table, tableGroup, unitGroup, pluck, badge, graphLink, backupEpoch, selectedNode, detailUrl, detailView, start,
+    $, text, col, table, tableGroup, unitGroup, pluck, badge, graphLink, selectedNode, detailUrl, detailView, start,
   } = OverviewPage;
-  if (detailView) return;
+  if (detailView) {
+    if (!document.querySelector('template[data-detail="' + CSS.escape(detailView) + '"]')) {
+      OverviewRecords.start(detailView, OverviewPage);
+    }
+    return;
+  }
 
-  const alertTable = table('#attention-table', '待处理事项', [
-    col('level', '严重度', 125, r => badge(r.level, r.lv === 'bad' ? 'bad' : r.lv === 'warn' ? 'warn' : 'good'),
-      r => ({bad: 0, warn: 1, ok: 2})[r.lv], pluck('level')),
-    col('t', '事项', 235), col('d', '依据', 300),
-  ], '按严重度', pluck('level'));
+  const alertTable = table('#attention-table', '待处理事项', OverviewInventory.attentionColumns(OverviewPage), '按严重度', pluck('level'));
   const inventoryColumns = [
     col('label', '名字', 258, r => graphLink(r.id, r.label)), col('role_cn', '类型', 124),
     col('state', '状态', 138, r => badge(r.state, r.state === '在跑' ? 'good' : '')),
@@ -37,29 +38,19 @@
     else resetInventory.remove();
   }
   const compareTable = table('#compare-table', '旧版 34 块对照', [
-    col('name', '旧版区块', 180), col('state', '承接状态', 144, r => badge(r.state, r.tone)),
-    col('where', '入口', 152, r => `<a href="${esc(r.href)}"${r.tone === 'warn' ? ' target="_blank" rel="noopener" aria-label="旧版（新标签页）"' : ''}>${esc(r.where)}</a>`), col('why', '范围或暂留原因', 315),
-  ], '按承接状态', pluck('state'), {empty: '尚无对照记录'});
+    col('name', '旧版区块', 183), col('state', '承接状态', 140, row => badge(row.state, 'good')),
+    col('where', '已放在哪', 210, row => row.links.map(([label, href]) =>
+      `<a href="${esc(href)}">${esc(label)}</a>`).join(' · ')),
+    col('why', '承接范围', 385),
+  ], '按内容', pluck('group'), {empty: '尚无对照记录'});
 
-  function showAttention(snap) {
-    if (!snap) {
-      text('#attention-summary', '运行快照缺失，待处理事项暂无数据。');
-      alertTable.setRows([]);
-      return;
-    }
-    const levels = {bad: '待处理', warn: '需关注', ok: '正常'};
-    let entries = snap.attention ? [...snap.attention] : legacyOverviewAttention(snap);
-    if (Date.now() / 1000 - snap.updated_epoch > 180 && snap.attention) entries = [{lv: 'bad', t: '快照停更', d: '采集已超过 3 分钟，元自愈会尝试重跑。'}, ...entries];
-    const bad = entries.filter(r => r.lv === 'bad').length;
-    const warn = entries.filter(r => r.lv === 'warn').length;
-    if (entries.some(row => row.t === '备份异常')) entries = entries.map(row => row.t === '备份异常'
-      ? {...row, d: '上次备份 ' + stamp(backupEpoch(snap))} : row);
-    text('#attention-summary', bad || warn
-      ? `${bad} 项待处理，${warn} 项需关注。按旧版判据从严重到一般排列。`
-      : '本次快照没有待处理或需关注的事项。');
-    alertTable.setRows(entries.filter(r => r.lv !== 'ok').map(r => ({
-      ...r, d: r.d?.replace('等你给材料', '待补材料'), level: levels[r.lv] || r.lv,
-    })));
+  function showAttention(snapshot) {
+    const rows = OverviewInventory.attention(snapshot);
+    const bad = rows.filter(row => row.lv === 'bad').length;
+    const warn = rows.length - bad;
+    text('#attention-summary', !snapshot ? '运行快照缺失，待处理事项暂无数据。'
+      : rows.length ? `${bad} 项待处理，${warn} 项需关注。按严重度排列。` : '本次快照没有待处理或需关注的事项。');
+    alertTable.setRows(rows);
   }
 
   let initialNode = selectedNode();
@@ -102,54 +93,62 @@
       + box('无连线的在跑容器', '本次没有无连线的在跑容器。', orphans, '核对还有谁在用。', 'warn');
   }
 
-  const overview = '/legacy.html#/';
-  const runtime = '/legacy.html#/runtime';
-  const flow = '/legacy.html#/flow';
-  const cost = '/legacy.html#/cost';
-  const github = '/legacy.html#/github';
-  const timeline = '/legacy.html#/timeline';
-  const costDetail = hash => detailUrl('cost', hash);
-  const moved = (name, where, href, why) => ({name, where, href, why, state: '新版已承接', tone: 'good'});
-  const old = (name, href, why) => ({name, where: '旧版', href, why, state: '暂留旧版', tone: 'warn'});
+  const detail = (label, view, anchor = view) => [label, detailUrl(view, '#' + anchor)];
+  const home = (label, anchor) => [label, '/#' + anchor];
   const compare = [
-    moved('待处理事项', '体检清单', '#h-attention', '沿用严重度和快照告警判据，由各线处理。'),
-    moved('容量与升级', '成本与容量', costDetail('#h-capacity'), '显示结论、部署余量、阈值和实测。'),
-    moved('供应商', '成本与容量', costDetail('#h-vendors'), '沿用供应商状态、成本、风险和健康。'),
-    old('活跃度', overview, '保留一年提交与部署活动视图。'),
-    old('关键趋势', overview, '新版历史承接内存和磁盘。部署趋势与成本构成暂留旧版。'),
-    old('治理登记合规', runtime, '保留运行单元登记合规率与违规明细。'),
-    old('业务基线纵向切片', runtime, '保留代码到自愈的九段实测矩阵。'),
-    old('端到端链路', runtime, '保留每条业务线从代码到自愈；新版逻辑链描述对外访问。'),
-    old('端到端健康历史', runtime, '保留逐小时业务基线健康分。'),
-    old('自动探测到的运行单元', runtime, '新版有架构节点清单。旧版保留 Docker、系统服务、定时任务和 Coolify 的探测台账。'),
-    old('业务基线矩阵', flow, '保留各项目的自定义阶段及实测覆盖。'),
-    old('已知缺陷', flow, '保留缺陷到具体阶段的关联。'),
-    old('源级爆炸半径', flow, '保留上游故障的影响范围和计数。'),
-    old('健康趋势', flow, '保留业务格子逐日最差状态。'),
-    old('项目清单', runtime, '新版组织图可查归属。各项目内存、存储和部署备份细节仍在旧版。'),
-    old('本站实时访问', runtime, '保留访客、探测和页面同步分类。'),
-    moved('主机趋势', '历史', '/#history', '内存和磁盘有 24 小时、7 天、30 天曲线。负载和容器见历史表。'),
-    old('耦合关系', runtime, '保留业务项目之间的存储与跟进关系。'),
-    old('自愈引擎', runtime, '保留主自愈、元自愈及每条规则详情。'),
-    old('最近动作', runtime, '保留最近自愈和部署事件。'),
-    old('账单明细', cost, '新版承接本月汇总；逐项实付构成、费用对比和价格编辑仍在旧版。'),
-    old('免费额度用量', cost, '保留各平台额度、上涨趋势和预计触顶。'),
-    old('外部服务', cost, '新版供应商表承接主要供应商。旧版保留全量外部状态。'),
-    old('AI 供应商账务', cost, '保留供应商账务和来源状态。'),
-    old('仓库宇宙', github, '保留仓与项目之间的交互星图。'),
-    old('Actions 收费风险', github, '保留官方账单读数与收费风险。'),
-    old('贡献网格', github, '保留公开仓逐日贡献网格。'),
-    old('仓库', github, '保留仓库清单与工程指标。'),
-    old('工程可视化', github, '保留工程对比图表。'),
-    old('访问流量', github, '保留逐仓查看、克隆、来源与路径。'),
-    old('Monorepo 子项目', github, '保留子项目与来源仓关系。'),
-    moved('续费时间轴', '成本与容量', costDetail('#h-renew'), '按同一订阅账显示日期、剩余天数、停机和自动续费状态。'),
-    old('订阅历史', timeline, '保留旧版的历史分期和时间轴。'),
-    moved('盯不住的订阅', '成本与容量', costDetail('#h-renew'), '单独标出无日期订阅与退役订阅。'),
-  ];
+    ['待处理事项', '总览', '完整事项、严重度和触发依据。', home('首页 · 待处理', 'inventory-attention')],
+    ['容量与升级', '总览', '结论、部署余量、阈值和实测。', detail('容量与升级', 'cost', 'capacity')],
+    ['供应商', '总览', '供应商状态、开支、风险和健康。', detail('供应商', 'cost', 'vendors')],
+    ['活跃度', '总览', '逐日提交和部署次数。', detail('全年逐日活动', 'activity')],
+    ['关键趋势', '总览', '资源使用率放在图表，部署与成本构成放在表格。',
+      home('内存与磁盘', 'trend'), detail('近 7 天部署', 'activity', 'deploy-trend'), detail('成本构成', 'cost', 'bills')],
+    ['治理登记合规', '运行', '登记率、未登记单元、自洽异常和实判段数。',
+      detail('治理登记合规', 'baseline', 'compliance'), detail('未登记与异常', 'baseline', 'violations')],
+    ['业务基线纵向切片', '运行', '每条运行线的九段判定和证据。', detail('九段运行矩阵', 'baseline')],
+    ['端到端链路', '运行', '代码、持续集成、部署、运行、入口、数据、备份、监控、自愈逐段直读。',
+      detail('九段证据', 'baseline'), detail('对外逻辑链', 'flows', 'routes')],
+    ['端到端健康历史', '运行', '按悉尼日期保留每个小时的整体健康分。', detail('端到端健康历史', 'baseline', 'baseline-history')],
+    ['自动探测到的运行单元', '运行', '容器、系统服务、定时任务、部署记录与单元增减流水。',
+      detail('全部探测单元', 'units', 'discovered'), detail('单元增减', 'units', 'unit-changes')],
+    ['业务基线矩阵', '业务流', '各项目的自定义阶段、证据、实测覆盖和异常。',
+      detail('业务基线矩阵', 'business'), detail('登记与自洽异常', 'business', 'business-registration')],
+    ['已知缺陷', '业务流', '缺陷与项目、基线和阶段的关系。', detail('已知缺陷', 'business', 'defects')],
+    ['源级爆炸半径', '业务流', '上游源、关联数量、受影响的基线和耦合规则。', detail('源级影响范围', 'business', 'blast-radius')],
+    ['健康趋势', '业务流', '逐日归档的通畅、有缺陷、阻断格数。', detail('逐日健康趋势', 'business', 'business-trend')],
+    ['项目清单', '运行', '项目归属、内存、存储、数据库、部署和备份。',
+      detail('项目清单', 'projects'), detail('组织归属', 'org')],
+    ['本站实时访问', '运行', '真实浏览、探测、同步、错误和逐时段样本。', detail('本站实时访问', 'traffic', 'live-traffic')],
+    ['主机趋势', '运行', '两条资源曲线、每日统计及留存的每日原始读数。',
+      detail('历史趋势', 'history'), detail('每日资源表', 'history', 'daily'), detail('逐日归档', 'history', 'archive'), detail('当前运行读数', 'projects', 'host-facts')],
+    ['耦合关系', '运行', '列出存储、部署和依赖关系及项目数。', detail('耦合关系', 'projects', 'dependencies')],
+    ['自愈引擎', '运行', '主自愈、元自愈及逐条规则、判定和执行记录。', detail('自愈引擎', 'projects', 'selfheal')],
+    ['最近动作', '运行', '自愈和部署事件同表，保留时间和结果。', detail('最近动作', 'projects', 'events')],
+    ['账单明细', '成本', '本月扣款、月摊、年化及逐项价格。价格编辑入口保留。',
+      home('首页 · 成本', 'inventory-cost'), detail('账单明细', 'cost', 'bills')],
+    ['免费额度用量', '成本', '用量、上限、来源和预计触顶日期。', detail('免费额度用量', 'usage')],
+    ['外部服务', '成本', '每项外部服务的状态与依据。', detail('外部服务状态', 'usage', 'external')],
+    ['AI 供应商账务', '成本', '保留余额、已花费和来源状态。', detail('AI 供应商账务', 'usage', 'supplier-billing')],
+    ['仓库宇宙', 'GitHub', '公开节点、项目、子项目和耦合连线转成可排序的表。',
+      detail('仓库与项目节点', 'repos', 'repo-nodes'), detail('仓库与项目关系', 'repos', 'repo-links')],
+    ['Actions 收费风险', 'GitHub', '官方账单、用量、折扣、实付和按月分钟。',
+      detail('Actions 收费风险', 'actions', 'actions-billing'), detail('官方计费明细', 'actions', 'sku'), detail('按月分钟', 'actions', 'actions-monthly')],
+    ['贡献网格', 'GitHub', '公开仓逐日提交数据。', detail('全年逐日活动', 'activity')],
+    ['仓库', 'GitHub', '公开仓清单和工程读数，私有明细沿用登录入口。', detail('公开仓库清单', 'repos')],
+    ['工程可视化', 'GitHub', '仓库指标、语言、自动化运行和结果移到表格。',
+      detail('工程运行摘要', 'actions', 'engineering'), detail('逐仓自动化', 'actions', 'actions-runs'),
+      detail('逐日自动化', 'actions', 'actions-daily'), detail('语言构成', 'repos', 'languages')],
+    ['访问流量', 'GitHub', '逐仓与逐日浏览、克隆、去重、来源、路径和上游发布情况。',
+      detail('逐仓访问流量', 'repo-traffic'), detail('逐日访问流量', 'repo-traffic', 'repo-traffic-daily'), detail('上游发布进度', 'repo-traffic', 'traffic-freshness')],
+    ['Monorepo 子项目', 'GitHub', '子项目、所在仓、路径和提交量。', detail('仓内子项目', 'repos', 'subprojects')],
+    ['续费时间轴', '成本', '日期、剩余天数、到期停机和自动续费状态用表格呈现。', detail('续费清单', 'cost', 'renew')],
+    ['订阅历史', '成本', '按登记的扣款日和周期推算历史分期。', detail('订阅历史', 'subscriptions', 'subscription-history')],
+    ['盯不住的订阅', '成本', '续费清单逐条标出无日期和已退役订阅。', detail('无日期及退役订阅', 'cost', 'renew')],
+  ].map(([name, group, why, ...links]) => ({
+    name, group, why, links, where: links.map(([label]) => label).join('、'), state: '已放入新版',
+  }));
 
   compareTable.setRows(compare);
-  text('#compare-summary', `已承接 ${compare.filter(row => row.tone === 'good').length} / ${compare.length} 块。`);
+  text('#compare-summary', `旧版 ${compare.length} 个区块均有对应入口。`);
   start(['snapshot', 'arch'], ({snapshot, arch}) => {
     showAttention(snapshot);
     showHealth(arch);

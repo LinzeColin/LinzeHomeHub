@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="查看 VPS-3 的待处理事项、运行单元和新旧版承接情况。">
-  <meta name="km-build" content="ZL00-261120-28">
-  <meta name="site-version" content="0.2.0">
+  <meta name="km-build" content="ZL00-261120-35">
+  <meta name="site-version" content="0.3.0">
   <title>服务器体检清单</title>
   <link rel="icon" type="image/x-icon" href="/标志/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" type="image/png" href="/标志/favicon-32.png" sizes="32x32">
@@ -13,32 +13,44 @@
   <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
   <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
   <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
-  <link rel="stylesheet" href="/assets/overview.css?v=3b377a58">
-  <script src="/assets/overview-data.js?v=49e1f317" defer></script>
-  <script src="/assets/overview-tables.js?v=3f7ffc59" defer></script>
-  <script src="/assets/overview-arch.js?v=eed6639b" defer></script>
-  <script src="/assets/overview-page.js?v=ce6fc541" defer></script>
-  <script src="/assets/overview.js?v=5eedcb59" defer></script>
-  <script src="/assets/overview-check.js?v=0b6b7b47" defer></script>
-  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.2.0","artifact_id":"ZL00-261120-28","content_kind":"dynamic"}</script>
+  <link rel="stylesheet" href="/assets/overview.css?v=3bed30eb">
+  <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
+  <script src="/assets/overview-data.js?v=209366eb" defer></script>
+  <script src="/assets/overview-tables.js?v=b130e5d1" defer></script>
+  <script src="/assets/overview-arch.js?v=a4d59c27" defer></script>
+  <script src="/assets/overview-inventory.js?v=ff413e1a" defer></script>
+  <script src="/assets/overview-records.js?v=672eb41d" defer></script>
+  <script src="/assets/overview-page.js?v=fa74d2aa" defer></script>
+  <script src="/assets/overview.js?v=3e8db46b" defer></script>
+  <script src="/assets/overview-check.js?v=8b2ed214" defer></script>
+  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261120-35","content_kind":"dynamic"}</script>
 </head>
 <body data-page-kind="detail">
 <a class="skip" href="#main">直达正文</a>
-<header class="top" data-km-topbar>
-  <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
-  <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
-  <nav class="top-links" aria-label="站点">
-    <ul>
-      <li><a href="/">首页</a></li>
-      <li><a href="/check.html" id="check-link" aria-current="page">体检清单</a></li>
-      <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
-    </ul>
+<header class="top" id="top" data-km-topbar>
+  <div class="top-inner">
+    <button type="button" class="secondary back-link" id="go-back">← 返回</button>
+    <a href="/" class="secondary home-link">首页</a>
+    <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
+    <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
+    <nav class="top-links" aria-label="补充入口">
+      <ul>
+        <li><a href="/check.html#health" id="check-link" aria-current="page">体检</a></li>
+        <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
+      </ul>
+    </nav>
+  </div>
+  <nav class="quick-links" aria-label="直达内容">
+    <a href="/check.html?view=history#history">历史</a>
+    <a href="/check.html?view=arch#arch">架构</a>
+    <a href="/check.html?view=org#org">组织</a>
+    <a href="/check.html?view=flows#routes">链路</a>
+    <a href="/#inventory">全量表格</a>
   </nav>
 </header>
 <div class="layout">
   <aside class="rail" aria-label="页面目录" id="page-nav">
     <nav aria-label="目录" data-km-current-mechanism>
-      <a class="mobile-current" href="#health">体检清单</a>
       <ul id="directory-links" data-drawer>
         <li><a href="#health" aria-current="location" data-icon="体检清单"><span class="nav-mark" aria-hidden="true">＋</span><span>体检清单</span></a></li>
         <li><a href="#compare" data-icon="新旧对照"><span class="nav-mark" aria-hidden="true">⇄</span><span>新旧对照</span></a></li>
@@ -83,27 +95,47 @@
       <div id="compare-table" class="table-slot"></div>
     </section>
     <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
-    <footer class="build">ZL00-261120-28</footer>
+    <footer class="build">ZL00-261120-35</footer>
   </main>
 </div>
 
 <template data-detail="history">
-  <section id="history" aria-labelledby="h-daily" data-km-section data-directory="每日资源表" data-mark="≋">
+  <section id="history" aria-labelledby="h-history" data-km-section data-directory="历史趋势" data-mark="≋">
     <div class="headline">
-      <h1 id="h-daily">每日资源表</h1>
+      <h1 id="h-history">历史</h1>
       <button type="button" class="secondary" id="refresh">刷新数据</button>
     </div>
-    <div class="section-head detail-actions">
-      <div class="switches" aria-label="时间范围" role="group">
-        <button type="button" data-period="1" aria-pressed="false">24 小时</button>
-        <button type="button" data-period="7" aria-pressed="true">7 天</button>
-        <button type="button" data-period="30" aria-pressed="false">30 天</button>
-      </div>
+    <figure class="chart-panel history-panel">
+      <figcaption>
+        <div class="section-head">
+          <h2>内存与磁盘</h2>
+          <div class="switches" aria-label="时间范围" role="group">
+            <button type="button" data-period="1" aria-pressed="false">24 小时</button>
+            <button type="button" data-period="7" aria-pressed="true">7 天</button>
+            <button type="button" data-period="30" aria-pressed="false">30 天</button>
+          </div>
+        </div>
+        <div class="history-caption">
+          <p id="history-summary" aria-live="polite">正在读取内存和磁盘历史…</p>
+          <p id="history-context" class="summary">悉尼时间</p>
+        </div>
+      </figcaption>
+      <div class="chart-space"><canvas id="history-chart" role="img" aria-label="内存、磁盘使用率趋势" aria-describedby="history-summary history-context"></canvas></div>
+    </figure>
+  </section>
+  <section id="daily" aria-labelledby="h-daily" data-km-section data-directory="每日资源表" data-mark="▤">
+    <div class="section-head">
+      <h2 id="h-daily">每日资源表</h2>
       <button type="button" class="secondary" id="history-csv" disabled>下载当前范围 CSV</button>
     </div>
-    <p class="summary">按悉尼日统计。当前负载为 1 分钟均载，历史为 15 分钟均载。磁盘和容器取当日末次读数，在线率按探测次数计算。</p>
+    <p class="summary">按悉尼日统计。当前负载取 1 分钟均值，历史负载取 15 分钟均值。磁盘和容器取当日末次读数，在线率按探测次数计算。</p>
     <p class="summary" id="table-guide">宽表可左右滑动。点列名排序，拖动箭头或按方向键调整列宽。</p>
     <div id="daily-table" class="table-slot"></div>
+  </section>
+  <section id="archive" aria-labelledby="h-archive" data-km-section data-directory="逐日归档" data-mark="▤">
+    <h2 id="h-archive">逐日归档</h2>
+    <p class="summary">列出留存的每日原始读数。日期按悉尼时间显示。</p>
+    <div id="history-archive" class="table-slot"></div>
   </section>
 </template>
 
@@ -116,12 +148,12 @@
     <p class="summary" id="arch-summary">正在读取架构采样…</p>
     <div class="graph-panel">
       <div class="section-head">
-        <p class="summary">虚线框为停用或等待调度。选节点看上下游，图内可滑动。</p>
+        <p class="summary">虚线为未在运行。全部节点与连线直接显示，点节点可看上下游。</p>
         <button type="button" id="motion" class="secondary" aria-pressed="false" disabled>暂停连线动效</button>
       </div>
-      <div id="chips" class="chips" role="group" aria-label="按类型显示"></div>
       <div class="graphwrap" id="gw" tabindex="0" role="region" aria-label="可滚动的服务器分层架构图"><svg id="g" role="group" aria-label="服务器分层架构图"></svg></div>
-      <p class="graph-selection" id="graph-selection" role="status">尚未选择节点。</p>
+      <p class="graph-selection" id="graph-selection" role="status"></p>
+      <div id="chips" class="chips" role="group" aria-label="按类型显示"></div>
       <a class="graph-link" id="graph-inventory" href="/check.html#h-list">查看运行单元清单</a>
     </div>
   </section>
@@ -135,6 +167,7 @@
     </div>
     <p class="summary" id="org-summary">正在读取组织登记…</p>
     <div id="org-tree" class="org-tree" role="region" aria-label="已登记的组织与项目" tabindex="0"></div>
+    <a class="graph-link" href="/check.html?view=projects#projects">项目资源、部署与备份</a>
   </section>
   <section id="unowned" aria-labelledby="h-unowned" data-km-section data-directory="未写归属" data-mark="♧">
     <h2 class="bad-text" id="h-unowned">未写归属</h2>
@@ -158,6 +191,7 @@
   <section id="dataflow" aria-labelledby="h-dataflow" data-km-section data-directory="数据链" data-mark="↳">
     <h2 id="h-dataflow">采集与备份数据链</h2>
     <div id="lineage-table" class="table-slot"></div>
+    <div class="record-links"><a href="/check.html?view=baseline#baseline">端到端运行基线</a><a href="/check.html?view=business#business">业务流与实测</a></div>
   </section>
 </template>
 
@@ -168,15 +202,22 @@
   </div>
   <p class="summary" id="cost-summary">当月扣款和按月分摊的成本。</p>
   <div class="cost-pair" id="cost-meters"></div>
+  <section id="bills" aria-labelledby="h-bills" data-km-section data-directory="账单明细" data-mark="＄">
+    <h2 id="h-bills">账单明细</h2>
+    <p class="summary" id="billing-summary">正在读取账单…</p>
+    <p class="summary" id="table-guide">宽表可左右滑动。点列名排序，拖动箭头或按方向键调整列宽。</p>
+    <div id="billing-table" class="table-slot"></div>
+    <div class="record-links"><a href="/admin">价格设置</a><a href="/check.html?view=usage#usage">额度与外部服务</a></div>
+  </section>
   <section id="vendors" aria-labelledby="h-vendors" data-km-section data-directory="供应商" data-mark="＄">
     <h2 id="h-vendors">供应商</h2>
-    <p class="summary" id="table-guide">宽表可左右滑动。点列名排序，拖动箭头或按方向键调整列宽。</p>
     <div id="vendor-table" class="table-slot"></div>
   </section>
   <section id="renew" aria-labelledby="h-renew" data-km-section data-directory="续费清单" data-mark="＄">
     <h2 id="h-renew">续费清单</h2>
     <p class="summary" id="renew-summary">服务终止日和按期扣款分开显示。</p>
     <div id="renew-table" class="table-slot"></div>
+    <a class="graph-link" href="/check.html?view=subscriptions#subscription-history">订阅历史分期</a>
   </section>
   <section id="capacity" aria-labelledby="h-capacity" data-km-section data-directory="容量与升级" data-mark="＄">
     <h2 id="h-capacity">容量与升级</h2>

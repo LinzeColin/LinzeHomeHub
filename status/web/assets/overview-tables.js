@@ -2,10 +2,12 @@
 class OverviewTable {
   constructor(root, columns, options) {
     const {esc} = OverviewData;
+    this.id = root.id;
     this.columns = columns;
     this.filter = options.filter;
-    this.sort = null;
-    this.direction = 1;
+    const saved = history.state?.tables?.[this.id];
+    this.sort = Number.isInteger(saved?.sort) && columns[saved.sort] ? saved.sort : null;
+    this.direction = saved?.direction === -1 ? -1 : 1;
     this.rows = [];
     this.visibleRows = [];
     const shared = options.sharedFilters;
@@ -17,7 +19,7 @@ class OverviewTable {
         <label>${esc(this.filter.label)} <select aria-label="${esc(options.title)}${esc(this.filter.label)}"></select></label>
         ${count}
       </div>`}
-      <div class="table-wrap" role="region" aria-label="${esc(options.title)}" aria-describedby="table-guide" tabindex="0">
+      <div class="table-wrap" role="region" aria-label="${esc(options.title)}"${document.getElementById('table-guide') ? ' aria-describedby="table-guide"' : ''} tabindex="0">
         <table class="data-table" aria-label="${esc(options.title)}">
           <colgroup>${columns.map(() => '<col>').join('')}</colgroup>
           <thead><tr>${columns.map((column, i) => `<th scope="col"><div class="th-actions">
@@ -29,21 +31,23 @@ class OverviewTable {
     this.search = shared?.search || root.querySelector('input');
     this.select = shared?.select || root.querySelector('select');
     this.sharedFilters = Boolean(shared);
+    if (!shared) this.search.value = saved?.query || '';
+    this.savedFilter = !shared && saved?.filter;
     this.count = root.querySelector('.table-count');
     this.table = root.querySelector('table');
     this.body = root.querySelector('tbody');
     this.cols = [...root.querySelectorAll('col')];
     this.buttons = [...root.querySelectorAll('.th-sort')];
-    this.widths = columns.map(column => column.width || 145);
+    this.widths = columns.map((column, index) => saved?.widths?.[index] || column.width || 145);
     this.rowClass = options.rowClass || (() => '');
     this.isPinned = options.isPinned || (() => false);
     this.empty = options.empty || '无数据';
     this.resize();
-    if (!shared) this.reset = OverviewTable.bindFilters(this.search, this.select, () => this.render());
+    if (!shared) this.reset = OverviewTable.bindFilters(this.search, this.select, () => this.apply());
     this.buttons.forEach((button, index) => button.addEventListener('click', () => {
       this.direction = this.sort === index ? -this.direction : 1;
       this.sort = index;
-      this.render();
+      this.apply();
     }));
     root.querySelectorAll('.th-size').forEach((grip, index) => this.bindResize(grip, index));
   }
@@ -64,8 +68,7 @@ class OverviewTable {
     return reset;
   }
 
-  static setOptions(select, values) {
-    const selected = select.value;
+  static setOptions(select, values, selected = select.value) {
     const options = [...new Set(values.filter(value => value != null))];
     select.replaceChildren(new Option('全部', ''), ...options.map(value => new Option(value, value)));
     if (options.includes(selected)) select.value = selected;
@@ -83,11 +86,12 @@ class OverviewTable {
     grip.addEventListener('pointermove', event => {
       if (drag?.pointerId === event.pointerId) this.resize(index, drag.width + event.clientX - drag.start);
     });
-    grip.addEventListener('lostpointercapture', () => { drag = null; });
+    grip.addEventListener('lostpointercapture', () => { drag = null; this.remember(); });
     grip.addEventListener('keydown', event => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
       event.preventDefault();
       this.resize(index, this.widths[index] + (event.key === 'ArrowLeft' ? -16 : 16));
+      this.remember();
     });
   }
 
@@ -99,14 +103,32 @@ class OverviewTable {
 
   setRows(rows) {
     this.rows = rows;
-    if (!this.sharedFilters) OverviewTable.setOptions(this.select, rows.map(this.filter.value));
+    if (!this.sharedFilters) {
+      OverviewTable.setOptions(this.select, rows.map(this.filter.value), this.savedFilter || this.select.value);
+      if (rows.length) this.savedFilter = null;
+    }
     this.render();
   }
 
-  pick(value) {
+  pick(value, toggle = true) {
     if (![...this.select.options].some(option => option.value === value)) return;
-    this.select.value = this.select.value === value ? '' : value;
+    this.select.value = toggle && this.select.value === value ? '' : value;
+    this.apply();
+  }
+
+  apply() {
     this.render();
+    this.remember();
+  }
+
+  remember() {
+    const state = history.state || {};
+    const settings = {sort: this.sort, direction: this.direction, widths: this.widths};
+    if (!this.sharedFilters) {
+      settings.query = this.search.value;
+      settings.filter = this.select.value;
+    }
+    history.replaceState({...state, tables: {...state.tables, [this.id]: settings}}, '');
   }
 
   focusRow(row) {

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="查看 VPS-3 的实时资源、历史趋势、项目归属、访问链路和成本。">
-  <meta name="km-build" content="ZL00-261120-28">
-  <meta name="site-version" content="0.2.0">
+  <meta name="km-build" content="ZL00-261120-35">
+  <meta name="site-version" content="0.3.0">
   <title>服务器运行总览</title>
   <link rel="icon" type="image/x-icon" href="/标志/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" type="image/png" href="/标志/favicon-32.png" sizes="32x32">
@@ -13,37 +13,52 @@
   <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
   <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
   <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
-  <link rel="stylesheet" href="/assets/overview.css?v=3b377a58">
+  <link rel="stylesheet" href="/assets/overview.css?v=3bed30eb">
   <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
-  <script src="/assets/overview-data.js?v=49e1f317" defer></script>
-  <script src="/assets/overview-page.js?v=ce6fc541" defer></script>
-  <script src="/assets/overview.js?v=5eedcb59" defer></script>
-  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.2.0","artifact_id":"ZL00-261120-28","content_kind":"dynamic"}</script>
+  <script src="/assets/overview-data.js?v=209366eb" defer></script>
+  <script src="/assets/overview-tables.js?v=b130e5d1" defer></script>
+  <script src="/assets/overview-inventory.js?v=ff413e1a" defer></script>
+  <script src="/assets/overview-page.js?v=fa74d2aa" defer></script>
+  <script src="/assets/overview.js?v=3e8db46b" defer></script>
+  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261120-35","content_kind":"dynamic"}</script>
 </head>
 <body data-page-kind="home">
 <a class="skip" href="#main">直达正文</a>
-<header class="top" data-km-topbar>
-  <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
-  <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
-  <nav class="top-links" aria-label="站点">
-    <ul>
-      <li><a href="/" aria-current="page">首页</a></li>
-      <li><a href="/check.html">体检清单</a></li>
-      <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
-    </ul>
+<header class="top" id="top" data-km-topbar>
+  <div class="top-inner">
+    <button type="button" class="secondary back-link" id="go-back">← 返回</button>
+    <a href="/" class="secondary home-link" aria-current="page">首页</a>
+    <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
+    <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
+    <nav class="top-links" aria-label="补充入口">
+      <ul>
+        <li><a href="/check.html#health" id="check-link">体检</a></li>
+        <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
+      </ul>
+    </nav>
+  </div>
+  <nav class="quick-links" aria-label="直达内容">
+    <a href="/check.html?view=history#history">历史</a>
+    <a href="/check.html?view=arch#arch">架构</a>
+    <a href="/check.html?view=org#org">组织</a>
+    <a href="/check.html?view=flows#routes">链路</a>
+    <a href="/#inventory">全量表格</a>
   </nav>
 </header>
 <div class="layout">
   <aside class="rail" aria-label="页面目录" id="page-nav">
     <nav aria-label="目录" data-km-current-mechanism>
-      <a class="mobile-current" href="#overview">现在</a>
       <ul id="directory-links" data-drawer>
         <li><a href="#overview" aria-current="location" data-icon="现在"><span class="nav-mark" aria-hidden="true">◉</span><span>现在</span></a></li>
-        <li><a href="#history" data-icon="历史"><span class="nav-mark" aria-hidden="true">≋</span><span>历史</span></a></li>
-        <li><a href="/check.html?view=arch" data-icon="架构"><span class="nav-mark" aria-hidden="true">▦</span><span>架构</span></a></li>
-        <li><a href="/check.html?view=org" data-icon="组织"><span class="nav-mark" aria-hidden="true">♧</span><span>组织</span></a></li>
-        <li><a href="/check.html?view=flows" data-icon="链路"><span class="nav-mark" aria-hidden="true">↳</span><span>链路</span></a></li>
-        <li><a href="/check.html?view=cost" data-icon="成本"><span class="nav-mark" aria-hidden="true">＄</span><span>成本</span></a></li>
+        <li><a href="#trend" data-icon="图表"><span class="nav-mark" aria-hidden="true">≋</span><span>图表</span></a></li>
+        <li><a href="#inventory" data-icon="全量表格"><span class="nav-mark" aria-hidden="true">▤</span><span>全量表格</span></a></li>
+        <li><a href="/check.html?view=history#history" data-icon="历史"><span class="nav-mark" aria-hidden="true">◷</span><span>历史</span></a></li>
+        <li><a href="/check.html?view=arch#arch" data-icon="架构"><span class="nav-mark" aria-hidden="true">▦</span><span>架构</span></a></li>
+        <li><a href="/check.html?view=org#org" data-icon="组织"><span class="nav-mark" aria-hidden="true">♧</span><span>组织</span></a></li>
+        <li><a href="/check.html?view=flows#routes" data-icon="链路"><span class="nav-mark" aria-hidden="true">↳</span><span>链路</span></a></li>
+        <li><a href="/check.html?view=cost#bills" data-icon="成本"><span class="nav-mark" aria-hidden="true">＄</span><span>成本</span></a></li>
+        <li><a href="/check.html#health" data-icon="体检"><span class="nav-mark" aria-hidden="true">＋</span><span>体检</span></a></li>
+        <li><a href="/legacy.html" target="_blank" rel="noopener" data-icon="旧版"><span class="nav-mark" aria-hidden="true">↗</span><span>旧版</span></a></li>
       </ul>
     </nav>
     <button type="button" class="square rail-toggle" id="rail-toggle" aria-label="切成窄目录" title="切成窄目录" aria-pressed="false"><span aria-hidden="true">⇤</span></button>
@@ -52,10 +67,7 @@
   <main id="main" tabindex="-1">
     <section id="overview" aria-labelledby="h-overview" data-km-section>
       <div class="headline">
-        <div>
-          <h1 id="h-overview">服务器运行总览</h1>
-          <p class="lede">查看 VPS-3 的资源用量、故障与服务关系。</p>
-        </div>
+        <h1 id="h-overview">现在</h1>
         <button type="button" class="secondary" id="refresh">刷新数据</button>
       </div>
       <p class="source-line" id="snapshot-time" role="status">正在读取运行快照…</p>
@@ -65,63 +77,62 @@
       </div>
     </section>
 
-    <section id="history" aria-labelledby="h-history" data-km-section>
+    <section id="trend" aria-labelledby="h-history" data-km-section>
       <div class="section-head">
-        <h2 id="h-history">历史</h2>
-        <div class="switches" aria-label="时间范围" role="group">
-          <button type="button" data-period="1" aria-pressed="false">24 小时</button>
-          <button type="button" data-period="7" aria-pressed="true">7 天</button>
-          <button type="button" data-period="30" aria-pressed="false">30 天</button>
-        </div>
+        <h2 id="h-history">运行图表</h2>
+        <a id="history-detail" class="graph-link" href="/check.html?view=history&amp;days=7#history">每日资源表与 CSV</a>
       </div>
-      <figure class="chart-panel">
-        <figcaption class="history-caption">
-          <p id="history-summary" aria-live="polite">正在读取内存和磁盘历史…</p>
-          <p id="history-context" class="summary">悉尼时间 · 分钟采样</p>
-        </figcaption>
-        <div class="chart-space"><canvas id="history-chart" role="img" aria-label="内存、磁盘使用率趋势" aria-describedby="history-summary history-context"></canvas></div>
-      </figure>
-      <a id="history-detail" class="graph-link" href="/check.html?view=history&amp;days=7#h-daily" aria-live="polite">每日资源表与 CSV</a>
+      <div class="visualizations">
+        <figure class="chart-panel history-panel">
+          <figcaption>
+            <div class="section-head">
+              <h3>内存与磁盘</h3>
+              <div class="switches" aria-label="时间范围" role="group">
+                <button type="button" data-period="1" aria-pressed="false">24 小时</button>
+                <button type="button" data-period="7" aria-pressed="true">7 天</button>
+                <button type="button" data-period="30" aria-pressed="false">30 天</button>
+              </div>
+            </div>
+            <div class="history-caption">
+              <p id="history-summary" aria-live="polite">正在读取内存和磁盘历史…</p>
+              <p id="history-context" class="summary">悉尼时间</p>
+            </div>
+          </figcaption>
+          <div class="chart-space"><canvas id="history-chart" role="img" aria-label="内存、磁盘使用率趋势" aria-describedby="history-summary history-context"></canvas></div>
+        </figure>
+        <figure class="chart-panel service-panel">
+          <figcaption>
+            <h3 id="service-map-title">各服务状态一览</h3>
+            <p class="summary" id="service-map-summary" role="status">正在读取服务状态…</p>
+          </figcaption>
+          <div id="service-map" class="service-map" role="region" aria-labelledby="service-map-title" tabindex="0"></div>
+        </figure>
+      </div>
     </section>
 
-    <section id="arch" aria-labelledby="h-arch" data-km-section>
-      <div class="section-head">
-        <h2 id="h-arch">架构图</h2>
-        <a class="secondary" href="/check.html?view=arch#arch">打开架构图</a>
-      </div>
-      <div class="summary" id="arch-summary">正在读取架构采样…</div>
-    </section>
-
-    <section id="org" aria-labelledby="h-org" data-km-section>
-      <div class="section-head">
-        <h2 id="h-org">组织图</h2>
-        <a class="secondary" href="/check.html?view=org#org">查看组织与归属</a>
-      </div>
-      <p class="summary" id="org-summary">按登记的工作间或线查看项目和运行单元。</p>
-    </section>
-
-    <section id="flows" aria-labelledby="h-flows" data-km-section>
-      <h2 id="h-flows">链路</h2>
-      <div class="summary-links">
-        <a class="graph-link" href="/check.html?view=flows#h-routes">对外逻辑链</a>
-        <a class="graph-link" href="/check.html?view=flows#h-dataflow">采集与备份数据链</a>
-      </div>
-      <p class="summary" id="route-summary">从域名查访问路径，从采集器查到数据去向。</p>
-    </section>
-
-    <section id="cost" aria-labelledby="h-cost" data-km-section>
-      <h2 id="h-cost">成本与容量</h2>
-      <p class="summary" id="cost-summary">当月扣款和按月分摊的成本。</p>
-      <div class="cost-pair" id="cost-meters"></div>
-      <div class="summary-links">
-        <a class="graph-link" href="/check.html?view=cost#h-vendors">供应商</a>
-        <a class="graph-link" href="/check.html?view=cost#h-renew">续费清单</a>
-        <a class="graph-link" href="/check.html?view=cost#h-capacity">容量与升级</a>
-      </div>
+    <section id="inventory" aria-labelledby="h-inventory" data-km-section>
+      <div class="section-head"><h2 id="h-inventory">全量信息表格</h2></div>
+      <nav class="table-jumps" aria-label="全量表格目录">
+        <a href="#inventory-services">服务</a><a href="#inventory-containers">容器</a>
+        <a href="#inventory-domains">域名</a><a href="#inventory-tunnels">隧道</a>
+        <a href="#inventory-databases">库</a><a href="#inventory-timers">定时任务</a>
+        <a href="#inventory-cost">成本</a><a href="#inventory-attention">待处理</a>
+      </nav>
+      <p class="summary" id="table-guide">点表名直达。点列名排序。表格可滑动。</p>
+      <div class="inventory-board" id="home-tables"></div>
+      <nav class="record-links" aria-label="相关明细">
+        <a href="/check.html?view=projects#projects">项目自愈</a>
+        <a href="/check.html?view=baseline#baseline">运行基线</a>
+        <a href="/check.html?view=business#business">业务基线</a>
+        <a href="/check.html?view=activity#activity">提交部署</a>
+        <a href="/check.html?view=repos#repos">GitHub</a>
+        <a href="/check.html?view=usage#usage">额度</a>
+        <a href="/check.html#compare">新旧对照</a>
+      </nav>
     </section>
 
     <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
-    <footer class="build">ZL00-261120-28</footer>
+    <footer class="build">ZL00-261120-35</footer>
   </main>
 </div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
