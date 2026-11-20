@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="查看 VPS-3 的待处理事项、运行单元和新旧版承接情况。">
+  <meta name="km-build" content="ZL00-261120-27">
+  <meta name="site-version" content="0.2.0">
+  <title>服务器体检清单</title>
+  <link rel="icon" type="image/x-icon" href="/标志/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" type="image/png" href="/标志/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/标志/apple-touch-icon.png" sizes="180x180">
+  <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
+  <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
+  <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
+  <link rel="stylesheet" href="/assets/overview.css?v=b8b2d308">
+  <script src="/assets/overview-data.js?v=e202bc2f" defer></script>
+  <script src="/assets/overview-tables.js?v=cf270c4d" defer></script>
+  <script src="/assets/overview-page.js?v=1f9c875b" defer></script>
+  <script src="/assets/overview-check.js?v=e76bd52b" defer></script>
+  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.2.0","artifact_id":"ZL00-261120-27","content_kind":"dynamic"}</script>
+</head>
+<body data-page-kind="detail">
+<a class="skip" href="#main">直达正文</a>
+<header class="top" data-km-topbar>
+  <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
+  <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
+  <nav class="top-links" aria-label="站点">
+    <ul>
+      <li><a href="/">首页</a></li>
+      <li><a href="/check.html" aria-current="page">体检清单</a></li>
+      <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
+    </ul>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="rail" aria-label="页面目录" id="page-nav">
+    <nav aria-label="目录" data-km-current-mechanism>
+      <a class="mobile-current" href="#health">体检清单</a>
+      <ul id="directory-links" data-drawer>
+        <li><a href="#health" aria-current="location" data-icon="体检清单"><span class="nav-mark" aria-hidden="true">＋</span><span>体检清单</span></a></li>
+        <li><a href="#compare" data-icon="新旧对照"><span class="nav-mark" aria-hidden="true">⇄</span><span>新旧对照</span></a></li>
+      </ul>
+    </nav>
+    <button type="button" class="square rail-toggle" id="rail-toggle" aria-label="切成窄目录" title="切成窄目录" aria-pressed="false"><span aria-hidden="true">⇤</span></button>
+  </aside>
+  <button type="button" class="scrim" id="menu-close" aria-label="关闭目录" hidden></button>
+  <main id="main" tabindex="-1">
+    <section id="health" aria-labelledby="h-health" data-km-section>
+      <div class="headline">
+        <h1 id="h-health">服务器体检清单</h1>
+        <button type="button" class="secondary" id="refresh">刷新数据</button>
+      </div>
+      <p class="summary" id="health-summary">按服务器与部署规则列出重复部件、故障、停用项和无连线容器。</p>
+      <div class="health-grid" id="healthbox" role="region" aria-label="体检结果" tabindex="0"><p role="status">正在读取体检结果…</p></div>
+      <h3 class="subheading" id="h-attention">待处理（由各线处理）</h3>
+      <p class="summary" id="attention-summary">按严重度排列。红色事项需要处理。</p>
+      <p class="summary" id="table-guide">宽表可左右滑动。点列名排序，拖动箭头或按方向键调整列宽。</p>
+      <div id="attention-table" class="table-slot"></div>
+      <div id="list">
+        <h3 class="subheading" id="h-list">全部清单</h3>
+        <p class="summary">清单包含定时任务和停用项。点运行单元可到首页架构图查看上下游。</p>
+        <div id="inventory-table" class="table-slot"></div>
+      </div>
+      <div id="machine">
+        <h3 class="subheading">机器可读数据</h3>
+        <div class="file-links">
+          <a download href="/data/arch.json">架构节点与连线</a><a download href="/data/arch.mmd">架构图文本</a>
+          <a download href="/data/snapshot.json">运行快照</a><a download href="/data/history.json">历史数据</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="compare" aria-labelledby="h-compare" data-km-section>
+      <div class="section-head"><h2 id="h-compare">新旧对照</h2><a class="secondary" href="/legacy.html" target="_blank" rel="noopener">在新标签页打开旧版</a></div>
+      <p class="summary" id="compare-summary">逐块判定承接情况。新版逐项补齐并通过网站闸后，再合并两版。</p>
+      <div id="compare-table" class="table-slot"></div>
+    </section>
+    <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
+    <footer class="build">ZL00-261120-27</footer>
+  </main>
+</div>
+</body>
+</html>

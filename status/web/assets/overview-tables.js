@@ -8,7 +8,6 @@ class OverviewTable {
     this.direction = 1;
     this.rows = [];
     this.visibleRows = [];
-    const helpId = root.id + '-help';
     root.classList.add('data-block');
     root.innerHTML = `
       <div class="table-tools">
@@ -16,8 +15,7 @@ class OverviewTable {
         <label>${esc(this.filter.label)} <select aria-label="${esc(options.title)}${esc(this.filter.label)}"></select></label>
         <p class="table-count" aria-live="polite">读取中</p>
       </div>
-      <p class="table-help" id="${helpId}">列宽可拖动，键盘用左右方向键。窄屏可左右滑动查列。</p>
-      <div class="table-wrap" role="region" aria-label="${esc(options.title)}" aria-describedby="${helpId}" tabindex="0">
+      <div class="table-wrap" role="region" aria-label="${esc(options.title)}" aria-describedby="table-guide" tabindex="0">
         <table class="data-table" aria-label="${esc(options.title)}">
           <colgroup>${columns.map(() => '<col>').join('')}</colgroup>
           <thead><tr>${columns.map((column, i) => `<th scope="col"><div class="th-actions">
@@ -34,7 +32,6 @@ class OverviewTable {
     this.reset.textContent = '清除筛选';
     this.count = root.querySelector('.table-count');
     this.table = root.querySelector('table');
-    this.frame = root.querySelector('.table-wrap');
     this.body = root.querySelector('tbody');
     this.cols = [...root.querySelectorAll('col')];
     this.buttons = [...root.querySelectorAll('.th-sort')];
@@ -128,7 +125,6 @@ class OverviewTable {
       });
     }
     this.visibleRows = view;
-    this.frame.dataset.long = String(view.length > 12);
     this.count.textContent = `${view.length} / ${this.rows.length} 行`;
     if (query || filter) {
       if (!this.reset.isConnected) this.count.before(this.reset);

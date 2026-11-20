@@ -76,7 +76,18 @@ function mountArchitecture(arch, onSelect) {
     draw();
   };
 
-  const width = 234, gap = 70, height = 48, rowGap = 10, top = 50, pad = 14;
+  const width = 252, gap = 64, height = 52, rowGap = 10, top = 50, pad = 14;
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = `16px ${getComputedStyle(graph).fontFamily}`;
+  const labelWithinCard = value => {
+    if (measure.measureText(value).width <= width - 24) return value;
+    let part = '';
+    for (const char of value) {
+      if (measure.measureText(part + char + '…').width > width - 24) break;
+      part += char;
+    }
+    return part + '…';
+  };
   const short = (value, limit) => {
     let weight = 0;
     for (const [index, char] of [...String(value)].entries()) {
@@ -140,8 +151,8 @@ function mountArchitecture(arch, onSelect) {
         aria-pressed="false" aria-label="${esc(node.label + '，' + state)}" transform="translate(${point.x},${point.y})">
         <rect class="node-card" width="${width}" height="${height}" rx="8" fill="${off ? '#f4f6fa' : '#fff'}" stroke="${color(node.role)}"/>
         <rect width="4" height="${height}" fill="${color(node.role)}" rx="2"/>
-        <text x="12" y="21">${esc(short(node.label, 28))}</text>
-        <text class="sub" x="12" y="38">${esc(short(state, 30))}</text>
+        <text x="12" y="21">${esc(labelWithinCard(node.label))}</text>
+        <text class="sub" x="12" y="41">${esc(labelWithinCard(state))}</text>
       </g>`;
     }
     graph.innerHTML = markup || '<text x="14" y="36">没有选中的节点类别</text>';

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""给新首页和旧版页的静态资产 URL 打上内容哈希戳。
+"""给首页、体检页和旧版页的静态资产 URL 打上内容哈希戳。
 
 为什么必须这么做(2026-08-11 实测):
   源站 nginx 给 /assets/*.js 设的是 `Cache-Control: no-cache`,
@@ -24,8 +24,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.normpath(os.path.join(HERE, "..", "web"))
-INDEX = os.path.join(WEB, "legacy.html")
-PAGES = (INDEX, os.path.join(WEB, "index.html"))
+PAGES = ("legacy.html", "index.html", "check.html")
 
 # 只戳本站自己的静态资产。data/ 是每分钟变的运行态(nginx 已 expires -1),不戳;
 # 外链 CDN 不归我们管,也戳不了。
@@ -61,8 +60,10 @@ def main():
         return pre + url + want + post
 
     updated = []
-    for page in PAGES:
-        if page != INDEX and not os.path.isfile(page):
+    for name in PAGES:
+        page = os.path.join(WEB, name)
+        if not os.path.isfile(page):
+            missing.append(name)
             continue
         with open(page, encoding="utf-8") as f:
             src = f.read()
