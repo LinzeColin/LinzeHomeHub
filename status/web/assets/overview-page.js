@@ -47,27 +47,8 @@ const OverviewPage = (() => {
     try { return document.getElementById(decodeURIComponent(hash.slice(1))); } catch { return null; }
   }
 
-  const overviewHeading = target => target?.matches('[data-km-section], .inventory-card')
-    ? target.querySelector('h1, h2, h3') : target;
-
-  function land(hash, focus = false) {
-    if (!hash || hash === '#top') {
-      scrollTo(0, 0);
-      if (focus) $('#main h1')?.focus({preventScroll: true});
-      return;
-    }
-    const target = anchorTarget(hash);
-    if (!target) return;
-    const board = target.closest('.inventory-board');
-    if (board) board.scrollLeft += target.getBoundingClientRect().left - board.getBoundingClientRect().left;
-    const heading = overviewHeading(target);
-    const headerBottom = $('.top').getBoundingClientRect().bottom;
-    scrollTo(0, Math.max(0, Math.floor(scrollY + heading.getBoundingClientRect().top - headerBottom)));
-    if (focus) {
-      heading.tabIndex = -1;
-      heading.focus({preventScroll: true});
-    }
-  }
+  const overviewHeading = target => target?.matches('h1, h2, h3')
+    ? target : target?.querySelector('h1, h2, h3') || target;
 
   function mountDetail() {
     const view = params.get('view');
@@ -109,11 +90,55 @@ const OverviewPage = (() => {
     const headings = links.map(link => overviewHeading(anchorTarget(link.hash)));
     const quickLinks = $$('.quick-links a');
     let activeIndex = 0, drawerOpen = false;
+    let landingFrame = 0, keepLanding = Boolean(location.hash);
+
+    function land(hash, focus = false) {
+      main.style.removeProperty('--landing-room');
+      if (!hash || hash === '#top') {
+        scrollTo(0, 0);
+        if (focus) main.focus({preventScroll: true});
+        return;
+      }
+      const target = anchorTarget(hash);
+      if (!target) return;
+      const board = target.closest('.inventory-board');
+      if (board) board.scrollLeft += target.getBoundingClientRect().left - board.getBoundingClientRect().left;
+      const heading = overviewHeading(target);
+      const headingTop = heading.getBoundingClientRect().top;
+      const headerBottom = topbar.getBoundingClientRect().bottom;
+      const y = Math.max(0, Math.floor(scrollY + headingTop - headerBottom));
+      const viewport = document.documentElement.clientHeight;
+      if (y + viewport > document.documentElement.scrollHeight) {
+        // A short final section only needs extra scroll room while landing on it.
+        const mainBottom = main.getBoundingClientRect().bottom + scrollY;
+        main.style.setProperty('--landing-room', `${Math.ceil(y + viewport - mainBottom)}px`);
+      }
+      scrollTo(0, y);
+      if (focus) {
+        const focusTarget = target === main ? main : heading;
+        focusTarget.tabIndex = -1;
+        focusTarget.focus({preventScroll: true});
+      }
+    }
+
+    function alignAfterLayout() {
+      cancelAnimationFrame(landingFrame);
+      landingFrame = requestAnimationFrame(() => {
+        if (keepLanding && location.hash) land(location.hash);
+        mark();
+      });
+    }
+
+    function followLocation() {
+      keepLanding = Boolean(location.hash);
+      if (!keepLanding) main.style.removeProperty('--landing-room');
+      alignAfterLayout();
+    }
 
     directoryLinks.forEach(link => { link.title = link.dataset.icon; });
     $$('#main > section, #main .inventory-card, #list, #machine, #h-attention').forEach(target => {
-      const heading = overviewHeading(target) === target && !target.matches('h3') ? target.querySelector('h2, h3') : overviewHeading(target);
-      if (!heading) return;
+      const heading = overviewHeading(target);
+      if (!heading.matches('h1, h2, h3')) return;
       heading.tabIndex = -1;
       let line = heading.parentElement;
       if (line === target || heading === target || !line.matches('.headline, .section-head')) {
@@ -164,7 +189,12 @@ const OverviewPage = (() => {
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && drawerOpen) setDrawer(false, true);
+      if (!event.defaultPrevented && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)
+          && !event.target.closest?.('a, button, input, select, textarea, [contenteditable]')) keepLanding = false;
     });
+    const releaseLanding = () => { keepLanding = false; };
+    addEventListener('wheel', releaseLanding, {passive: true});
+    addEventListener('touchmove', releaseLanding, {passive: true});
     main.addEventListener('focusin', event => {
       const target = event.target;
       if (!target.matches('a[href], button, input, select, textarea, summary')) return;
@@ -185,6 +215,7 @@ const OverviewPage = (() => {
       if (!link.hash && !topbar.contains(link)) return;
       event.preventDefault();
       if (link.href !== location.href) history.pushState(history.state, '', link.href);
+      keepLanding = Boolean(link.hash);
       land(link.hash, true);
       mark();
     });
@@ -216,16 +247,17 @@ const OverviewPage = (() => {
         if (Math.floor(heading.getBoundingClientRect().top) <= edge) active = index;
       });
       const atEnd = scrollY > 0 && innerHeight + scrollY >= document.documentElement.scrollHeight - 1;
-      if (atEnd) active = headings.length - 1;
+      if (atEnd && !main.style.getPropertyValue('--landing-room')) active = headings.length - 1;
       setCurrent(active);
     }
     addEventListener('scroll', mark, {passive: true});
-    addEventListener('hashchange', () => { land(location.hash); mark(); });
-    addEventListener('pageshow', mark);
-    addEventListener('resize', mark);
-    land(location.hash);
+    addEventListener('hashchange', followLocation);
+    addEventListener('popstate', followLocation);
+    addEventListener('pageshow', followLocation);
+    addEventListener('resize', alignAfterLayout);
+    if (location.hash) land(location.hash);
     mark();
-    return mark;
+    return alignAfterLayout;
   }
 
   async function readSource(key) {
@@ -243,10 +275,8 @@ const OverviewPage = (() => {
   }
 
   function start(keys, render) {
-    const updateNav = setupNav();
+    const alignAfterLayout = setupNav();
     const button = $('#refresh'), metadata = $('#site-standard');
-    const landingHash = location.hash;
-    let firstRead = true;
     const data = {};
     let lastAttempt = 0;
     async function read() {
@@ -273,12 +303,11 @@ const OverviewPage = (() => {
       try {
         render(data, fresh);
       } finally {
-        if (firstRead && landingHash && landingHash === location.hash) land(landingHash);
-        firstRead = false;
         button.disabled = false;
         button.textContent = '刷新数据';
         document.body.dataset.loaded = 'true';
-        updateNav();
+        // Title positions can change when the datasets populate tables and charts.
+        alignAfterLayout();
       }
     }
     button.addEventListener('click', read);
