@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="一屏查看 VPS-3 的内存、磁盘、负载、容器和最近七天趋势。">
+  <meta name="km-build" content="ZL00-261120-23">
+  <meta name="site-version" content="0.2.0">
+  <meta name="apple-mobile-web-app-title" content="服务器快照">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>服务器快照</title>
+  <link rel="icon" type="image/x-icon" href="/标志/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" type="image/png" href="/标志/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/标志/apple-touch-icon.png" sizes="180x180">
+  <link rel="alternate" type="application/json" href="/data/lock.json" title="锁屏数据">
+  <link rel="stylesheet" href="/assets/overview.css?v=3fee729c">
+  <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
+  <script src="/assets/overview-lock.js?v=9229453e" defer></script>
+  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.2.0","artifact_id":"ZL00-261120-23","content_kind":"dynamic"}</script>
+  <style>
+    .lock { max-width: 580px; padding: 14px 12px 0; margin: 0 auto; }
+    .lock-head { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .lock-head a { font-size: 14px; }
+    .lock-head h1 { font-size: clamp(26px, 6.5vw, 36px); }
+    .lock .meter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .lock .meter { padding: 9px 12px; }
+    .lock .meter:nth-child(3) { border-inline-start: none; }
+    .lock .meter:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .lock .reading { font-size: clamp(26px, 7vw, 39px); }
+    .lock .source-line { margin: 5px 0 9px; }
+    .lock .plots { margin: 9px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .lock .chart-panel { padding: 7px; }
+    .lock .chart-space { height: 82px; }
+    .lock .chart-label { font-weight: 650; }
+    .lock .chart-note, .lock .install-note { color: var(--muted); }
+    .lock .install-note { margin-top: 8px; }
+    .lock .build { padding: 8px 0 12px; }
+  </style>
+</head>
+<body data-page-kind="detail">
+<main class="lock">
+  <div class="lock-head"><h1>服务器快照</h1><a class="secondary" href="/">运行总览</a></div>
+  <p class="source-line" id="lock-time" role="status">正在读取锁屏数据…</p>
+  <div class="meter-panel" id="lock-meters">
+    <article class="meter" data-metric="mem"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>内存</h2></div><p class="reading" id="lock-mem">—</p></article>
+    <article class="meter" data-metric="disk"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>磁盘</h2></div><p class="reading" id="lock-disk">—</p></article>
+    <article class="meter" data-metric="load"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>1 分钟负载</h2></div><p class="reading" id="lock-load">—</p></article>
+    <article class="meter" data-metric="containers"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>在跑容器</h2></div><p class="reading" id="lock-containers">—</p></article>
+  </div>
+  <div class="plots">
+    <figure class="chart-panel">
+      <figcaption class="chart-label">7 天内存峰值</figcaption>
+      <div class="chart-space"><canvas id="lock-mem-chart" role="img" aria-label="最近七个悉尼日的内存样本峰值百分比"></canvas></div>
+      <p class="chart-note" id="lock-mem-note">等待数据</p>
+    </figure>
+    <figure class="chart-panel">
+      <figcaption class="chart-label">7 天磁盘已用</figcaption>
+      <div class="chart-space"><canvas id="lock-disk-chart" role="img" aria-label="最近七个悉尼日的磁盘使用百分比"></canvas></div>
+      <p class="chart-note" id="lock-disk-note">等待数据</p>
+    </figure>
+  </div>
+  <p class="install-note">Safari 分享菜单 → 添加到主屏幕</p>
+  <button type="button" class="secondary" id="lock-retry" hidden>重试</button>
+  <noscript><p>开启 JavaScript 后可读取服务器快照。</p></noscript>
+  <footer class="build">ZL00-261120-23</footer>
+</main>
+<div class="tip" id="lock-tip" role="tooltip" hidden></div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""给 index.html 里的静态资产 URL 打上内容哈希戳。
+"""给新首页、锁屏页和旧版页的静态资产 URL 打上内容哈希戳。
 
 为什么必须这么做(2026-08-11 实测):
   源站 nginx 给 /assets/*.js 设的是 `Cache-Control: no-cache`,
@@ -14,7 +14,7 @@
   于是戳等于没有。所以这里的戳**必须来自文件内容本身**,人改不动、也忘不了。
 
 用法:
-    python3 status/deploy/stamp-assets.py            # 就地改写 index.html
+    python3 status/deploy/stamp-assets.py            # 只改有变化的页面
     python3 status/deploy/stamp-assets.py --check    # 只检查,不改;戳过时则退出码 1
 """
 import hashlib
@@ -25,6 +25,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.normpath(os.path.join(HERE, "..", "web"))
 INDEX = os.path.join(WEB, "legacy.html")
+PAGES = (INDEX, os.path.join(WEB, "index.html"), os.path.join(WEB, "lock.html"))
 
 # 只戳本站自己的静态资产。data/ 是每分钟变的运行态(nginx 已 expires -1),不戳;
 # 外链 CDN 不归我们管,也戳不了。
@@ -44,7 +45,6 @@ def resolve(url):
 
 def main():
     check = "--check" in sys.argv
-    src = open(INDEX, encoding="utf-8").read()
     stale, missing, stamped = [], [], 0
 
     def repl(m):
@@ -60,7 +60,15 @@ def main():
         stamped += 1
         return pre + url + want + post
 
-    out = PATTERN.sub(repl, src)
+    updated = []
+    for page in PAGES:
+        if page != INDEX and not os.path.isfile(page):
+            continue
+        with open(page, encoding="utf-8") as f:
+            src = f.read()
+        out = PATTERN.sub(repl, src)
+        if out != src:
+            updated.append((page, out))
 
     for u in missing:
         print("✗ 资产不存在,无法打戳:%s" % u)
@@ -73,10 +81,11 @@ def main():
         print("OK —— %d 个资产的戳都与内容一致" % stamped)
         return 0
 
-    if out != src:
-        open(INDEX, "w", encoding="utf-8").write(out)
-        for s in stale:
-            print("已更新:%s" % s)
+    for page, out in updated:
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(out)
+    for s in stale:
+        print("已更新:%s" % s)
     print("OK —— %d 个资产已打戳" % stamped)
     return 1 if missing else 0
 

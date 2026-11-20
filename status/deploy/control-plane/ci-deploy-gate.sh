@@ -46,15 +46,21 @@ case "$CMD" in
     index_body="$(curl -s --max-time 5 "http://${ip}/")"
     gov_body="$(curl -s --max-time 5 "http://${ip}/agent-governance.html")"
     legacy_body="$(curl -s --max-time 5 "http://${ip}/legacy.html")"
+    lock_body="$(curl -s --max-time 5 "http://${ip}/lock.html")"
     # 2026-08-11 更新这几条断言。原来它们断言「首页必须有治理入口」「/agent-governance.html
     # 必须是真页面」—— 而治理页当天已按 owner 要求整页删除。**断言在替一个不存在的功能守门**,
     # 于是每次部署都红:#83 #84 #85 三次连续 failure,而我一直在手工 scp,所以没察觉。
     # 教训:删功能时要连同「为它守门的断言」一起删,否则闸门会拿旧世界的标准判新世界。
-    # 2026-11-19（ZL00-261119-05）首页重做为「服务器架构」，旧首页改名 legacy.html 保留到 11-26。
-    # 新首页的锚：标题、编号、唯一数据源；旧页的锚原样搬到 legacy.html 上验。
-    grep -q "<title>服务器架构</title>" <<<"$index_body" || { echo "★ 首页内容不对" >&2; fail=1; }
-    grep -q 'content="ZL00-261119-05"' <<<"$index_body"   || { echo "★ 首页编号不对 —— 部署的是旧版本" >&2; fail=1; }
-    grep -q "/data/arch.json" <<<"$index_body"           || { echo "★ 首页没接架构数据" >&2; fail=1; }
+    # KM-需-1478：新版和旧版并行。检查新版的实际页面、数据入口与锁屏页。
+    grep -Fq "<title>服务器运行总览</title>" <<<"$index_body" || { echo "★ 首页内容不对" >&2; fail=1; }
+    grep -Fq 'name="km-build" content="ZL00-261120-23"' <<<"$index_body" || { echo "★ 首页编号不对" >&2; fail=1; }
+    for data_source in arch snapshot history; do
+      grep -Fq "/data/${data_source}.json" <<<"$index_body" || { echo "★ 首页缺少 ${data_source} 数据入口" >&2; fail=1; }
+    done
+    grep -Fq 'id="compare-table"' <<<"$index_body" || { echo "★ 首页缺少新旧对照" >&2; fail=1; }
+    grep -Fq "<title>服务器快照</title>" <<<"$lock_body" || { echo "★ /lock.html 没有返回锁屏页" >&2; fail=1; }
+    grep -Fq 'name="km-build" content="ZL00-261120-23"' <<<"$lock_body" || { echo "★ 锁屏编号不对" >&2; fail=1; }
+    grep -Fq "/data/lock.json" <<<"$lock_body" || { echo "★ 锁屏页缺少数据入口" >&2; fail=1; }
     grep -q "云平台总览" <<<"$legacy_body"     || { echo "★ 旧版明细页内容不对" >&2; fail=1; }
     # 项目资源列 —— owner 明确要过的功能(每个项目吃多少内存/存储),用它当"新代码真上线了"的锚
     grep -q ">内存</th>" <<<"$legacy_body"     || { echo "★ 旧版明细页缺项目内存列" >&2; fail=1; }

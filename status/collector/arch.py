@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import time
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 from pathlib import Path
@@ -174,9 +175,12 @@ def file_routes() -> list[dict]:
         return out
     for f in sorted(TRAEFIK_DYNAMIC.glob("*.y*ml")):
         txt = f.read_text(errors="ignore")
+        targets = set(re.findall(r"url:\s*['\"]?([^'\"\s]+)", txt))
         for h in sorted(set(HOST_RE.findall(txt))):
-            url = re.search(r"url:\s*['\"]?([^'\"\s]+)", txt)
-            out.append({"host": h, "file": f.name, "target": url.group(1) if url else ""})
+            # Without the service mapping, a file with multiple targets cannot prove
+            # which backend a host reaches. Keep the ingress and leave that hop open.
+            out.append({"host": h, "file": f.name,
+                        "target": next(iter(targets)) if len(targets) == 1 else ""})
     return out
 
 
@@ -204,6 +208,7 @@ def build() -> dict:
 
     nodes: dict[str, dict] = {}
     edges: list[dict] = []
+    edge_by_pair = {}
 
     def node(nid: str, label: str, role: str, layer: int, **kw):
         if nid not in nodes:
@@ -211,9 +216,17 @@ def build() -> dict:
                           "layer": layer, **kw}
         return nid
 
-    def edge(a: str, b: str, kind: str):
-        if a in nodes and b in nodes and not any(e["from"] == a and e["to"] == b for e in edges):
-            edges.append({"from": a, "to": b, "kind": kind})
+    def edge(a: str, b: str, kind: str, host: str = ""):
+        if a not in nodes or b not in nodes:
+            return
+        key = (a, b)
+        if key not in edge_by_pair:
+            edge_by_pair[key] = {"from": a, "to": b, "kind": kind}
+            edges.append(edge_by_pair[key])
+        if host:
+            hosts = edge_by_pair[key].setdefault("hosts", [])
+            if host not in hosts:
+                hosts.append(host)
 
     # 第 2 层：对外通道（隧道＋反向代理）
     for t in tunnels:
@@ -238,6 +251,8 @@ def build() -> dict:
 
     # 第 1 层：域名，以及域名 → 通道 → 服务
     tunnel_hosts = set()
+    proxied_tunnel_hosts = set()
+    proxy_ports = next((set(c["ports"]) for c in cons if "c:" + c["name"] == proxy), set())
     for t in tunnels:
         if not t["connections"]:
             continue
@@ -245,39 +260,46 @@ def build() -> dict:
             h = i["host"]
             tunnel_hosts.add(h)
             node("d:" + h, h, "domain", 0, state="", detail="经 Cloudflare 隧道")
-            edge("d:" + h, "tun:" + t["name"], "入口")
-            pm = re.search(r":(\d+)", i["service"] or "")
-            if pm:
-                who = ports.get(int(pm.group(1)), "")
+            edge("d:" + h, "tun:" + t["name"], "入口", h)
+            try:
+                target = urllib.parse.urlsplit(i["service"] or "")
+                port = target.port or {"http": 80, "https": 443}.get(target.scheme)
+            except ValueError:
+                continue
+            if target.hostname in ("localhost", "127.0.0.1", "::1"):
+                who = ports.get(port, "")
                 if who.startswith("cid:"):
                     who = "c:" + cid_to_name.get(who[4:], who[4:])
                 elif who:
                     who = "u:" + who
+                if who not in nodes and port in proxy_ports:
+                    who = proxy
                 if who in nodes:
-                    edge("tun:" + t["name"], who, "转发")
+                    edge("tun:" + t["name"], who, "转发", h)
                     hs = nodes[who].setdefault("hosts", [])
                     if h not in hs:
                         hs.append(h)
-                elif int(pm.group(1)) in (80, 443) and proxy:
-                    edge("tun:" + t["name"], proxy, "转发")
+                    if who == proxy:
+                        proxied_tunnel_hosts.add(h)
     live = [c for c in cons if c["state"] == "running"]
     for c in live:
         for h in c["hosts"]:
             node("d:" + h, h, "domain", 0, state="", detail="经反向代理")
             if h in tunnel_hosts:
-                edge("d:" + h, "c:" + c["name"], "路由")
+                edge("d:" + h, "c:" + c["name"], "路由", h)
             elif proxy:
-                edge("d:" + h, proxy, "入口")
-                edge(proxy, "c:" + c["name"], "路由")
+                edge("d:" + h, proxy, "入口", h)
+            if proxy and proxy != "c:" + c["name"] and (h not in tunnel_hosts or h in proxied_tunnel_hosts):
+                edge(proxy, "c:" + c["name"], "路由", h)
             if c["forwardauth"] and auth and "c:" + c["name"] != auth:
                 edge("c:" + c["name"], auth, "登录")
     for r in froutes:
         node("d:" + r["host"], r["host"], "domain", 0, state="", detail=f"代理文件路由 {r['file']}")
         if proxy:
-            edge("d:" + r["host"], proxy, "入口")
+            edge("d:" + r["host"], proxy, "入口", r["host"])
         tm = re.search(r"//([^:/]+)", r["target"])
         if tm and "c:" + tm.group(1) in nodes and nodes["c:" + tm.group(1)]["state"] == "在跑":
-            edge(proxy, "c:" + tm.group(1), "路由")
+            edge(proxy, "c:" + tm.group(1), "路由", r["host"])
 
     # 底座连线：同一个 compose 项目里应用 → 库/缓存；环境变量里点名的主机
     by_proj = defaultdict(list)

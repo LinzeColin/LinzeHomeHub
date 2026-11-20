@@ -1,6 +1,7 @@
 web/data/
 data/snapshot.json
 data/history.json
+data/lock.json
 data/snapshot.json.tmp
 *.log
 # collect.py 的其余派生产物:主机上每分钟重算,仓内只跟踪 prices.json 与 agent-governance.json

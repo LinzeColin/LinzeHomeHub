@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-LinzeStatus 采集器 —— 在 OVH VPS-3 主机上由 cron 每 15 分钟运行一次。
+LinzeStatus 采集器 —— 在 OVH VPS-3 主机上由 cron 每分钟运行一次。
 把 Coolify 数据库、主机指标、证书、备份、汇率、价格库汇总成 data/snapshot.json,
 供 status.linzezhang.com 的静态页读取渲染。只读采集,唯一写动作是价格库(人工编辑)之外的快照文件。
 所有面向用户的时间统一「北京时间 UTC+8」。
@@ -18,6 +18,11 @@ import urllib.request
 import urllib.parse
 import urllib.error
 from datetime import datetime, timezone, timedelta
+
+if __package__:
+    from . import overview
+else:
+    import overview
 
 CN = timezone(timedelta(hours=8))          # 北京时间
 APP_DIR = os.environ.get("STATUS_APP_DIR", "/srv/linze/apps/status")
@@ -398,7 +403,13 @@ def project_resources():
 
 def container_health():
     """一次遍历同时拿:最大重启次数 + 崩溃自愈(restart 策略)覆盖率。"""
-    names = run("docker ps --format '{{.Names}}'").splitlines()
+    try:
+        result = subprocess.run(["docker", "ps", "--format", "{{.Names}}"],
+                                check=True, capture_output=True, text=True, timeout=20)
+        names = result.stdout.splitlines()
+        running = len(names)
+    except (OSError, subprocess.SubprocessError):
+        names, running = [], None
     mx = covered = total = ephemeral = 0
     for n in names:
         if not n:
@@ -413,7 +424,7 @@ def container_health():
         elif pol in ("no", ""):
             ephemeral += 1                       # Coolify 构建/一次性任务容器,天然无需自愈策略
     return {"restarts": mx, "policy_covered": covered,
-            "policy_total": total, "policy_ephemeral": ephemeral}
+            "policy_total": total, "policy_ephemeral": ephemeral, "running": running}
 
 
 def fmt_bytes(b):
@@ -477,11 +488,12 @@ def backup_status():
     latest = run(f"ls -t {BACKUP_DIR}/*.enc 2>/dev/null | head -1")
     if not latest:
         return {"at": None, "ok": False}
-    ts = run(f"date -d @$(stat -c %Y '{latest}') +'%Y-%m-%d %H:%M'")
-    # 24h 内算健康
-    age = run(f"echo $(( ( $(date +%s) - $(stat -c %Y '{latest}') ) / 3600 ))")
-    ok = age.isdigit() and int(age) < 26
-    return {"at": ts, "ok": ok}
+    ts = run(f"stat -c %Y '{latest}'")
+    if not ts.isdecimal():
+        return {"at": None, "ok": False}
+    epoch = int(ts)
+    return {"at": fmt(datetime.fromtimestamp(epoch)), "epoch": epoch,
+            "ok": 0 <= time.time() - epoch < 26 * 3600}
 
 
 # ---------- 证书(直连本机 Traefik,绕过 CF;用 openssl CLI 取到期日)----------
@@ -3098,10 +3110,7 @@ def main():
             hist[tier]["load"].insert(0, None)
     ep = int(time.time())
     mem_v, disk_v = host.get("mem_pct"), host.get("disk_pct")
-    try:
-        load_v = float(host.get("load15") or 0) or None
-    except (TypeError, ValueError):
-        load_v = None
+    load_v = overview.number(host.get("load15"))
     m = hist["min"]
     m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v); m["load"].append(load_v)
     for k in ("t", "mem", "disk", "load"):
@@ -3112,7 +3121,8 @@ def main():
         h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v); h["load"].append(load_v)
     else:
         h["mem"][-1] = mem_v; h["disk"][-1] = disk_v
-        h["load"][-1] = max(h["load"][-1] or 0, load_v or 0) or None   # 小时桶取峰值,不掩盖高负载
+        candidates = [v for v in (h["load"][-1], load_v) if v is not None]
+        h["load"][-1] = max(candidates, default=None)   # 小时桶取峰值,不掩盖高负载
     for k in ("t", "mem", "disk", "load"):
         h[k] = h[k][-744:]                       # 31 天 @ 1hour
     d = hist["day"]
@@ -3122,9 +3132,6 @@ def main():
     else:
         d["mem"][-1] = mem_v; d["disk"][-1] = disk_v
     # 天级别**不设上限**:一天一个点,永久保留(无期限)
-    with open(os.path.join(DATA_DIR, "history.json"), "w") as f:
-        json.dump(hist, f)
-
     projects, online = projects_live()
     # 把实测的内存/存储挂到每个项目上 —— 光有全机 mem_pct 没法回答"该搬谁"
     try:
@@ -3165,6 +3172,7 @@ def main():
         "snapshot": "disabled",
     }
     ch = container_health()
+    host["containers_running"] = ch["running"]
     backup = backup_status()
     costblk = cost(prices, fx)
     # ★ 必须放在 costblk 之后 —— 第一版插在它前面,主机上直接 UnboundLocalError,
@@ -3213,6 +3221,9 @@ def main():
     snap["capacity"] = capacity_advice(host, hist, prices, snap["software"])
     snap["flow"] = flow_state()
     snap["graph"] = project_graph(projects, snap["github"])
+    snap["attention"] = overview.attention(snap)
+    overview.record_day(hist, ep, snap)
+    overview.write_json_atomic(os.path.join(DATA_DIR, "history.json"), hist)
 
     # 关系图单独出一份小文件,供 home 站跨域拉取(比整份 80KB 快照轻得多)
     try:
@@ -3227,6 +3238,10 @@ def main():
     with open(tmp, "w") as f:
         json.dump(snap, f, ensure_ascii=False, indent=1)
     os.replace(tmp, os.path.join(DATA_DIR, "snapshot.json"))
+    try:
+        overview.write_lock(os.path.join(DATA_DIR, "lock.json"), snap, hist)
+    except (OSError, ValueError) as exc:
+        print(f"lock.json: write failed ({type(exc).__name__})", file=sys.stderr)
     print("snapshot written:", snap["updated_at"], "online", online, "rate", dep["rate"])
 
 
