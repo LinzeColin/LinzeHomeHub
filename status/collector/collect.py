@@ -3238,10 +3238,6 @@ def main():
     with open(tmp, "w") as f:
         json.dump(snap, f, ensure_ascii=False, indent=1)
     os.replace(tmp, os.path.join(DATA_DIR, "snapshot.json"))
-    try:
-        overview.write_lock(os.path.join(DATA_DIR, "lock.json"), snap, hist)
-    except (OSError, ValueError) as exc:
-        print(f"lock.json: write failed ({type(exc).__name__})", file=sys.stderr)
     print("snapshot written:", snap["updated_at"], "online", online, "rate", dep["rate"])
 
 
