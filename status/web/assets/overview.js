@@ -130,6 +130,16 @@
     const diskTone = disk >= diskClean ? 'bad' : disk >= 75 ? 'warn' : '';
     meter('mem', mem, '%', memTone ? '需关注 · 已达 90%' : '使用率 · 90% 提醒', memTone);
     meter('disk', disk, '%', (diskTone === 'bad' ? '已达自愈阈值 · ' : diskTone === 'warn' ? '偏高 · ' : '') + gb(host.disk_used_b), diskTone);
+    // 每块盘一行：系统盘、附加盘分开看（Owner 11-20）。只有一块盘时不加。
+    const diskBox = document.querySelector('[data-metric="disk"]');
+    if (diskBox) {
+      let list = diskBox.querySelector('.disk-list');
+      const disks = Array.isArray(host.disks) ? host.disks : [];
+      if (disks.length > 1) {
+        if (!list) { list = document.createElement('ul'); list.className = 'disk-list'; diskBox.appendChild(list); }
+        list.innerHTML = disks.map(d => `<li><span>${esc(d.role)} ${esc(d.mount)}</span><b>${esc(fmt(d.pct, '%', 1))}</b><small>${esc(gb(d.used_b))} / ${esc(gb(d.total_b))}</small></li>`).join('');
+      } else if (list) list.remove();
+    }
     text('#snapshot-time', snap
       ? `VPS-3 · ${D.day(snap.updated_epoch)} ${D.clock(snap.updated_epoch)} 悉尼${state.snapshotAlert || (snapshotStale(snap) ? ' · 采集已超过 3 分钟' : '')}`
       : '运行快照取数失败。可刷新重试。');

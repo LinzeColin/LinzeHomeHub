@@ -189,7 +189,22 @@ def host_metrics():
     f = run("free -m | awk '/Mem:/{print $2\" \"$3\" \"$7} /Swap:/{print $2\" \"$3}'").split()
     g = (lambda i: int(f[i]) if i < len(f) and f[i].isdigit() else None)
     cores = run("nproc")
+    # 每块真实磁盘分开列（Owner 11-20 加 100GB 附加盘：「把附加盘的存储情况展示出来」）。
+    # 只取 /dev/ 设备、去掉 /boot 类小分区；同一设备挂多处只留第一处。
+    disks, seen_dev = [], set()
+    for line in run("df -PB1 -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs -x vfat 2>/dev/null | awk 'NR>1{print $1\" \"$2\" \"$3\" \"$6}'").splitlines():
+        p = line.split()
+        if len(p) != 4 or not p[0].startswith("/dev/") or p[3].startswith("/boot") or p[0] in seen_dev:
+            continue
+        if not (p[1].isdigit() and p[2].isdigit()) or int(p[1]) == 0:
+            continue
+        seen_dev.add(p[0])
+        disks.append({"mount": p[3], "role": "系统盘" if p[3] == "/" else "附加盘",
+                      "used_b": int(p[2]), "total_b": int(p[1]),
+                      "pct": round(int(p[2]) / int(p[1]) * 100, 1)})
+    disks.sort(key=lambda d: (d["mount"] != "/", d["mount"]))
     return {
+        "disks": disks,
         "mem_pct": int(mem) if mem.isdigit() else None,
         "disk_pct": int(disk) if disk.isdigit() else None,
         "disk_used_b": used_b,
