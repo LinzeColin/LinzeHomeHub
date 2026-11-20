@@ -104,8 +104,8 @@ main > section { padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px s
 main > section:last-of-type { padding-bottom: 18px; margin-bottom: 0; }
 body[data-page-kind="home"] main > section { padding-bottom: 12px; margin-bottom: 12px; }
 body[data-page-kind="home"] main > section:last-of-type { margin-bottom: 0; }
-main, main :is(a, button, input, select, textarea, summary, [id], [tabindex]) {
-  scroll-margin-top: calc(var(--topbar) + 6px);
+main, main :is(a, button, input, select, textarea, summary, [tabindex]) {
+  scroll-margin-top: 6px;
   scroll-margin-bottom: 6px;
 }
 
