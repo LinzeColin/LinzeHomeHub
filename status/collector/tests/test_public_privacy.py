@@ -15,9 +15,12 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import collect_github as G                                   # noqa: E402
+import overview                                             # noqa: E402
 
 SECRET = sorted(G.PRIVATE_NAMES_GUARD)
 
@@ -108,6 +111,56 @@ class UngovernedPrivacyTest(unittest.TestCase):
         self.assertEqual(pub.get("ungoverned_count"), 2, "计数必须出，否则公开面看不到有问题")
         self.assertEqual(pub.get("ungoverned_scanned"), 9)
         self.assertEqual(pub.get("ungoverned_exempt"), 1)
+
+
+class LockPrivacyTest(unittest.TestCase):
+    def test_written_lock_file_has_only_aggregate_fields(self):
+        epoch = int(datetime.fromisoformat("2026-11-20T11:00:00+11:00").timestamp())
+        snapshot = {
+            "updated_epoch": epoch, "host": {"mem_pct": 41, "disk_pct": 75, "load1": "0.40"},
+            "projects": [{"name": SECRET[0], "url": "https://private.example", "status": "down"}],
+            "software": {"units": [{"kind": "container", "state": "running", "id": SECRET[0]}]},
+            "usage": [{"label": SECRET[0], "used": 30, "limit": 30, "bounded": True}],
+        }
+        history = {"min": {"t": [epoch], "mem": [44], "disk": [75], "private": [SECRET[0]]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "lock.json"
+            overview.write_lock(path, snapshot, history)
+            raw = path.read_bytes()
+        self.assertLessEqual(len(raw), 2048)
+        self.assertNotIn(SECRET[0].encode(), raw)
+        self.assertNotIn(b"private.example", raw)
+        public = json.loads(raw)
+        self.assertEqual(set(public), {
+            "updated_epoch", "mem_pct", "disk_pct", "load1", "containers_running", "pending_count", "days",
+        })
+        self.assertEqual(public["pending_count"], 1)  # excludes warnings and full rolling backups
+        self.assertEqual(public["containers_running"], 1)
+        self.assertEqual(len(public["days"]), 7)
+        for item in public["days"]:
+            self.assertEqual(set(item), {"date", "disk_pct", "mem_peak_pct"})
+        self.assertEqual(public["days"][0], {"date": "2026-11-14", "disk_pct": None, "mem_peak_pct": None})
+        self.assertEqual(public["days"][-1], {"date": "2026-11-20", "disk_pct": 75, "mem_peak_pct": 44})
+
+    def test_daily_stats_respect_sydney_midnight_and_skip_minute_retry(self):
+        first = int(datetime.fromisoformat("2026-11-19T23:59:51+11:00").timestamp())
+        history = {}
+        sample = {"host": {"mem_pct": 11, "disk_pct": 80, "load15": "0", "containers_running": 0},
+                  "summary": {"services_online": "1/3"}}
+        overview.record_day(history, first, sample)
+        overview.record_day(history, first + 2, sample)
+        sample["host"].update(mem_pct=25, disk_pct=82, load15="1.5", containers_running=2)
+        overview.record_day(history, first + 15, sample)
+        sample["host"].update(mem_pct=None, disk_pct=None, load15=None, containers_running=None)
+        overview.record_day(history, first + 75, sample)
+        previous, current = history["daily_sydney"].values()
+        self.assertEqual(previous["mem_samples"], 1)
+        self.assertEqual(previous["load_peak"], 0)
+        self.assertEqual(previous["containers_running"], 0)
+        self.assertEqual(current["mem_sum"], 25)
+        self.assertEqual(current["disk_pct"], 82)
+        self.assertEqual(current["probes_up"], 2)
+        self.assertEqual(current["probes_total"], 6)
 
 
 if __name__ == "__main__":

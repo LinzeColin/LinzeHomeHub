@@ -10,22 +10,30 @@
 **这里就是它的唯一源码位置**（它曾被误建为独立仓 `LinzeStatus`，已整体迁入本目录，那个仓不再使用）。
 
 
-> **11-19 重做首页（ZL00-261119-05）：** 首页 `web/index.html` 改为「服务器架构」——域名 → 对外通道 → 服务 → 底座的分层图、体检、全部清单，
-> 数据只来自 `collector/arch.py`（root cron `deploy/linze-status-arch.cron`，每 5 分钟实测，写 `data/arch.json` 与 Mermaid 版 `data/arch.mmd`）。
-> 旧首页改名 `web/legacy.html`（页面契约测试与 `stamp-assets.py` 已跟着指向它），保留到 11-26，期间把要留的面板并进新页后删除。
+> 首页 `web/index.html` 显示资源、历史、组织归属、分层架构、访问与数据链、成本、体检和新旧对照。
+> 数据来自 `data/arch.json`、`data/snapshot.json`、`data/history.json`。
+> 新旧并行，新版逐项补齐、过网站闸后再合并（KM-需-1478）；合并前旧版不动。
 
 ## 目录
 
 | 路径 | 作用 |
 |---|---|
-| `collector/arch.py` | 架构采集器，root cron **每 5 分钟**，产出 `data/arch.json`、`data/arch.mmd`（首页唯一数据源） |
-| `collector/collect.py` | 主采集器，主机 cron **每 1 分钟**跑一次，产出 `data/snapshot.json` |
+| `collector/arch.py` | 架构采集器，root cron **每 5 分钟**，产出 `data/arch.json`、`data/arch.mmd` |
+| `collector/collect.py` | 主采集器，主机 cron **每 1 分钟**，产出 `data/snapshot.json`、`data/history.json` 与 `data/lock.json` |
 | `collector/collect_github.py` | GitHub 工程面采集，**三层**：fast 每 1 分钟 / traffic 每 15 分钟 / deep 每小时；公开件写 `data/`，私有件写 `private/` |
 | `collector/tests/` | 机器守卫：登记治理、公开面隐私、实时访问分类 |
 | `web/` | 静态页壳（自带本地 Chart.js，不取第三方 CDN） |
+| `widget/锁屏小组件.js` | Scriptable 的锁屏矩形、锁屏圆形和主屏中号小组件 |
 | `admin/` | `/admin` 价格编辑器与私有视图，前有 Cloudflare Access，后端再自校验 JWT |
 | `deploy/` | docker-compose、nginx、自愈引擎与备份脚本、各 cron 片段 |
 | `data/prices.json` | 成本价格库，唯一人工维护项（其余全为采集产物） |
+
+## 锁屏与历史
+
+- Safari 打开 `/lock.html`，用分享菜单「添加到主屏幕」。使用 Scriptable 时，将 `widget/锁屏小组件.js` 粘贴为新脚本，并在 iPhone 锁屏或主屏的小组件设置里选中它。刷新时间由 iOS 调度。
+- 主采集器用同一次快照写出小于等于 2 KB 的 `data/lock.json`。公开字段只含采集时刻、四项主机读数、旧版严重告警的数量以及七个悉尼日的内存和磁盘数值。没有额外的进程、密钥或 R2 操作。
+- `history.json` 保留旧版的分钟、小时、日序列。新增 `daily_sydney` 保留最近 31 个悉尼日的观测统计。部署前的日期只展示能够从旧样本回算的读数，缺项显示「无数据」。每日探测在线率使用旧版的在线数和探测分母累计计算。
+- 异地备份主通道使用 GitHub Release。按零付费台账，整包的 R2 写入已停用。独立的 status 数据镜像按现行配置运行，源码和镜像成功时刻未随本站快照发布。
 
 ## 部署
 
@@ -51,10 +59,10 @@ ubuntu 在这台机器上是 NOPASSWD ALL，那等于把 root 交出去。
 rsync -av --exclude 'data/' --exclude 'private/' --exclude '.secrets/' status/ ubuntu@15.235.141.201:/srv/linze/apps/status/
 ```
 
-只改了采集器时，同步那一个文件最稳：
+只更新主采集器时，连同它使用的派生模块一起同步：
 
 ```bash
-rsync -av status/collector/collect.py ubuntu@15.235.141.201:/srv/linze/apps/status/collector/collect.py
+rsync -av status/collector/collect.py status/collector/overview.py ubuntu@15.235.141.201:/srv/linze/apps/status/collector/
 ```
 
 `collector/` 的改动在下一次 cron（≤1 分钟）生效；`web/` 与 `deploy/` 的改动需重启 `linze-status` 容器。
@@ -110,7 +118,7 @@ python3 status/collector/tests/test_software_registry.py
 
 ## 约定
 
-- 面向用户的时间一律「北京时间 UTC+8」。
+- 新版与锁屏显示悉尼时间。旧版和原有数据字段沿用原格式以保持兼容。
 - 采集器只读：唯一写动作是产出快照文件，不碰任何被监控对象。
 - **全套跑在云端**：采集、自愈、归档全部由主机 cron 驱动，不依赖任何本机进程、
   不占用本机内存/存储/缓存，也不依赖 agent 与 token（见 CodexProject 的零 Agent 契约）。
