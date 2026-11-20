@@ -1,4 +1,4 @@
-/* The existing five-layer view with the same subgraph selection and role filters. */
+/* Layered architecture with subgraph selection and role filters. */
 function mountArchitecture(arch, onSelect) {
   const {esc, fmt} = OverviewData;
   const graph = document.querySelector('#g');
@@ -14,7 +14,7 @@ function mountArchitecture(arch, onSelect) {
     mail: '#a03668', monitor: '#436487', service: '#52647c', external: '#714ba3',
     manager: '#52647c', timer: '#52647c',
   };
-  const layerNames = ['域名', '对外通道', '服务', '底座', '外部'];
+  const layerNames = ['域名', '对外通道', '应用', '系统服务', '定时任务', '底座', '外部'];
   const nodes = new Map(arch.nodes.map(node => [node.id, node]));
   const incoming = new Map(), outgoing = new Map();
   for (const edge of arch.edges) {
@@ -36,8 +36,10 @@ function mountArchitecture(arch, onSelect) {
   function layerOf(node) {
     if (node.role === 'domain') return 0;
     if (isHub(node)) return 1;
-    if (node.role === 'external') return 4;
-    return ['db', 'cache', 'auth', 'mail', 'monitor', 'manager'].includes(node.role) ? 3 : 2;
+    if (node.role === 'service') return 3;
+    if (node.role === 'timer') return 4;
+    if (node.role === 'external') return 6;
+    return ['db', 'cache', 'auth', 'mail', 'monitor', 'manager'].includes(node.role) ? 5 : 2;
   }
 
   const observer = new IntersectionObserver(entries => {

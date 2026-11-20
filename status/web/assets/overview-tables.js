@@ -8,13 +8,15 @@ class OverviewTable {
     this.direction = 1;
     this.rows = [];
     this.visibleRows = [];
+    const shared = options.sharedFilters;
+    const count = '<p class="table-count" aria-live="polite">读取中</p>';
     root.classList.add('data-block');
     root.innerHTML = `
-      <div class="table-tools">
+      ${shared ? count : `<div class="table-tools">
         <label>搜索 <input type="search" placeholder="搜索…" aria-label="搜索${esc(options.title)}"></label>
         <label>${esc(this.filter.label)} <select aria-label="${esc(options.title)}${esc(this.filter.label)}"></select></label>
-        <p class="table-count" aria-live="polite">读取中</p>
-      </div>
+        ${count}
+      </div>`}
       <div class="table-wrap" role="region" aria-label="${esc(options.title)}" aria-describedby="table-guide" tabindex="0">
         <table class="data-table" aria-label="${esc(options.title)}">
           <colgroup>${columns.map(() => '<col>').join('')}</colgroup>
@@ -24,12 +26,9 @@ class OverviewTable {
           </div></th>`).join('')}</tr></thead><tbody></tbody>
         </table>
       </div>`;
-    this.search = root.querySelector('input');
-    this.select = root.querySelector('select');
-    this.reset = document.createElement('button');
-    this.reset.type = 'button';
-    this.reset.className = 'secondary table-reset';
-    this.reset.textContent = '清除筛选';
+    this.search = shared?.search || root.querySelector('input');
+    this.select = shared?.select || root.querySelector('select');
+    this.sharedFilters = Boolean(shared);
     this.count = root.querySelector('.table-count');
     this.table = root.querySelector('table');
     this.body = root.querySelector('tbody');
@@ -40,20 +39,36 @@ class OverviewTable {
     this.isPinned = options.isPinned || (() => false);
     this.empty = options.empty || '无数据';
     this.resize();
-    this.search.addEventListener('input', () => this.render());
-    this.select.addEventListener('change', () => this.render());
-    this.reset.addEventListener('click', () => {
-      this.search.value = '';
-      this.select.value = '';
-      this.render();
-      this.search.focus();
-    });
+    if (!shared) this.reset = OverviewTable.bindFilters(this.search, this.select, () => this.render());
     this.buttons.forEach((button, index) => button.addEventListener('click', () => {
       this.direction = this.sort === index ? -this.direction : 1;
       this.sort = index;
       this.render();
     }));
     root.querySelectorAll('.th-size').forEach((grip, index) => this.bindResize(grip, index));
+  }
+
+  static bindFilters(search, select, render) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'secondary table-reset';
+    reset.textContent = '清除筛选';
+    search.addEventListener('input', render);
+    select.addEventListener('change', render);
+    reset.addEventListener('click', () => {
+      search.value = '';
+      select.value = '';
+      render();
+      search.focus();
+    });
+    return reset;
+  }
+
+  static setOptions(select, values) {
+    const selected = select.value;
+    const options = [...new Set(values.filter(value => value != null))];
+    select.replaceChildren(new Option('全部', ''), ...options.map(value => new Option(value, value)));
+    if (options.includes(selected)) select.value = selected;
   }
 
   bindResize(grip, index) {
@@ -84,10 +99,7 @@ class OverviewTable {
 
   setRows(rows) {
     this.rows = rows;
-    const selected = this.select.value;
-    const options = [...new Set(rows.map(this.filter.value).filter(value => value !== null && value !== undefined))];
-    this.select.replaceChildren(new Option('全部', ''), ...options.map(value => new Option(value, value)));
-    if (options.includes(selected)) this.select.value = selected;
+    if (!this.sharedFilters) OverviewTable.setOptions(this.select, rows.map(this.filter.value));
     this.render();
   }
 
@@ -95,6 +107,13 @@ class OverviewTable {
     if (![...this.select.options].some(option => option.value === value)) return;
     this.select.value = this.select.value === value ? '' : value;
     this.render();
+  }
+
+  focusRow(row) {
+    const control = this.body.rows[this.visibleRows.indexOf(row)]?.querySelector('button, a[href]');
+    if (!control) return;
+    control.scrollIntoView({block: 'center', inline: 'nearest'});
+    control.focus({preventScroll: true});
   }
 
   render() {
@@ -126,10 +145,12 @@ class OverviewTable {
     }
     this.visibleRows = view;
     this.count.textContent = `${view.length} / ${this.rows.length} 行`;
-    if (query || filter) {
-      if (!this.reset.isConnected) this.count.before(this.reset);
-    } else {
-      this.reset.remove();
+    if (this.reset) {
+      if (query || filter) {
+        if (!this.reset.isConnected) this.count.before(this.reset);
+      } else {
+        this.reset.remove();
+      }
     }
     this.body.innerHTML = view.length ? view.map(row => `<tr class="${esc(this.rowClass(row))}">
       ${columns.map(column => `<td>${column.render ? column.render(row) : esc(value(column, row) ?? noData)}</td>`).join('')}

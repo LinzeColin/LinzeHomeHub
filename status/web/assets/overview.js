@@ -1,25 +1,45 @@
 (() => {
   const D = OverviewData;
   const {esc, fmt, num, noData, stamp} = D;
-  const {$, $$, text, col, table, pluck, badge, backupEpoch, selectedNode, nodeUrl, start} = OverviewPage;
+  const {
+    $, $$, text, col, table, tableGroup, unitGroup, pluck, badge, graphLink, backupEpoch, selectedNode, nodeUrl, detailUrl,
+    detailView, params, start,
+  } = OverviewPage;
+  const home = document.body.dataset.pageKind === 'home';
+  if (!home && !detailView) return;
+
   const movedAnchors = new Set(['#health', '#h-health', '#h-attention', '#list', '#h-list', '#machine', '#compare', '#h-compare']);
+  const detailAnchors = {
+    '#h-daily': 'history', '#h-unowned': 'org', '#h-routes': 'flows', '#h-dataflow': 'flows',
+    '#h-vendors': 'cost', '#h-renew': 'cost', '#h-capacity': 'cost',
+  };
   function redirectMovedAnchor() {
-    if (!movedAnchors.has(location.hash)) return false;
-    location.replace('/check.html' + location.hash);
+    const hash = location.hash;
+    const detail = detailAnchors[hash];
+    if (movedAnchors.has(hash)) location.replace(nodeUrl('/check.html', selectedNode(), hash));
+    else if ((!hash || hash === '#arch' || hash === '#h-arch') && selectedNode()) {
+      location.replace(detailUrl('arch', '#arch', {node: selectedNode()}));
+    }
+    else if (detail) location.replace(detailUrl(detail, hash));
+    else return false;
     return true;
   }
-  if (redirectMovedAnchor()) return;
-  addEventListener('hashchange', redirectMovedAnchor);
+  if (home) {
+    if (redirectMovedAnchor()) return;
+    addEventListener('hashchange', redirectMovedAnchor);
+  }
 
-  const state = {period: 7, epoch: null, snapshot: null, history: null, arch: null, snapshotAlert: '', historyEmbedded: false};
+  const days = Number(params.get('days'));
+  const period = [1, 7, 30].includes(days) ? days : 7;
+  const state = {period, epoch: null, snapshot: null, history: null, arch: null, snapshotAlert: '', historyEmbedded: false};
   const diskClean = 85;
   let graph, historyChart, dailyRows = [];
+  let requestedDate = params.get('date');
   let requestedNode = selectedNode();
 
   const brief = text => String(text ?? noData).replaceAll('**', '');
   const aud = value => num(value) === null ? noData : 'A$' + fmt(value, '', 2);
   const gb = bytes => num(bytes) === null ? noData : fmt(num(bytes) / 1024 ** 3, ' GiB', 1);
-  const graphLink = (id, value) => id ? `<button type="button" class="graph-link" data-arch-node="${esc(id)}">${esc(value)}</button>` : esc(value);
 
   const memLoad = (average, peak, unit, digits) => r => {
     const first = esc(fmt(r[average], unit, digits));
@@ -35,16 +55,21 @@
   const dailyTable = table('#daily-table', '每日资源历史', historyColumns, '按日期', pluck('date'), {
     isPinned: row => row.current === true, rowClass: row => row.current ? 'current-row' : '',
   });
-  const orgTable = table('#org-table', '未写归属项', [
-    col('label', '项目或运行单元', 238, r => graphLink(r.id, r.label)), col('type', '类型', 125),
-    col('project', '已知项目', 160), col('detail', '登记或识别依据', 240),
-  ], '按类型', pluck('type'), {rowClass: () => 'flag-row'});
+  const unowned = $('#org-table');
+  const unownedTables = unowned && new Map([
+    ['ingress', '未写归属的入口与通道'],
+    ['runtime', '未写归属的项目、应用与底座'],
+    ['services', '未写归属的服务与任务'],
+  ].map(([group, title]) => [group, tableGroup(unowned, 'unowned-' + group, title, [
+    col('label', '项目或运行单元', 260, r => graphLink(r.id, r.label)), col('type', '类型', 125),
+    col('project', '已知项目', 170), col('detail', '登记或识别依据', 460),
+  ], '按类型', pluck('type'), {rowClass: () => 'flag-row'})]));
   const routeTable = table('#route-table', '对外逻辑链', [
     col('host', '对外域名', 240, r => graphLink(r.node, r.host)),
     col('state', '链路状态', 142, r => badge(r.state, r.state === '断点' ? 'bad' : r.state === '路由缺证' ? 'warn' : 'good')),
     col('cloud', 'Cloudflare', 155), col('tunnel', '隧道', 145), col('proxy', '代理', 174),
-    col('service', '服务', 210), col('dependencies', '库或外部依赖', 215),
-    col('probes', '探测结果', 220), col('findings', '断点或缺证', 265,
+    col('service', '服务', 280), col('dependencies', '库或外部依赖', 315),
+    col('probes', '探测结果', 310), col('findings', '断点或缺证', 420,
       r => `<span class="${r.state === '有路由记录' ? '' : 'bad-text'}">${esc(r.findings)}</span>`),
   ], '按状态', pluck('state'), {rowClass: r => r.state === '有路由记录' ? '' : 'flag-row'});
   const lineageTable = table('#lineage-table', '采集与备份数据链', [
@@ -69,17 +94,6 @@
     col('dim', '维度', 120), col('status', '判定', 125, r => badge(r.status, r.tone)),
     col('fact', '实测值', 192), col('rule', '阈值', 200), col('read', '判读', 280),
   ], '按判定', pluck('status'));
-  document.addEventListener('click', event => {
-    const link = event.target.closest('button[data-arch-node]');
-    if (!link || !graph) return;
-    graph.focus(link.dataset.archNode, true);
-    if (location.hash !== '#arch') location.hash = 'arch';
-    else $('#arch').scrollIntoView();
-    const heading = $('#h-arch');
-    heading.tabIndex = -1;
-    heading.focus({preventScroll: true});
-  });
-
   function meter(id, value, unit, note, tone, digits = 0) {
     const box = $(`[data-metric="${id}"]`);
     box.dataset.tone = tone || '';
@@ -123,8 +137,10 @@
     graphTip.style.top = Math.max(6, y + graphTip.offsetHeight < innerHeight ? y : y - graphTip.offsetHeight - 30) + 'px';
   }
   const clearTip = () => { graphTip.hidden = true; };
-  addEventListener('scroll', clearTip, {passive: true});
-  $('#history-chart').addEventListener('pointerleave', clearTip);
+  if (graphTip && home) {
+    addEventListener('scroll', clearTip, {passive: true});
+    $('#history-chart').addEventListener('pointerleave', clearTip);
+  }
 
   if (window.Chart) {
     Chart.Interaction.modes.resourcePoint = (chart, event, options, useFinalPosition) =>
@@ -201,17 +217,23 @@
   function showHistory() {
     const {history, epoch, period, snapshot} = state;
     const points = history && epoch ? D.plot(history, period, epoch, snapshot) : [];
-    dailyRows = history && epoch ? D.daily(history, period, epoch) : [];
-    if (snapshot) dailyRows.unshift(D.currentRow(snapshot));
-    dailyTable.setRows(dailyRows);
-    $('#history-csv').disabled = !dailyRows.length;
+    if (dailyTable) {
+      dailyRows = history && epoch ? D.daily(history, period, epoch) : [];
+      if (snapshot) dailyRows.unshift(D.currentRow(snapshot));
+      dailyTable.setRows(dailyRows);
+      if (requestedDate) dailyTable.pick(requestedDate);
+      requestedDate = null;
+      $('#history-csv').disabled = !dailyRows.length;
+      return;
+    }
+    setHistoryLink();
     const sampling = {1: '10 分钟平均', 7: '小时采样', 30: '按日取最后读数'}[period];
     const drawable = points.length > 1 && points[0].t < points.at(-1).t && Boolean(window.Chart);
     text('#history-summary', !history || !epoch ? '历史文件取数失败。可刷新重试。'
-      : points.length && !drawable ? (window.Chart ? '样本不足以绘制趋势。下表可查看已有读数。'
-        : '图表组件未加载。下表可查看已有读数。') : trendSummary(points, period));
+      : points.length && !drawable ? (window.Chart ? '样本不足以绘制趋势，可查每日资源表。'
+        : '图表组件未加载，可查每日资源表。') : trendSummary(points, period));
     text('#history-context', points.length
-      ? [`悉尼时间 · ${sampling}`, drawable ? '点选可筛选下方日期' : '', state.historyEmbedded ? '来源为运行快照内的历史' : ''].filter(Boolean).join(' · ')
+      ? [`悉尼时间 · ${sampling}`, drawable ? '点图选择日期' : '', state.historyEmbedded ? '来源为运行快照内的历史' : ''].filter(Boolean).join(' · ')
       : '');
     $('#history-chart').hidden = !drawable;
     clearTip();
@@ -256,13 +278,22 @@
             `${picked.dataset.label} ${percentLabel(picked.parsed.y)}`, point.source]);
         }}},
         onClick: (_event, elements) => {
-          if (elements.length) dailyTable.pick(points[elements[0].index].date);
+          if (!elements.length) return;
+          const date = points[elements[0].index].date;
+          setHistoryLink(requestedDate === date ? null : date);
         },
       },
     });
   }
 
-  $('#history-csv').addEventListener('click', () => {
+  function setHistoryLink(date = requestedDate) {
+    const link = $('#history-detail');
+    requestedDate = date;
+    link.href = detailUrl('history', '#h-daily', {days: state.period, ...(date ? {date} : {})});
+    link.textContent = date ? `查看 ${date} 的每日资源表` : '每日资源表与 CSV';
+  }
+
+  $('#history-csv')?.addEventListener('click', () => {
     const csvQuote = value => '"' + String(value).replaceAll('"', '""') + '"';
     const rows = [
       ['日期（悉尼）', '内存均值 (%)', '内存峰值 (%)', '磁盘已用 (%)', '磁盘已用 (字节)',
@@ -278,31 +309,42 @@
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   });
-  $$('[data-period]').forEach(button => button.addEventListener('click', () => {
-    state.period = Number(button.dataset.period);
-    $$('[data-period]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
-    showHistory();
-  }));
+  const periods = $$('[data-period]');
+  periods.forEach(button => {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.period) === state.period));
+    button.addEventListener('click', () => {
+      state.period = Number(button.dataset.period);
+      requestedDate = null;
+      periods.forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+      showHistory();
+    });
+  });
 
   function showOrg() {
     const {lines, missing} = D.organization(state.arch || {}, state.snapshot || {});
     if (!state.arch && !state.snapshot) {
       text('#org-summary', '架构和运行快照取数失败。');
-      text('#org-missing', '归属清点无数据。');
+      if (unowned) text('#org-missing', '归属清点无数据。');
     } else {
       const projects = state.snapshot?.projects.length;
       const catalog = projects == null ? '项目登记未取到' : `登记项目 ${projects} 个`;
-      const linesText = state.arch ? `已记录 ${lines.size} 个归属分组` : '架构记录未取到';
-      text('#org-summary', `${linesText} · ${catalog}。按已写明的归属展示。`);
+      const linesText = state.arch ? `${lines.size} 个归属分组` : '架构记录未取到';
+      text('#org-summary', `${linesText} · ${catalog} · ${missing.length} 项未写归属。`);
       const nodes = missing.filter(row => row.id).length;
-      text('#org-missing', `未写归属 ${missing.length} 项（${nodes} 个架构节点，${missing.length - nodes} 个项目登记）。`);
+      if (unowned) text('#org-missing', `未写归属 ${missing.length} 项（${nodes} 个架构节点，${missing.length - nodes} 个项目登记）。`);
     }
+    if (!unowned) return;
     $('#org-tree').innerHTML = [...lines].sort(([a], [b]) => a.localeCompare(b)).map(([line, projects]) => `
       <article class="org-line"><h3>${esc(line)}</h3><ul>${[...projects].map(([project, units]) => `
         <li><strong>${esc(project)}</strong>
         ${units.length ? `<ul class="unit-list">${units.map(n =>
           `<li>${graphLink(n.id, n.label)} · ${esc(n.role_cn || n.role)}</li>`).join('')}</ul>` : '<p>暂未关联架构节点</p>'}</li>`).join('')}</ul></article>`).join('');
-    orgTable.setRows(missing);
+    const buckets = new Map([...unownedTables.keys()].map(group => [group, []]));
+    for (const row of missing) {
+      const group = unitGroup(row.role);
+      buckets.get(group === 'timers' ? 'services' : group).push(row);
+    }
+    for (const [group, list] of unownedTables) list.setRows(buckets.get(group));
   }
 
   function showArchitecture() {
@@ -312,6 +354,13 @@
       return;
     }
     const active = arch.counts || {};
+    if (home) {
+      const facts = [['域名', active['域名']], ['在用隧道', active['隧道']],
+        ['系统服务', active['系统服务']], ['连线', arch.edges.length]];
+      $('#arch-summary').innerHTML = `<ul class="arch-facts" aria-label="架构数量">${facts.map(([label, count]) =>
+        `<li><strong>${esc(count ?? noData)}</strong> ${label}</li>`).join('')}</ul>`;
+      return;
+    }
     text('#arch-summary', `${active['域名'] ?? noData} 个域名 · ${active['隧道'] ?? noData} 条在用隧道 · ${active['系统服务'] ?? noData} 个系统服务 · ${arch.edges.length} 条连线。 ${stamp(arch.generated_epoch)}（悉尼）${arch.cloudflare_note ? ' · 云入口：' + arch.cloudflare_note : ''}`);
     const inventoryLink = $('#graph-inventory');
     graph?.dispose();
@@ -326,11 +375,12 @@
   function showFlows() {
     const {arch, snapshot, history} = state;
     const routes = D.routes(arch || {}, snapshot || {});
-    routeTable.setRows(routes);
+    routeTable?.setRows(routes);
     const bad = routes.filter(row => row.state === '断点').length;
     const gaps = routes.filter(row => row.state === '路由缺证').length;
-    text('#route-summary', arch || snapshot ? `${routes.length} 个对外域名，${bad} 条有断点，${gaps} 条仍缺路由证据。探测失败只标端点。横向滑动查后端与依赖。`
+    text('#route-summary', arch || snapshot ? `${routes.length} 个对外域名，${bad} 条有断点，${gaps} 条路由缺证。${home ? '' : '探测失败只标端点。'}`
       : '架构和探测均未取到，可刷新重试。');
+    if (!lineageTable) return;
     const backup = snapshot?.usage?.find(item => item.key === 'github_backup');
     const snapshotAt = snapshot?.updated_epoch;
     const historyAt = history?.min?.t?.at(-1);
@@ -367,6 +417,7 @@
       ['当月成本', aud(cost.month_cash_aud), num(cost.month_cash_cny) === null ? noData : '约 ¥' + fmt(cost.month_cash_cny, '', 2)],
       ['月摊', aud(cost.monthly_aud), '每月折算'],
     ].map(([label, value, note]) => `<div class="cost-metric">${label}<strong>${esc(value)}</strong><span>${esc(note)}</span></div>`).join('') : '';
+    if (!vendorTable) return;
     const latestBackup = snapshot?.usage?.find(item => item.key === 'github_backup')?.latest_epoch;
     vendorTable.setRows((snapshot?.inventory || []).map(vendor => ({
       ...vendor, status: vendor.status?.note || noData,
@@ -408,7 +459,11 @@
       : '订阅账无数据。');
   }
 
-  start(['snapshot', 'history', 'arch'], ({snapshot, history, arch}, fresh) => {
+  const sourceKeys = {
+    history: ['snapshot', 'history'], arch: ['arch'], org: ['snapshot', 'arch'],
+    flows: ['snapshot', 'history', 'arch'], cost: ['snapshot'],
+  };
+  start(home ? sourceKeys.flows : sourceKeys[detailView], ({snapshot, history, arch}, fresh) => {
     state.snapshot = snapshot;
     state.history = history;
     state.arch = arch;
@@ -417,11 +472,11 @@
     if (state.historyEmbedded) state.history = snapshot.history;
     const historyEpochs = ['min', 'hour', 'day'].map(tier => num(state.history?.[tier]?.t?.at(-1)) ?? 0);
     state.epoch = Math.max(num(snapshot?.updated_epoch) ?? 0, ...historyEpochs) || null;
-    showCurrent();
-    showHistory();
-    if (fresh.has('arch') || !graph) showArchitecture();
-    showOrg();
-    showFlows();
-    showCosts();
+    if (home) showCurrent();
+    if (home || detailView === 'history') showHistory();
+    if (home || (detailView === 'arch' && (fresh.has('arch') || !graph))) showArchitecture();
+    if (home || detailView === 'org') showOrg();
+    if (home || detailView === 'flows') showFlows();
+    if (home || detailView === 'cost') showCosts();
   });
 })();
