@@ -15,6 +15,11 @@ function mountArchitecture(arch, onSelect) {
     manager: '#52647c', timer: '#52647c',
   };
   const layerNames = ['域名', '对外通道', '应用', '系统服务', '定时任务', '底座', '外部'];
+  const compactLayers = [
+    {label: '域名', layers: [0]},
+    {label: '通道与应用', layers: [1, 2]},
+    {label: '服务与底座', layers: [3, 4, 5, 6]},
+  ];
   const nodes = new Map(arch.nodes.map(node => [node.id, node]));
   const incoming = new Map(), outgoing = new Map();
   for (const edge of arch.edges) {
@@ -28,6 +33,7 @@ function mountArchitecture(arch, onSelect) {
   let visible = false;
   let paused = Boolean(navigator.connection?.saveData || (navigator.deviceMemory && navigator.deviceMemory <= 4));
   let xy = new Map();
+  let lastWidth = 0;
 
   const color = role => colors[role] || colors.service;
   const isHub = node => ['tunnel', 'proxy'].includes(node?.role);
@@ -78,10 +84,9 @@ function mountArchitecture(arch, onSelect) {
     draw();
   };
 
-  const width = 252, gap = 64, height = 52, rowGap = 10, top = 50, pad = 14;
   const measure = document.createElement('canvas').getContext('2d');
   measure.font = `16px ${getComputedStyle(graph).fontFamily}`;
-  const labelWithinCard = value => {
+  const labelWithinCard = (value, width) => {
     if (measure.measureText(value).width <= width - 24) return value;
     let part = '';
     for (const char of value) {
@@ -102,9 +107,17 @@ function mountArchitecture(arch, onSelect) {
   function draw() {
     tip.hidden = true;
     const shown = [...nodes.values()].filter(node => !hidden.has(node.role));
-    const cols = layerNames.map(() => []);
-    for (const node of shown) cols[layerOf(node)].push(node);
-    const layers = cols.map((column, i) => ({column, i})).filter(({column}) => column.length);
+    lastWidth = viewport.clientWidth;
+    const grouped = lastWidth < 870;
+    const definitions = grouped ? compactLayers : layerNames.map((label, i) => ({label, layers: [i]}));
+    const layers = definitions.map(({label, layers}) => ({
+      label, column: shown.filter(node => layers.includes(layerOf(node))).sort((a, b) => layerOf(a) - layerOf(b)),
+    })).filter(({column}) => column.length);
+    const pad = grouped ? 8 : 12;
+    const gap = grouped ? 12 : 24;
+    const width = layers.length ? Math.max(80, Math.min(248,
+      Math.floor((lastWidth - 2 * pad - (layers.length - 1) * gap) / layers.length))) : 240;
+    const height = grouped ? 48 : 52, rowGap = 8, top = 47;
     const shownIds = new Set(shown.map(n => n.id));
     const edges = arch.edges.filter(e => shownIds.has(e.from) && shownIds.has(e.to));
     const place = () => {
@@ -116,7 +129,7 @@ function mountArchitecture(arch, onSelect) {
     place();
     for (let pass = 0; pass < 2; pass += 1) {
       layers.forEach(({column}, k) => {
-        if (!k) return;
+        if (!k || grouped) return;
         const scores = new Map(column.map(node => {
           const parents = (incoming.get(node.id) || []).map(e => xy.get(e.from)).filter(Boolean);
           const prior = parents.filter(parent => parent.x < xy.get(node.id).x);
@@ -127,14 +140,14 @@ function mountArchitecture(arch, onSelect) {
       place();
     }
     const svgWidth = layers.length ? 2 * pad + layers.length * width + (layers.length - 1) * gap : 270;
-    const svgHeight = top + Math.max(1, ...cols.map(column => column.length)) * (height + rowGap) + pad;
+    const svgHeight = top + Math.max(1, ...layers.map(({column}) => column.length)) * (height + rowGap) + pad;
     graph.setAttribute('width', svgWidth);
     graph.setAttribute('height', svgHeight);
     graph.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
-    let markup = layers.map(({column, i}, k) => {
+    let markup = layers.map(({column, label}, k) => {
       const x = pad + k * (width + gap);
       return `<rect class="col-band" x="${x - 5}" y="8" width="${width + 10}" height="${svgHeight - 16}" rx="9"/>
-        <text class="col-title" x="${x + 11}" y="31">${layerNames[i]}（${column.length}）</text>`;
+        <text class="col-title" x="${x + 6}" y="31">${label}${grouped ? '' : `（${column.length}）`}</text>`;
     }).join('');
     edges.forEach(edge => {
       const a = xy.get(edge.from), b = xy.get(edge.to);
@@ -147,14 +160,17 @@ function mountArchitecture(arch, onSelect) {
     });
     for (const node of shown) {
       const point = xy.get(node.id);
-      const state = [node.role_cn || node.role, node.owner, node.state].filter(Boolean).join(' · ');
+      const stateLabel = node.state && OverviewInventory.status(node.state)[0];
+      const state = [node.role_cn || node.role, node.owner, stateLabel].filter(Boolean).join(' · ');
+      const caption = grouped ? (stateLabel || node.role_cn || node.role) : state;
+      const name = grouped && node.role === 'domain' ? node.label.split('.')[0] : node.label;
       const off = !isOutside(node) && !isOn(node);
       markup += `<g class="n${off ? ' off' : ''}" data-node="${esc(node.id)}" tabindex="0" role="button"
         aria-pressed="false" aria-label="${esc(node.label + '，' + state)}" transform="translate(${point.x},${point.y})">
         <rect class="node-card" width="${width}" height="${height}" rx="8" fill="${off ? '#f4f6fa' : '#fff'}" stroke="${color(node.role)}"/>
         <rect width="4" height="${height}" fill="${color(node.role)}" rx="2"/>
-        <text x="12" y="21">${esc(labelWithinCard(node.label))}</text>
-        <text class="sub" x="12" y="41">${esc(labelWithinCard(state))}</text>
+        <text x="12" y="21">${esc(labelWithinCard(name, width))}</text>
+        <text class="sub" x="12" y="41">${esc(labelWithinCard(caption, width))}</text>
       </g>`;
     }
     graph.innerHTML = markup || '<text x="14" y="36">没有选中的节点类别</text>';
@@ -242,7 +258,7 @@ function mountArchitecture(arch, onSelect) {
       const outs = connections(outgoing.get(focused), 'to') || '无记录';
       selection.textContent = `${focusNode.label} · 上游 ${ins} · 下游 ${outs}`;
     } else {
-      selection.textContent = '尚未选择节点。';
+      selection.textContent = '';
     }
     graph.querySelectorAll('.n').forEach(element => {
       const id = element.dataset.node;
@@ -261,10 +277,15 @@ function mountArchitecture(arch, onSelect) {
   }
 
   draw();
+  const resizeObserver = new ResizeObserver(() => {
+    if (viewport.clientWidth !== lastWidth) draw();
+  });
+  resizeObserver.observe(viewport);
   return {
     focus,
     dispose() {
       observer.disconnect();
+      resizeObserver.disconnect();
       motion.removeEventListener('click', changeMotion);
       reduced.removeEventListener('change', updateMotion);
       document.removeEventListener('visibilitychange', updateMotion);

@@ -47,19 +47,37 @@ const OverviewPage = (() => {
     try { return document.getElementById(decodeURIComponent(hash.slice(1))); } catch { return null; }
   }
 
-  function placeBelowHeader(target) {
+  const overviewHeading = target => target?.matches('[data-km-section], .inventory-card')
+    ? target.querySelector('h1, h2, h3') : target;
+
+  function land(hash, focus = false) {
+    if (!hash || hash === '#top') {
+      scrollTo(0, 0);
+      if (focus) $('#main h1')?.focus({preventScroll: true});
+      return;
+    }
+    const target = anchorTarget(hash);
     if (!target) return;
+    const board = target.closest('.inventory-board');
+    if (board) board.scrollLeft += target.getBoundingClientRect().left - board.getBoundingClientRect().left;
+    const heading = overviewHeading(target);
     const headerBottom = $('.top').getBoundingClientRect().bottom;
-    scrollTo(0, Math.max(0, Math.floor(scrollY + target.getBoundingClientRect().top - headerBottom)));
+    scrollTo(0, Math.max(0, Math.floor(scrollY + heading.getBoundingClientRect().top - headerBottom)));
+    if (focus) {
+      heading.tabIndex = -1;
+      heading.focus({preventScroll: true});
+    }
   }
 
   function mountDetail() {
     const view = params.get('view');
     const template = $$('template[data-detail]').find(entry => entry.dataset.detail === view);
-    if (!template) return null;
+    const records = !template && typeof OverviewRecords !== 'undefined' && OverviewRecords.create(view);
+    if (!template && !records) return null;
     const main = $('#main');
-    main.replaceChildren(template.content.cloneNode(true), main.querySelector('footer'));
+    main.replaceChildren(template ? template.content.cloneNode(true) : records, main.querySelector('footer'));
     document.body.dataset.detailView = view;
+    document.title = main.querySelector('h1').textContent;
     $('#check-link').removeAttribute('aria-current');
     const links = $$('main [data-directory]').map(section => {
       const item = document.createElement('li');
@@ -70,36 +88,54 @@ const OverviewPage = (() => {
       link.dataset.icon = section.dataset.directory;
       mark.className = 'nav-mark';
       mark.setAttribute('aria-hidden', 'true');
-      mark.textContent = section.dataset.mark;
+      mark.textContent = section.dataset.mark || '▤';
       label.textContent = section.dataset.directory;
       link.append(mark, label);
       item.append(link);
       return item;
     });
     $('#directory-links').replaceChildren(...links);
-    placeBelowHeader(anchorTarget(location.hash));
     return view;
   }
+
+  const plainClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 
   function setupNav() {
     const rail = $('#page-nav'), handheld = matchMedia('(max-width: 800px)');
     const openButton = $('#menu-open'), overlay = $('#menu-close'), fold = $('#rail-toggle');
-    const directoryLinks = $$('#directory-links a');
-    const links = directoryLinks.filter(link => link.getAttribute('href').startsWith('#'));
-    const mobileCurrent = $('.mobile-current');
-    const headings = links.map(link => $(link.hash).querySelector('h1, h2'));
     const main = $('#main'), topbar = $('.top');
+    const directoryLinks = $$('#directory-links a');
+    const links = directoryLinks.filter(link => link.getAttribute('href').startsWith('#') && anchorTarget(link.hash));
+    const headings = links.map(link => overviewHeading(anchorTarget(link.hash)));
+    const quickLinks = $$('.quick-links a');
     let activeIndex = 0, drawerOpen = false;
+
     directoryLinks.forEach(link => { link.title = link.dataset.icon; });
+    $$('#main > section, #main .inventory-card, #list, #machine, #h-attention').forEach(target => {
+      const heading = overviewHeading(target) === target && !target.matches('h3') ? target.querySelector('h2, h3') : overviewHeading(target);
+      if (!heading) return;
+      heading.tabIndex = -1;
+      let line = heading.parentElement;
+      if (line === target || heading === target || !line.matches('.headline, .section-head')) {
+        line = document.createElement('div');
+        line.className = 'section-head';
+        heading.before(line);
+        line.append(heading);
+      }
+      const link = document.createElement('a');
+      link.href = '#top';
+      link.className = 'to-top';
+      link.textContent = '回到顶部';
+      line.append(link);
+    });
     const setDrawer = (open, restore = false) => {
       drawerOpen = open;
       document.body.classList.toggle('nav-open', open);
-      openButton.setAttribute('aria-expanded', String(open || !handheld.matches));
+      openButton.setAttribute('aria-expanded', String(open));
       openButton.setAttribute('aria-label', open ? '关闭目录' : '打开目录');
       overlay.hidden = !open;
       main.inert = open;
-      setCurrent(activeIndex);
-      if (open) rail.querySelector('[aria-current]')?.focus({preventScroll: true});
+      if (open) (links[activeIndex] || directoryLinks[0])?.focus({preventScroll: true});
       if (restore) openButton.focus();
     };
     const setNarrow = narrow => {
@@ -112,20 +148,26 @@ const OverviewPage = (() => {
     try { saved = localStorage.getItem('status-narrow-nav') === 'true'; } catch {}
     setNarrow(saved);
     setDrawer(false);
-    openButton.addEventListener('click', () => setDrawer(!document.body.classList.contains('nav-open')));
+    openButton.addEventListener('click', () => setDrawer(!drawerOpen));
     overlay.addEventListener('click', () => setDrawer(false, true));
     handheld.addEventListener('change', () => setDrawer(false));
+    $('#go-back').addEventListener('click', () => {
+      if (drawerOpen) setDrawer(false);
+      if (history.length > 1) history.back();
+      else if (location.pathname !== '/') location.assign('/');
+      else land('#top', true);
+    });
     fold.addEventListener('click', () => {
       const narrow = !document.body.classList.contains('nav-narrow');
       setNarrow(narrow);
       try { localStorage.setItem('status-narrow-nav', String(narrow)); } catch {}
     });
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && document.body.classList.contains('nav-open')) setDrawer(false, true);
+      if (event.key === 'Escape' && drawerOpen) setDrawer(false, true);
     });
     main.addEventListener('focusin', event => {
       const target = event.target;
-      if (!target.closest('.table-tools')) return;
+      if (!target.matches('a[href], button, input, select, textarea, summary')) return;
       requestAnimationFrame(() => {
         if (document.activeElement !== target) return;
         const safeTop = topbar.getBoundingClientRect().bottom + 6;
@@ -134,65 +176,54 @@ const OverviewPage = (() => {
       });
     });
 
-    const plainClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-    function jump(event, index) {
-      if (!plainClick(event)) return;
-      event.preventDefault();
-      const heading = headings[index];
-      const {hash} = links[index];
-      if (hash !== location.hash) history.pushState(null, '', hash);
-      if (drawerOpen) setDrawer(false);
-      placeBelowHeader(heading);
-      setCurrent(index);
-      heading.tabIndex = -1;
-      heading.focus({preventScroll: true});
-    }
-    links.forEach((link, index) => link.addEventListener('click', event => jump(event, index)));
-    directoryLinks.filter(link => !links.includes(link)).forEach(link => link.addEventListener('click', event => {
-      if (drawerOpen && plainClick(event)) setDrawer(false);
-    }));
-    mobileCurrent.addEventListener('click', event => jump(event, activeIndex));
-    topbar.addEventListener('click', event => {
+    document.addEventListener('click', event => {
       const link = event.target.closest('a[href]');
-      if (!link || !plainClick(event) || link.origin !== location.origin || link.pathname !== location.pathname ||
-          link.search !== location.search || link.hash) return;
+      if (!link || !plainClick(event) || event.defaultPrevented) return;
+      if (drawerOpen && rail.contains(link)) setDrawer(false);
+      if (link.origin !== location.origin || link.pathname !== location.pathname || link.search !== location.search) return;
+      if (link.hash && !anchorTarget(link.hash)) return;
+      if (!link.hash && !topbar.contains(link)) return;
       event.preventDefault();
-      if (location.hash) history.pushState(null, '', link.href);
-      scrollTo(0, 0);
+      if (link.href !== location.href) history.pushState(history.state, '', link.href);
+      land(link.hash, true);
       mark();
     });
 
     function setCurrent(index) {
       activeIndex = index;
-      const section = links[index];
-      const active = handheld.matches && !drawerOpen ? mobileCurrent : section;
-      if (mobileCurrent.hash !== section.hash) {
-        mobileCurrent.href = section.hash;
-        mobileCurrent.textContent = section.dataset.icon;
-      }
-      if (!active.hasAttribute('aria-current')) {
+      const active = links[index];
+      if (active && !active.hasAttribute('aria-current')) {
         rail.querySelector('[aria-current]')?.removeAttribute('aria-current');
         active.setAttribute('aria-current', 'location');
       }
-      const area = rail.getBoundingClientRect(), item = active.getBoundingClientRect();
-      if (item.top < area.top) rail.scrollTop -= area.top - item.top;
-      else if (item.bottom > area.bottom) rail.scrollTop += item.bottom - area.bottom;
+      if (active && (!handheld.matches || drawerOpen)) {
+        const area = rail.getBoundingClientRect(), item = active.getBoundingClientRect();
+        if (item.top < area.top) rail.scrollTop -= area.top - item.top;
+        else if (item.bottom > area.bottom) rail.scrollTop += item.bottom - area.bottom;
+      }
+      for (const link of quickLinks) {
+        const onDetail = Boolean(detailView && new URL(link.href).searchParams.get('view') === detailView);
+        const onInventory = !detailView && active?.hash === '#inventory' && link.hash === active.hash;
+        if (onDetail || onInventory) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      }
     }
 
     function mark() {
       const edge = topbar.getBoundingClientRect().bottom;
       let active = 0;
       headings.forEach((heading, index) => {
-        if (heading.getBoundingClientRect().top <= edge + 1) active = index;
+        if (Math.floor(heading.getBoundingClientRect().top) <= edge) active = index;
       });
       const atEnd = scrollY > 0 && innerHeight + scrollY >= document.documentElement.scrollHeight - 1;
       if (atEnd) active = headings.length - 1;
       setCurrent(active);
     }
     addEventListener('scroll', mark, {passive: true});
-    addEventListener('hashchange', mark);
+    addEventListener('hashchange', () => { land(location.hash); mark(); });
     addEventListener('pageshow', mark);
     addEventListener('resize', mark);
+    land(location.hash);
     mark();
     return mark;
   }
@@ -214,7 +245,7 @@ const OverviewPage = (() => {
   function start(keys, render) {
     const updateNav = setupNav();
     const button = $('#refresh'), metadata = $('#site-standard');
-    const landingHash = detailView && performance.getEntriesByType('navigation')[0]?.type === 'navigate' ? location.hash : '';
+    const landingHash = location.hash;
     let firstRead = true;
     const data = {};
     let lastAttempt = 0;
@@ -242,7 +273,7 @@ const OverviewPage = (() => {
       try {
         render(data, fresh);
       } finally {
-        if (firstRead && landingHash && landingHash === location.hash) placeBelowHeader(anchorTarget(landingHash));
+        if (firstRead && landingHash && landingHash === location.hash) land(landingHash);
         firstRead = false;
         button.disabled = false;
         button.textContent = '刷新数据';

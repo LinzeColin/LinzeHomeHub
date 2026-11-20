@@ -57,11 +57,16 @@ case "$CMD" in
     index_build="$(grep -Eo "$build_pattern" <<<"$index_body" || true)"
     check_build="$(grep -Eo "$build_pattern" <<<"$check_body" || true)"
     [[ -n "$index_build" ]] || { echo "★ 首页编号不对" >&2; fail=1; }
-    grep -Fq '<section id="arch" ' <<<"$index_body" || { echo "★ 首页缺少架构区块" >&2; fail=1; }
+    for section in overview trend inventory; do
+      grep -Fq "<section id=\"${section}\" " <<<"$index_body" || { echo "★ 首页缺少 ${section} 区块" >&2; fail=1; }
+    done
+    for entry in 'history#history' 'arch#arch' 'org#org' 'flows#routes'; do
+      grep -Fq "href=\"/check.html?view=${entry}\"" <<<"$index_body" || { echo "★ 首页缺少 ${entry} 直达入口" >&2; fail=1; }
+    done
     for data_source in arch snapshot history; do
       grep -Fq "/data/${data_source}.json" <<<"$index_body" || { echo "★ 首页缺少 ${data_source} 数据入口" >&2; fail=1; }
     done
-    grep -Fq 'href="/check.html"' <<<"$index_body" || { echo "★ 首页缺少体检入口" >&2; fail=1; }
+    grep -Fq 'href="/check.html#health"' <<<"$index_body" || { echo "★ 首页缺少体检入口" >&2; fail=1; }
     grep -Fq '<title>服务器体检清单</title>' <<<"$check_body" || { echo "★ 体检页内容不对" >&2; fail=1; }
     [[ -n "$check_build" && "$check_build" == "$index_build" ]] || { echo "★ 体检页编号与首页不一致" >&2; fail=1; }
     for section in health compare; do
@@ -70,7 +75,11 @@ case "$CMD" in
     for table in attention-table inventory-table compare-table; do
       grep -Fq "id=\"${table}\"" <<<"$check_body" || { echo "★ 体检页缺少 ${table} 表格" >&2; fail=1; }
     done
-    grep -Fq 'href="/">首页</a>' <<<"$check_body" || { echo "★ 体检页缺少回首页入口" >&2; fail=1; }
+    grep -Fq '<svg id="g" ' <<<"$check_body" || { echo "★ 体检页缺少架构图模板" >&2; fail=1; }
+    for page in "$index_body" "$check_body"; do
+      grep -Eq 'href="/"[^>]*>首页</a>' <<<"$page" || { echo "★ 页面缺少回首页入口" >&2; fail=1; }
+      grep -Fq 'id="go-back"' <<<"$page" || { echo "★ 页面缺少后退入口" >&2; fail=1; }
+    done
     grep -q "云平台总览" <<<"$legacy_body"     || { echo "★ 旧版明细页内容不对" >&2; fail=1; }
     # 项目资源列 —— owner 明确要过的功能(每个项目吃多少内存/存储),用它当"新代码真上线了"的锚
     grep -q ">内存</th>" <<<"$legacy_body"     || { echo "★ 旧版明细页缺项目内存列" >&2; fail=1; }

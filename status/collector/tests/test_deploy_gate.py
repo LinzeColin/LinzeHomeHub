@@ -74,10 +74,12 @@ esac
         cases = (
             (re.sub(BUILD, "", self.index), "首页编号不对"),
             (re.sub(BUILD, r'\g<1>OTHER-271231-99\2', self.index), "首页编号不对"),
-            (self.index.replace('id="arch"', 'id="architecture"'), "首页缺少架构区块"),
+            (self.index.replace('view=arch#arch', 'view=missing#arch'), "首页缺少 arch#arch 直达入口"),
+            (self.index.replace('id="trend"', 'id="history"'), "首页缺少 trend 区块"),
+            (self.index.replace('id="inventory"', 'id="other"'), "首页缺少 inventory 区块"),
             (self.index.replace("/data/arch.json", "/data/missing.json"), "首页缺少 arch 数据入口"),
             (self.index.replace("/data/history.json", "/data/missing.json"), "首页缺少 history 数据入口"),
-            (self.index.replace('href="/check.html"', 'href="/unavailable.html"'), "首页缺少体检入口"),
+            (self.index.replace('href="/check.html#health"', 'href="/unavailable.html"'), "首页缺少体检入口"),
         )
         for index, error in cases:
             with self.subTest(error=error):
@@ -94,7 +96,9 @@ esac
             (self.check.replace('id="compare"', 'id="other"'), "体检页缺少 compare 区块"),
             (self.check.replace('id="attention-table"', 'id="other"'), "体检页缺少 attention-table 表格"),
             (self.check.replace('id="compare-table"', 'id="other"'), "体检页缺少 compare-table 表格"),
-            (self.check.replace('href="/">首页', 'href="/other">首页'), "体检页缺少回首页入口"),
+            (self.check.replace('<svg id="g"', '<svg id="other"'), "体检页缺少架构图模板"),
+            (self.check.replace('href="/" class="secondary home-link"', 'href="/other" class="secondary home-link"'), "页面缺少回首页入口"),
+            (self.check.replace('id="go-back"', 'id="other"'), "页面缺少后退入口"),
         )
         for check, error in cases:
             with self.subTest(error=error):
