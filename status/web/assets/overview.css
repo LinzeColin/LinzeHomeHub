@@ -99,7 +99,7 @@ body.nav-narrow { --nav-width: 58px; }
 .nav-narrow .rail a { justify-content: center; padding-inline: 3px; }
 .nav-narrow .rail a span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .nav-narrow .rail-toggle { width: 100%; }
-main { padding-block: 22px 0; }
+main { padding-block: 22px var(--landing-room, 0px); }
 main > section { padding-bottom: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
 main > section:last-of-type { padding-bottom: 18px; margin-bottom: 0; }
 body[data-page-kind="home"] main > section { padding-bottom: 12px; margin-bottom: 12px; }
@@ -204,12 +204,9 @@ body[data-detail-view] #cost-meters + section { margin-top: 14px; }
 .service-group .status-pill { font-weight: 560; }
 .table-jumps, .record-links { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
 .table-jumps { margin: 0 0 12px; }
-#inventory > #table-guide { margin-block: 0; }
-@media (max-width: 560px), (min-width: 1261px) {
-  #inventory > #table-guide {
-    display: flex; align-items: center;
-    min-block-size: max(36px, calc(var(--topbar) - 32px));
-  }
+#inventory > #table-guide {
+  margin-block: 0; display: flex; align-items: center;
+  min-block-size: max(36px, calc(var(--topbar) - 32px));
 }
 .table-jumps a, .record-links a {
   display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 5px 10px;
@@ -373,6 +370,12 @@ body[data-detail-view] #cost-meters + section { margin-top: 14px; }
 .file-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .file-links a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; padding: 3px 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
 .build { margin: 0; padding: 16px 0; color: #54657e; font-size: 12px; line-height: 1.5; text-align: center; }
+@media (min-width: 1261px) {
+  .visualizations { --chart-height: clamp(194px, 22svh, 264px); }
+  .visualizations .chart-panel { padding-block: 10px; }
+  .visualizations .chart-space { height: var(--chart-height); }
+  .visualizations .service-map { block-size: calc(var(--chart-height) + 30px); }
+}
 @media (max-width: 1260px) {
   .inventory-board {
     grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(440px, 93%);
