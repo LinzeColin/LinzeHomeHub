@@ -1155,7 +1155,13 @@ def inventory(host, fx, costblk, usage, ext, backup, cert, ovh, ch, prices=None)
     # —— OVH VPS-3 ——
     dp, mp = host.get("disk_pct"), host.get("mem_pct")
     r = []
-    if dp is not None and dp >= 85:
+    dv = disk_view(host)
+    if dv["multi"]:
+        if dp is not None and dp >= THRESH["root_crit_multi"] * 100:
+            r.append(R("danger", "系统盘 %d%% 告急 · 附加盘 %s 还空 %.0f GB,把大目录搬过去" % (dp, dv["extra"], dv["extra_free_b"] / 1024 ** 3)))
+        elif dp is not None and dp >= 85:
+            r.append(R("warn", "系统盘 %d%% · 附加盘 %s 还空 %.0f GB,可把大目录搬过去(两盘合计 %.0f%%)" % (dp, dv["extra"], dv["extra_free_b"] / 1024 ** 3, dv["total_pct"])))
+    elif dp is not None and dp >= 85:
         r.append(R("danger", "磁盘 %d%% 偏高 · 自愈会自动清理" % dp))
     elif dp is not None and dp >= 75:
         r.append(R("warn", "磁盘 %d%% 需留意" % dp))
@@ -2159,7 +2165,23 @@ THRESH = {
     "disk_eta_days": 90,          # 磁盘按当前斜率外推,少于这么多天触顶 = 需要动作
     "reserve_mem_mb": 500,        # 算余量时给系统留的内存
     "reserve_disk_b": 4 * 1024 ** 3,   # 算余量时给系统留的磁盘
+    "root_crit_multi": 0.95,      # 有附加盘时:系统盘到这里才告急(之前只提示把大目录搬去附加盘)
 }
+
+
+def disk_view(host):
+    """两块盘以上时分开看(Owner 11-20 加 100GB 附加盘 /data2,钉钉告警还按单盘报)。
+    返回 {multi, root_pct, total_used_b, total_b, total_pct, extra_free_b, extra}:
+    容量告警按所有盘合计算;系统盘单独看,有附加盘时只在 95% 以上告急,85% 以上提示搬目录。"""
+    disks = [d for d in (host.get("disks") or []) if d.get("total_b")]
+    if len(disks) < 2:
+        return {"multi": False}
+    tu = sum(d["used_b"] for d in disks); tt = sum(d["total_b"] for d in disks)
+    extra = [d for d in disks if d.get("mount") != "/"]
+    return {"multi": True, "root_pct": host.get("disk_pct"), "total_used_b": tu, "total_b": tt,
+            "total_pct": round(tu / tt * 100, 1) if tt else None,
+            "extra_free_b": sum(d["total_b"] - d["used_b"] for d in extra),
+            "extra": "、".join(d["mount"] for d in extra)}
 
 
 def _slope_per_day(ts, vs, min_pts=8):
@@ -2231,6 +2253,18 @@ def capacity_advice(host, hist, prices, sw):
             "使用率 >%.0f%% 紧张 / >%.0f%% 告急" % (THRESH["swap_tight"] * 100,
                                                     THRESH["swap_crit"] * 100), note)
 
+    dv = disk_view(host)
+    root_r = (du / dt) if (du and dt) else None
+    root_free_b = (dt - du) if (du and dt) else 0   # 镜像和容器都在系统盘,装新服务的余量只看系统盘
+    if dv["multi"]:
+        # 容量按所有盘合计;系统盘另列一行(第二块盘挂上后不能再按单盘报告急)
+        du, dt = dv["total_used_b"], dv["total_b"]
+        lvr = ("crit" if root_r is not None and root_r > THRESH["root_crit_multi"] else
+               "tight" if root_r is not None and root_r > THRESH["disk_crit"] else "ok")
+        if root_r is not None:
+            add("系统盘", lvr, "/ 已用 %.0f%% · 附加盘 %s 还空 %s" % (root_r * 100, dv["extra"], fmt_bytes(dv["extra_free_b"])),
+                "有附加盘时 >%.0f%% 提示搬目录 / >%.0f%% 告急" % (THRESH["disk_crit"] * 100, THRESH["root_crit_multi"] * 100),
+                "系统盘满了服务会停,附加盘再空也救不了;解法是把大目录搬到附加盘,不是再买盘")
     disk_r = (du / dt) if (du and dt) else None
     free_b = (dt - du) if (du and dt) else 0
     recl = dock["reclaim_b"]
@@ -2240,7 +2274,7 @@ def capacity_advice(host, hist, prices, sw):
               "tight" if disk_r > THRESH["disk_tight"] else "ok")
         if lv != "ok" and after_r is not None and after_r <= THRESH["disk_tight"]:
             lv = "watch"
-        add("磁盘", lv, "已用 %s / %s(%.0f%%)" % (fmt_bytes(du), fmt_bytes(dt), disk_r * 100),
+        add("磁盘(合计)" if dv["multi"] else "磁盘", lv, "已用 %s / %s(%.0f%%)" % (fmt_bytes(du), fmt_bytes(dt), disk_r * 100),
             "使用率 >%.0f%% 紧张 / >%.0f%% 告急" % (THRESH["disk_tight"] * 100,
                                                     THRESH["disk_crit"] * 100),
             ("其中 %s 是 Docker 可立刻回收的(构建缓存/悬空镜像/卷),回收后降到 %.0f%% —— "
@@ -2255,15 +2289,17 @@ def capacity_advice(host, hist, prices, sw):
         src, slope = "日序列", _slope_per_day(day.get("t") or [], day.get("disk") or [], 6)
     n_pts = len(hr.get("t") or []) if src == "小时序列" else len(day.get("t") or [])
     eta_days = None
-    if slope is not None and disk_r is not None:
+    trend_r = root_r if dv["multi"] else disk_r          # 历史序列记的是系统盘百分比
+    trend_cap = THRESH["root_crit_multi"] if dv["multi"] else THRESH["disk_crit"]
+    if slope is not None and trend_r is not None:
         if slope <= 0.02:
             add("磁盘趋势", "ok", "中位斜率 %+.3f %%/天(%s,%d 点)" % (slope, src, n_pts),
                 "增长 >0.02 %%/天 才外推触顶时间", "当前基本持平或在下降,不构成容量风险")
         else:
-            eta_days = int(max(0, (THRESH["disk_crit"] * 100 - disk_r * 100) / slope))
-            add("磁盘趋势", "tight" if eta_days < THRESH["disk_eta_days"] else "ok",
+            eta_days = int(max(0, (trend_cap * 100 - trend_r * 100) / slope))
+            add("系统盘趋势" if dv["multi"] else "磁盘趋势", "tight" if eta_days < THRESH["disk_eta_days"] else "ok",
                 "中位斜率 %+.3f %%/天,按此外推 %d 天后触及 %.0f%%"
-                % (slope, eta_days, THRESH["disk_crit"] * 100),
+                % (slope, eta_days, trend_cap * 100),
                 "少于 %d 天触顶即需动作" % THRESH["disk_eta_days"],
                 "用 Theil–Sen 中位数斜率(抗离群):清一次构建缓存磁盘就能掉十几个点,"
                 "最小二乘会被这种跳变带出假警报。样本 %d 点(%s)" % (n_pts, src))
@@ -2298,7 +2334,7 @@ def capacity_advice(host, hist, prices, sw):
     imgs = next((r["size_b"] for r in dock["rows"] if r["type"].lower().startswith("image")), 0)
     typ_disk = int(imgs / max(1, len(lines))) if imgs else 300 * 1024 ** 2
     slots_mem = int(max(0, (ma or 0) - THRESH["reserve_mem_mb"]) / typ_mem) if ma else 0
-    slots_disk = int(max(0, free_b + recl - THRESH["reserve_disk_b"]) / max(1, typ_disk))
+    slots_disk = int(max(0, root_free_b + recl - THRESH["reserve_disk_b"]) / max(1, typ_disk))
     slots = min(slots_mem, slots_disk)
 
     levels = [s["level"] for s in sig]
