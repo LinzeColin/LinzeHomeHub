@@ -1,4 +1,4 @@
-"""Read-only projections for the status dashboard and the public lock widget."""
+"""Read-only projections for the status dashboard."""
 
 import json
 import math
@@ -10,8 +10,6 @@ from zoneinfo import ZoneInfo
 
 SYDNEY = ZoneInfo("Australia/Sydney")
 DAILY_DAYS = 31
-LOCK_DAYS = 7
-LOCK_MAX_BYTES = 2048
 
 
 def number(value):
@@ -144,7 +142,7 @@ def attention(snapshot):
     blocked, missing, unbuilt = (totals.get(k) or 0 for k in ("blocked", "blocked_by_input", "not_built"))
     if blocked + missing + unbuilt:
         add("bad", f"业务流 {blocked + missing + unbuilt} 格不通",
-            f"等你给材料 {missing} · 断了 {blocked} · 没做 {unbuilt}")
+            f"待补材料 {missing} · 断了 {blocked} · 没做 {unbuilt}")
     mismatch, coupling = (totals.get(k) or 0 for k in ("mismatch", "coupling_violation"))
     if mismatch + coupling:
         add("warn", f"业务流 {mismatch + coupling} 格可疑", f"自报≠实测 {mismatch} · 违反耦合 {coupling}")
@@ -187,70 +185,8 @@ def record_day(history, epoch, snapshot):
         day["probes_total"] = day.get("probes_total", 0) + int(total)
 
 
-def _historical_samples(history, start, end, epoch):
-    """Recover old daily points from actual minute/hour samples, never UTC day buckets."""
-    days = {}
-    for tier in ("hour", "min"):
-        series = history.get(tier) or {}
-        for index, t in enumerate(series.get("t") or []):
-            if not isinstance(t, int) or t > epoch:
-                continue
-            date = sydney_day(t)
-            if not start <= date <= end:
-                continue
-            row = days.setdefault(date, {"disk_pct": None, "mem_peak_pct": None, "disk_epoch": -1})
-            for field in ("disk", "mem"):
-                values = series.get(field) or []
-                value = percent(values[index]) if index < len(values) else None
-                if value is None:
-                    continue
-                if field == "mem":
-                    peak = row["mem_peak_pct"]
-                    row["mem_peak_pct"] = max(value, peak) if peak is not None else value
-                elif t >= row["disk_epoch"]:
-                    row.update(disk_pct=value, disk_epoch=t)
-    return days
-
-
-def build_lock(snapshot, history):
-    """Allowlist only numeric readings and seven calendar date keys."""
-    epoch = int(snapshot["updated_epoch"])
-    end = sydney_day(epoch)
-    start = end - timedelta(days=LOCK_DAYS - 1)
-    old = _historical_samples(history, start, end, epoch)
-    daily = history.get("daily_sydney") or {}
-    points = []
-    for offset in range(LOCK_DAYS):
-        day = start + timedelta(days=offset)
-        date = day.isoformat()
-        measured = daily.get(date) or {}
-        fallback = old.get(day) or {}
-        disk = percent(measured.get("disk_pct"))
-        peaks = [value for value in (percent(measured.get("mem_peak")), fallback.get("mem_peak_pct"))
-                 if value is not None]
-        points.append({"date": date, "disk_pct": disk if disk is not None else fallback.get("disk_pct"),
-                       "mem_peak_pct": max(peaks) if peaks else None})
-
-    host = snapshot.get("host") or {}
-    count = number(running_containers(snapshot))
-    alerts = snapshot.get("attention")
-    if alerts is None:
-        alerts = attention(snapshot)
-    return {
-        "updated_epoch": epoch,
-        "mem_pct": percent(host.get("mem_pct")),
-        "disk_pct": percent(host.get("disk_pct")),
-        "load1": number(host.get("load1")),
-        "containers_running": int(count) if count is not None and count.is_integer() and count >= 0 else None,
-        "pending_count": sum(alert.get("lv") == "bad" for alert in alerts),
-        "days": points,
-    }
-
-
-def write_json_atomic(path, document, max_bytes=None):
+def write_json_atomic(path, document):
     data = json.dumps(document, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
-    if max_bytes is not None and len(data) > max_bytes:
-        raise ValueError(f"{Path(path).name} exceeds {max_bytes} bytes")
     path = Path(path)
     with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as tmp:
         temp_path = Path(tmp.name)
@@ -261,7 +197,3 @@ def write_json_atomic(path, document, max_bytes=None):
             os.replace(temp_path, path)
         finally:
             temp_path.unlink(missing_ok=True)
-
-
-def write_lock(path, snapshot, history):
-    write_json_atomic(path, build_lock(snapshot, history), max_bytes=LOCK_MAX_BYTES)

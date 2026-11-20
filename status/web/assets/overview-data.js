@@ -19,6 +19,11 @@ const OverviewData = (() => {
     return Number.isFinite(numeric) ? numeric : null;
   }
 
+  function percent(value) {
+    const number = num(value);
+    return number !== null && number >= 0 && number <= 100 ? number : null;
+  }
+
   const esc = value => String(value ?? '').replace(/[&<>"]/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;',
   })[char]);
@@ -59,36 +64,87 @@ const OverviewData = (() => {
     const loads = raw.load || [];
     const offset = Math.max(0, epochs.length - loads.length);
     return epochs.map((t, i) => ({
-      t, date: num(t) > 0 ? day(t) : '',
-      mem: num(raw.mem?.[i]), disk: num(raw.disk?.[i]), load: num(loads[i - offset]),
+      t: num(t), date: num(t) > 0 ? day(t) : '',
+      mem: percent(raw.mem?.[i]), disk: percent(raw.disk?.[i]), load: num(loads[i - offset]),
     })).filter(p => p.date && p.t <= end);
   }
 
-  function plot(history, period, end) {
+  const hasResources = point => point.mem !== null || point.disk !== null;
+
+  function plot(history, period, end, snapshot) {
+    const current = snapshot && num(snapshot.updated_epoch) === end ? {
+      t: end, date: day(end), mem: percent(snapshot.host?.mem_pct), disk: percent(snapshot.host?.disk_pct),
+      source: '运行快照（snapshot.json）',
+    } : null;
+    let points;
     if (period === 30) {
-      // Keep one point for each local date and prefer new Sydney-day aggregates.
+      // Prefer Sydney-day records, use the latest readings from retained samples for older days.
       const archive = new Map(series(history, 'day', end).map(p => [p.date, p]));
-      const recovered = new Map(daily(history, period, end).map(p => [p.date, p]));
-      return lastDates(end, 30).map(date => {
+      const recent = new Map();
+      for (const point of [...series(history, 'hour', end), ...series(history, 'min', end)]) {
+        if (!hasResources(point) || point.t < (recent.get(point.date)?.t ?? 0)) continue;
+        recent.set(point.date, point);
+      }
+      points = lastDates(end, period).map(date => {
         const exact = history.daily_sydney?.[date];
+        const sampled = recent.get(date);
         const old = archive.get(date);
-        const sampled = recovered.get(date);
+        const t = Date.parse(date + 'T00:00:00Z') / 1000;
+        if (current?.date === date && hasResources(current)) return {...current, t};
         return {
-          date, t: Date.parse(date + 'T00:00:00Z') / 1000,
-          mem: exact?.mem_last ?? old?.mem ?? null,
-          disk: exact?.disk_pct ?? old?.disk ?? null,
-          load: sampled?.loadPeak ?? old?.load ?? null,
-          source: exact ? 'history.json · 悉尼日统计' : 'history.json · 旧日档及小时样本',
+          date, t,
+          mem: percent(exact?.mem_last) ?? sampled?.mem ?? old?.mem ?? null,
+          disk: percent(exact?.disk_pct) ?? sampled?.disk ?? old?.disk ?? null,
+          source: '历史数据（history.json） · ' + (exact ? '悉尼日统计' : '可用旧档'),
         };
       });
+    } else {
+      const tier = period === 1 ? 'min' : 'hour';
+      const source = '历史数据（history.json） · ' + (tier === 'min' ? '10 分钟平均' : '小时档');
+      points = series(history, tier, end).filter(p => p.t >= end - period * 86400)
+        .map(p => ({...p, source}));
+      if (tier === 'min') {
+        // 24 小时按 10 分钟取平均，线不再满是锯齿（Owner 11-20「可视化画得太难看了」）
+        const buckets = new Map();
+        for (const p of points) {
+          const k = Math.floor(p.t / 600) * 600;
+          const b = buckets.get(k) || {t: k, n: 0, memSum: 0, memN: 0, diskSum: 0, diskN: 0, last: p};
+          if (p.mem !== null && p.mem !== undefined) { b.memSum += p.mem; b.memN += 1; }
+          if (p.disk !== null && p.disk !== undefined) { b.diskSum += p.disk; b.diskN += 1; }
+          b.last = p; buckets.set(k, b);
+        }
+        points = [...buckets.values()].sort((a, b) => a.t - b.t).map(b => ({...b.last, t: b.t,
+          mem: b.memN ? b.memSum / b.memN : null, disk: b.diskN ? b.diskSum / b.diskN : null,
+          source: '历史数据（history.json） · 10 分钟平均'}));
+      }
+      if (current && hasResources(current)) {
+        const bucketSeconds = tier === 'hour' ? 3600 : 600;
+        const currentBucket = Math.floor(end / bucketSeconds) * bucketSeconds;
+        if (points.at(-1)?.t >= currentBucket) points.pop();
+        points.push(current);
+      }
     }
-    const tier = period === 1 ? 'min' : 'hour';
-    return series(history, tier, end).filter(p => p.t >= end - period * 86400)
-      .map(p => ({...p, source: 'history.json · ' + (tier === 'min' ? '分钟采样' : '小时档')}));
+    const first = points.findIndex(hasResources);
+    while (points.length && !hasResources(points.at(-1))) points.pop();
+    return first === -1 ? [] : points.slice(first);
+  }
+
+  function currentRow(snapshot) {
+    const host = snapshot.host;
+    const mem = percent(host.mem_pct);
+    const load = num(host.load1);
+    const match = /^(\d+)\/(\d+)$/.exec(snapshot.summary?.services_online ?? '');
+    const online = num(match?.[1]), total = num(match?.[2]);
+    return {
+      date: '现在', current: true, memAvg: mem, memPeak: mem, disk: percent(host.disk_pct),
+      diskBytes: num(host.disk_used_b), loadAvg: load, loadPeak: load,
+      containers: running(snapshot), probes: online !== null && total > 0 && online <= total ? 100 * online / total : null,
+      source: `运行快照（${stamp(snapshot.updated_epoch)} · 悉尼 · 负载为 1 分钟均载）`,
+    };
   }
 
   function daily(history, period, end) {
-    const count = period === 1 ? 1 + (Date.parse(day(end)) - Date.parse(day(end - 86400))) / 86400000 : period;
+    const count = period === 30 ? period : 1 + (Date.parse(day(end)) - Date.parse(day(end - period * 86400))) / 86400000;
     const dates = lastDates(end, count);
     const groups = new Map(dates.map(date => [date, {hour: [], min: []}]));
     for (const tier of ['hour', 'min']) {
@@ -290,7 +346,7 @@ const OverviewData = (() => {
     return {lines, missing};
   }
 
-  return {noData, num, esc, fmt, day, clock, stamp, sourceEpoch, running, plot, daily, routes, organization};
+  return {noData, num, percent, esc, fmt, day, clock, stamp, sourceEpoch, plot, currentRow, daily, routes, organization};
 })();
 
 // Captured snapshots predate the collector's attention field.
@@ -355,7 +411,7 @@ function legacyOverviewAttention(s){
     const ft=fl.totals||{};
     const stuck=(ft.blocked||0)+(ft.blocked_by_input||0)+(ft.not_built||0);
     if(stuck)push('bad',`业务流 ${stuck} 格不通`,
-      `等你给材料 ${ft.blocked_by_input||0} · 断了 ${ft.blocked||0} · 没做 ${ft.not_built||0}`);
+      `待补材料 ${ft.blocked_by_input||0} · 断了 ${ft.blocked||0} · 没做 ${ft.not_built||0}`);
     const susp=(ft.mismatch||0)+(ft.coupling_violation||0);
     if(susp)push('warn',`业务流 ${susp} 格可疑`,
       `自报≠实测 ${ft.mismatch||0} · 违反耦合 ${ft.coupling_violation||0}`);
@@ -367,7 +423,7 @@ function legacyOverviewAttention(s){
       push('warn','业务流实测覆盖不足一半',
         `${fl.verified_total||0}/${meas} 格可测的有机器实测,其余仅被测方自报`);
   }
-  if(!out.length)push('ok','一切正常','没有需要你处理的事项');
+  if(!out.length)push('ok','一切正常','没有待处理事项');
   const rank={bad:0,warn:1,ok:2};
   return out.sort((a,b)=>rank[a.lv]-rank[b.lv]);
 }

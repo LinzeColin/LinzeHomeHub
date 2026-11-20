@@ -8,10 +8,10 @@
     snapshot: item => item?.host && Array.isArray(item.projects) && num(item.updated_epoch) > 0,
     history: item => item?.min && item?.hour && item?.day,
     arch: item => Array.isArray(item?.nodes) && Array.isArray(item.edges),
-    lock: item => num(item?.updated_epoch) > 0 && Array.isArray(item.days) && item.days.length === 7,
   };
-  const state = {period: 1, epoch: null, snapshot: null, history: null, arch: null, lock: null, snapshotAlert: '', historyEmbedded: false};
-  let graph, historyChart, renewalChart, dailyRows = [];
+  const state = {period: 7, epoch: null, snapshot: null, history: null, arch: null, snapshotAlert: '', historyEmbedded: false};
+  const diskClean = 85;
+  let graph, historyChart, dailyRows = [];
   let inventoryFilterBeforeFocus = null;
   let lastAttempt = 0;
 
@@ -30,17 +30,20 @@
       r => ({bad: 0, warn: 1, ok: 2})[r.lv], pluck('level')),
     col('t', '事项', 235), col('d', '依据', 300),
   ], '按严重度', pluck('level'));
-  const memLoad = (average, peak, unit, digits) => r =>
-    `${esc(fmt(r[average], unit, digits))} / ${esc(fmt(r[peak], unit, digits))}`;
+  const memLoad = (average, peak, unit, digits) => r => {
+    const first = esc(fmt(r[average], unit, digits));
+    return r.current ? first : `${first} / ${esc(fmt(r[peak], unit, digits))}`;
+  };
   const historyColumns = [
-    col('date', '日期', 135),
+    col('date', '日期', 125, r => `<span title="${esc(r.source)}">${esc(r.date)}</span>`),
     col('memAvg', '内存均值／峰值', 174, memLoad('memAvg', 'memPeak', '%', 1)),
     col('disk', '磁盘已用', 140, r => esc(fmt(r.disk, '%', 1) + (r.diskBytes == null ? '' : ' · ' + gb(r.diskBytes)))),
     col('loadAvg', '负载均值／峰值', 173, memLoad('loadAvg', 'loadPeak', '', 2)),
     col('containers', '在跑容器', 135), col('probes', '探测在线率', 153, r => esc(fmt(r.probes, '%', 1))),
-    col('source', '采样口径', 140),
   ];
-  const dailyTable = table('#daily-table', '每日资源历史', historyColumns, '按日期', pluck('date'));
+  const dailyTable = table('#daily-table', '每日资源历史', historyColumns, '按日期', pluck('date'), {
+    isPinned: row => row.current === true, rowClass: row => row.current ? 'current-row' : '',
+  });
   const orgTable = table('#org-table', '归属未知项', [
     col('label', '项目或运行单元', 238, r => graphLink(r.id, r.label)), col('type', '类型', 125),
     col('project', '已知项目', 160), col('detail', '登记或识别依据', 240),
@@ -65,7 +68,7 @@
     col('status', '状态', 180, r => badge(r.status, r.tone)), col('cost', '成本', 255),
     col('risks', '风险', 204), col('health', '监控与健康', 245),
   ], '按状态', pluck('status'));
-  const renewTable = table('#renew-table', '续费时间轴', [
+  const renewTable = table('#renew-table', '续费清单', [
     col('name', '订阅', 183), col('date', '登记日期', 148),
     col('days', '距快照日', 129, r => esc(fmt(r.days, ' 天'))),
     col('kind', '日期含义', 150, r => badge(r.kind, r.tone)),
@@ -174,28 +177,28 @@
 
   function showCurrent() {
     const snap = state.snapshot, host = snap?.host || {};
-    const mem = num(host.mem_pct), disk = num(host.disk_pct), load = num(host.load1);
-    const cpu = snap?.capacity?.signals?.find(signal => signal.dim === 'CPU');
-    const cpuTone = {tight: 'warn', crit: 'bad'}[cpu?.level];
+    const mem = D.percent(host.mem_pct), disk = D.percent(host.disk_pct);
     const memTone = mem >= 90 ? 'warn' : '';
-    const diskTone = disk >= 85 ? 'bad' : disk >= 75 ? 'warn' : '';
+    const diskTone = disk >= diskClean ? 'bad' : disk >= 75 ? 'warn' : '';
     meter('mem', mem, '%', memTone ? '需关注 · 已达 90%' : '使用率 · 90% 提醒', memTone);
     meter('disk', disk, '%', (diskTone === 'bad' ? '已达自愈阈值 · ' : diskTone === 'warn' ? '偏高 · ' : '') + gb(host.disk_used_b), diskTone);
-    meter('load', load, '', `1 分钟均载${host.cores ? ' · ' + host.cores + ' 核' : ''}${cpuTone ? ' · 24 小时高负载' : ''}`, cpuTone, 2);
-    const count = snap ? D.running(snap) : null;
-    meter('containers', count, '个', count === 0 ? '当前没有在跑容器' : 'Docker 正在运行', count === 0 ? 'bad' : '');
+    text('#snapshot-time', snap
+      ? `${stamp(snap.updated_epoch)} · 悉尼 · 运行快照${state.snapshotAlert || (snapshotStale(snap) ? ' · 采集已超过 3 分钟' : '')}`
+      : '运行快照取数失败。可刷新重试。');
+  }
 
+  const snapshotStale = snap => Date.now() / 1000 - snap.updated_epoch > 180;
+
+  function showAttention() {
+    const snap = state.snapshot;
     if (!snap) {
-      text('#snapshot-time', '运行快照取数失败。可刷新重试。');
       text('#attention-summary', '运行快照缺失，待处理事项暂无数据。');
       alertTable.setRows([]);
       return;
     }
-    const stale = num(snap.updated_epoch) > 0 && Date.now() / 1000 - snap.updated_epoch > 180;
-    text('#snapshot-time', `${stamp(snap.updated_epoch)} · 悉尼 · 运行快照${state.snapshotAlert || (stale ? ' · 采集已超过 3 分钟' : '')}`);
     const levels = {bad: '待处理', warn: '需关注', ok: '正常'};
     let entries = snap.attention ? [...snap.attention] : legacyOverviewAttention(snap);
-    if (stale && snap.attention) entries = [{lv: 'bad', t: '快照停更', d: '采集已超过 3 分钟，元自愈会尝试重跑。'}, ...entries];
+    if (snapshotStale(snap) && snap.attention) entries = [{lv: 'bad', t: '快照停更', d: '采集已超过 3 分钟，元自愈会尝试重跑。'}, ...entries];
     const bad = entries.filter(r => r.lv === 'bad').length;
     const warn = entries.filter(r => r.lv === 'warn').length;
     if (entries.some(row => row.t === '备份异常')) entries = entries.map(row => row.t === '备份异常'
@@ -203,13 +206,19 @@
     text('#attention-summary', bad || warn
       ? `${bad} 项待处理，${warn} 项需关注。按旧版判据从严重到一般排列。`
       : '本次快照没有待处理或需关注的事项。');
-    alertTable.setRows(entries.filter(r => r.lv !== 'ok').map(r => ({...r, level: levels[r.lv] || r.lv})));
+    alertTable.setRows(entries.filter(r => r.lv !== 'ok').map(r => ({
+      ...r, d: r.d?.replace('等你给材料', '待补材料'), level: levels[r.lv] || r.lv,
+    })));
   }
 
   const canvasRate = navigator.connection?.saveData || (navigator.deviceMemory && navigator.deviceMemory <= 4)
     ? 1 : Math.min(2, window.devicePixelRatio || 1);
-  const labels = {mem: '内存', disk: '磁盘', load: '负载'};
-  const palette = {mem: '#09746e', disk: '#2155a6', load: '#875205'};
+  const resourceSeries = [
+    {key: 'mem', name: '内存', stroke: '#2563eb', ink: '#1d4ed8'},
+    {key: 'disk', name: '磁盘', stroke: '#d97706', ink: '#994b05'},
+  ];
+  const periodNames = {1: '24 小时', 7: '7 天', 30: '30 天'};
+  const percentLabel = value => fmt(value, '%', Number.isInteger(value) ? 0 : 1);
   const graphTip = $('#tip');
   function liquidTip({chart, tooltip}, lines) {
     if (!tooltip.opacity || !lines.length) { graphTip.hidden = true; return; }
@@ -222,50 +231,140 @@
   }
   const clearTip = () => { graphTip.hidden = true; };
   addEventListener('scroll', clearTip, {passive: true});
-  $$('#history-chart, #renew-chart').forEach(canvas => canvas.addEventListener('pointerleave', clearTip));
+  $('#history-chart').addEventListener('pointerleave', clearTip);
+
+  if (window.Chart) {
+    Chart.Interaction.modes.resourcePoint = (chart, event, options, useFinalPosition) =>
+      Chart.Interaction.modes.nearest(chart, event, options, useFinalPosition).slice(0, 1);
+  }
+
+  const historyAnnotations = {
+    id: 'historyAnnotations',
+    beforeDatasetsDraw({ctx, chartArea, scales}) {
+      const y = scales.y.getPixelForValue(diskClean);
+      ctx.save();
+      ctx.strokeStyle = '#c4ccd8';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.stroke();
+      ctx.restore();
+    },
+    afterDatasetsDraw(chart) {
+      const {ctx, chartArea, scales} = chart;
+      const labels = chart.data.datasets.flatMap((dataset, i) => {
+        const last = dataset.data.findLastIndex(point => point.y !== null);
+        if (last < 0) return [];
+        const {x, y} = chart.getDatasetMeta(i).data[last];
+        return [{x, y, text: `${dataset.label} ${percentLabel(dataset.data[last].y)}`, ink: resourceSeries[i].ink}];
+      });
+      labels.push({x: chartArea.right, y: scales.y.getPixelForValue(diskClean),
+        text: `自愈清理线 ${diskClean}%`, ink: '#536174', threshold: true});
+      labels.sort((a, b) => a.y - b.y);
+
+      // Work in CSS pixels so the labels keep their separation at every display density.
+      let ceiling = chartArea.bottom - 7;
+      for (const label of [...labels].reverse()) {
+        label.baseline = Math.min(label.y, ceiling);
+        ceiling = label.baseline - 18;
+      }
+      let floor = chartArea.top + 7;
+      ctx.save();
+      ctx.textBaseline = 'middle';
+      for (const label of labels) {
+        const y = Math.max(label.baseline, floor);
+        floor = y + 18;
+        if (Math.abs(y - label.y) > 4) {
+          ctx.strokeStyle = '#aeb9c7';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(label.x + 2, label.y);
+          ctx.lineTo(label.x + 8, y);
+          ctx.stroke();
+        }
+        ctx.font = (label.threshold ? '500 11px' : '650 12px') + ' system-ui, sans-serif';
+        ctx.fillStyle = label.ink;
+        ctx.fillText(label.text, label.x + 11, y);
+      }
+      ctx.restore();
+    },
+  };
+
+  function trendSummary(points, period) {
+    const disk = points.filter(point => point.disk !== null);
+    const readings = disk.length ? disk : points.filter(point => point.mem !== null);
+    if (!readings.length) return '所选时段没有内存或磁盘样本。';
+    const key = disk.length ? 'disk' : 'mem';
+    const name = disk.length ? '磁盘' : '内存';
+    const first = readings[0][key], last = readings.at(-1)[key];
+    const trend = readings.length === 1 ? `${name}仅采到一笔，使用率为 ${percentLabel(last)}`
+      : first === last ? `${name}在所选 ${periodNames[period]}的首末读数都是 ${percentLabel(last)}`
+        : `${name}在所选 ${periodNames[period]}内从 ${percentLabel(first)} ${last > first ? '升' : '降'}到 ${percentLabel(last)}`;
+    return trend + (disk.length && last >= diskClean ? '，最新读数已达自愈清理线。' : '。');
+  }
 
   function showHistory() {
-    const history = state.history, epoch = state.epoch, period = state.period;
-    const points = history && epoch ? D.plot(history, period, epoch) : [];
+    const {history, epoch, period, snapshot} = state;
+    const points = history && epoch ? D.plot(history, period, epoch, snapshot) : [];
     dailyRows = history && epoch ? D.daily(history, period, epoch) : [];
+    if (snapshot) dailyRows.unshift(D.currentRow(snapshot));
     dailyTable.setRows(dailyRows);
     $('#history-csv').disabled = !dailyRows.length;
-    const selectable = points.some(point => ['mem', 'disk', 'load'].some(key => point[key] != null));
-    $('#history-empty').hidden = selectable && Boolean(window.Chart);
-    if (selectable && !window.Chart) text('#history-empty', '图表组件未加载。历史数据可在下方查看。');
-    const label = {1: '分钟采样', 7: '小时档', 30: '日档'}[period];
-    const time = period === 30 ? '30 天负载取同日可用样本峰值。' : period === 7 ? '小时档负载为小时峰值。' : '负载为 15 分钟均载读数。';
     text('#history-summary', history && epoch
-      ? `${label} · 数据截至 ${stamp(epoch)}。 ${time} 图上点选可按日期筛选下表。${state.historyEmbedded ? ' 备用来源为运行快照内的历史。' : ''}`
+      ? trendSummary(points, period)
       : '历史文件取数失败。可刷新重试。');
+    const sampling = {1: '10 分钟平均', 7: '小时采样', 30: '按日取最后读数'}[period];
+    const drawable = points.length > 1 && points[0].t < points.at(-1).t && Boolean(window.Chart);
+    text('#history-context', points.length
+      ? [`悉尼时间 · ${sampling}`, drawable ? '点选可筛选下方日期' : '', state.historyEmbedded ? '来源为运行快照内的历史' : ''].filter(Boolean).join(' · ')
+      : '');
+    $('#history-chart').parentElement.hidden = !drawable;
+    $('#history-empty').hidden = drawable || !points.length;
+    if (!drawable && points.length) text('#history-empty', window.Chart
+      ? '样本不足以绘制趋势。下表可查看已有读数。'
+      : '图表组件未加载。下表可查看已有读数。');
+    clearTip();
     historyChart?.destroy();
-    if (!selectable || !window.Chart) return;
-    const datasets = Object.keys(labels).map((key) => ({
-      label: labels[key], data: points.map(point => ({x: point.t, y: point[key]})),
-      yAxisID: key === 'load' ? 'load' : 'pct', borderColor: palette[key], backgroundColor: palette[key],
-      borderWidth: 1.8, pointRadius: period === 30 ? 2 : 0, pointHoverRadius: 4,
-      pointHitRadius: 16, spanGaps: false,
+    if (!drawable) return;
+    const datasets = resourceSeries.map(({key, name, stroke}) => ({
+      label: name, data: points.map(point => ({x: point.t, y: point[key]})),
+      borderColor: stroke, backgroundColor: stroke, borderWidth: 2.5,
+      cubicInterpolationMode: 'monotone', fill: false, spanGaps: false, pointRadius: 0,
+      pointHoverRadius: 4, pointHoverBackgroundColor: stroke, pointHoverBorderColor: '#fff', pointHoverBorderWidth: 1.5,
     }));
+    const tickColor = '#54657e';
     historyChart = new Chart($('#history-chart'), {
-      type: 'line', data: {datasets}, options: {
+      type: 'line', data: {datasets}, plugins: [historyAnnotations], options: {
         parsing: false, normalized: true, animation: false, maintainAspectRatio: false, devicePixelRatio: canvasRate,
-        interaction: {intersect: false, mode: 'index', axis: 'x'},
-        layout: {padding: {left: 1, right: 1}},
+        interaction: {intersect: false, mode: 'resourcePoint'},
+        layout: {padding: {top: 4, right: 107}},
         scales: {
-          x: {type: 'linear', ticks: {maxTicksLimit: 6, maxRotation: 0, color: '#475970',
-            callback: epoch => period === 1 ? D.clock(epoch)
-              : period === 30 ? new Date(epoch * 1000).toISOString().slice(5, 10) : D.day(epoch).slice(5)},
-          grid: {display: false}},
-          pct: {min: 0, max: 100, ticks: {maxTicksLimit: 5, color: '#475970', callback: value => value + '%'}},
-          load: {min: 0, position: 'right', ticks: {maxTicksLimit: 5, color: '#875205'}, grid: {drawOnChartArea: false}},
+          x: {
+            type: 'linear', min: points[0].t, max: points.at(-1).t, offset: false,
+            afterBuildTicks(scale) {
+              const count = scale.chart.width < 450 ? 4 : 5;
+              scale.ticks = Array.from({length: count}, (_, i) =>
+                ({value: Math.round(scale.min + (scale.max - scale.min) * i / (count - 1))}));
+            },
+            ticks: {autoSkip: false, align: 'inner', maxRotation: 0, padding: 9, color: tickColor,
+              callback: epoch => period === 1 ? D.clock(epoch)
+                : period === 30 ? new Date(epoch * 1000).toISOString().slice(5, 10) : D.day(epoch).slice(5)},
+            grid: {display: false}, border: {display: false},
+          },
+          y: {
+            min: 0, max: 100,
+            ticks: {stepSize: 50, padding: 9, color: tickColor, callback: value => value + '%'},
+            grid: {color: '#e5e7eb', drawTicks: false}, border: {display: false},
+          },
         },
         plugins: {legend: {display: false}, tooltip: {enabled: false, external: context => {
           const picked = context.tooltip.dataPoints?.[0];
           if (!picked) { clearTip(); return; }
           const point = points[picked.dataIndex];
           liquidTip(context, [period === 30 ? point.date + ' · 悉尼' : stamp(point.t),
-            `内存 ${fmt(point.mem, '%', 1)} · 磁盘 ${fmt(point.disk, '%', 1)}`,
-            `负载 ${fmt(point.load, '', 2)} · ${point.source}`]);
+            `${picked.dataset.label} ${percentLabel(picked.parsed.y)}`, point.source]);
         }}},
         onClick: (_event, elements) => {
           if (elements.length) dailyTable.pick(points[elements[0].index].date);
@@ -381,9 +480,6 @@
       {group: '运行采集', from: '主采集器 · 主机样本', file: 'history.json', url: '/data/history.json', section: '历史曲线、每日表',
         schedule: '每分钟采样', at: historyAt, retention: '分钟 1,440 点 · 小时 744 点 · 旧日档不限期 · 悉尼日统计 31 天',
         source: '主采集器的留存逻辑'},
-      {group: '运行采集', from: '运行快照 + 主机历史', file: 'lock.json', url: '/data/lock.json', section: '锁屏小组件、主屏网页',
-        schedule: '随主采集器', at: state.lock?.updated_epoch, retention: '当前读数与最近 7 个悉尼日',
-        source: '锁屏文件内的采样时间'},
       {group: '运行采集', from: 'GitHub 采集器', file: 'github_public.json', url: '/data/github_public.json', section: '旧版 GitHub、待处理事项中的 CI',
         schedule: '快采每分钟 · 流量每 15 分钟 · 深采每小时', at: snapshot?.github?.collected_epoch,
         retention: '公开文件覆盖上一次', source: 'linze-github.cron 与运行快照'},
@@ -448,27 +544,6 @@
       .concat((sub?.retired || []).map(row => ({...row, date: row.retired, kind: '已退役', note: '退出续费跟踪'}))));
     text('#renew-summary', sub ? `${series.length} 条有跟踪日期，${sub.blind?.length || 0} 条缺日期。天数距快照的悉尼日。`
       : '订阅账无数据。');
-    renewalChart?.destroy();
-    const plotted = series.filter(row => row.days !== null);
-    $('#renew-empty').hidden = Boolean(window.Chart && plotted.length);
-    if (!window.Chart || !plotted.length) return;
-    renewalChart = new Chart($('#renew-chart'), {
-      type: 'bar', data: {labels: plotted.map(row => row.name),
-        datasets: [{data: plotted.map(row => row.days),
-          backgroundColor: plotted.map(row => row.tone === 'bad' ? '#ae3048' : row.tone === 'warn' ? '#aa680d' : '#2663b6'),
-          borderRadius: 3, maxBarThickness: 26}]},
-      options: {indexAxis: 'y', maintainAspectRatio: false, animation: false, devicePixelRatio: canvasRate,
-        interaction: {intersect: false, axis: 'y', mode: 'nearest'},
-        scales: {x: {beginAtZero: true, ticks: {callback: value => value + ' 天', maxTicksLimit: 6, color: '#475970'}},
-          y: {grid: {display: false}, ticks: {color: '#475970', callback: (_value, index) => plotted[index].name.length > 15
-            ? plotted[index].name.slice(0, 14) + '…' : plotted[index].name}}},
-        plugins: {legend: {display: false}, tooltip: {enabled: false, external: context => {
-          const row = plotted[context.tooltip.dataPoints?.[0]?.dataIndex];
-          liquidTip(context, row ? [row.name, `${row.kind} ${row.date} · ${row.days} 天`, '来源：订阅账（snapshot.json）'] : []);
-        }}},
-        onClick: (_event, elements) => { if (elements.length) renewTable.pick(plotted[elements[0].index].name); },
-      },
-    });
   }
 
   const overview = '/legacy.html#/';
@@ -480,7 +555,7 @@
   const moved = (name, where, href, why) => ({name, where, href, why, state: '新版已承接', tone: 'good'});
   const old = (name, href, why) => ({name, where: '旧版', href, why, state: '暂留旧版', tone: 'warn'});
   const compare = [
-    moved('需要你处理的事', '现在', '#h-attention', '沿用严重度和快照告警判据。'),
+    moved('待处理事项', '体检清单', '#h-attention', '沿用严重度和快照告警判据，由各线处理。'),
     moved('容量与升级', '成本与容量', '#h-capacity', '显示结论、部署余量、阈值和实测。'),
     moved('供应商', '成本与容量', '#h-vendors', '沿用供应商状态、成本、风险和健康。'),
     old('活跃度', overview, '保留一年提交与部署活动视图。'),
@@ -496,7 +571,7 @@
     old('健康趋势', flow, '保留业务格子逐日最差状态。'),
     old('项目清单', runtime, '新版组织图可查归属。各项目内存、存储和部署备份细节仍在旧版。'),
     old('本站实时访问', runtime, '保留访客、探测和页面同步分类。'),
-    moved('主机趋势', '历史', '#history', '内存、磁盘及负载覆盖 24 小时、7 天、30 天。'),
+    moved('主机趋势', '历史', '#history', '内存和磁盘有 24 小时、7 天、30 天曲线。负载和容器见历史表。'),
     old('耦合关系', runtime, '保留业务项目之间的存储与跟进关系。'),
     old('自愈引擎', runtime, '保留主自愈、元自愈及每条规则详情。'),
     old('最近动作', runtime, '保留最近自愈和部署事件。'),
@@ -544,8 +619,8 @@
     state.snapshotAlert = results[0].status === 'rejected' && state.snapshot ? ' · 刷新失败，保留上次已读快照' : '';
     state.historyEmbedded = results[1].status === 'rejected' && Boolean(state.snapshot?.history);
     if (state.historyEmbedded) state.history = state.snapshot.history;
-    const lastSample = state.history?.min?.t?.at(-1) || state.history?.hour?.t?.at(-1) || state.history?.day?.t?.at(-1);
-    state.epoch = num(lastSample ?? state.snapshot?.updated_epoch);
+    const historyEpochs = ['min', 'hour', 'day'].map(tier => num(state.history?.[tier]?.t?.at(-1)) ?? 0);
+    state.epoch = Math.max(num(state.snapshot?.updated_epoch) ?? 0, ...historyEpochs) || null;
     const metadata = $('#site-standard');
     if (state.snapshot?.updated_epoch) {
       const schema = JSON.parse(metadata.textContent);
@@ -555,8 +630,9 @@
     try {
       showCurrent();
       showHistory();
-      showOrg();
       if (results[2].status === 'fulfilled' || !graph) showArchitecture();
+      showAttention();
+      showOrg();
       showFlows();
       showCosts();
     } finally {

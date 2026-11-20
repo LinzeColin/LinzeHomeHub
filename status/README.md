@@ -10,7 +10,7 @@
 **这里就是它的唯一源码位置**（它曾被误建为独立仓 `LinzeStatus`，已整体迁入本目录，那个仓不再使用）。
 
 
-> 首页 `web/index.html` 显示资源、历史、组织归属、分层架构、访问与数据链、成本、体检和新旧对照。
+> 首页 `web/index.html` 依次显示现在、历史、架构、组织、链路、成本、体检清单和新旧对照。
 > 数据来自 `data/arch.json`、`data/snapshot.json`、`data/history.json`。
 > 新旧并行，新版逐项补齐、过网站闸后再合并（KM-需-1478）；合并前旧版不动。
 
@@ -19,19 +19,18 @@
 | 路径 | 作用 |
 |---|---|
 | `collector/arch.py` | 架构采集器，root cron **每 5 分钟**，产出 `data/arch.json`、`data/arch.mmd` |
-| `collector/collect.py` | 主采集器，主机 cron **每 1 分钟**，产出 `data/snapshot.json`、`data/history.json` 与 `data/lock.json` |
+| `collector/collect.py` | 主采集器，主机 cron **每 1 分钟**，产出 `data/snapshot.json`、`data/history.json` |
 | `collector/collect_github.py` | GitHub 工程面采集，**三层**：fast 每 1 分钟 / traffic 每 15 分钟 / deep 每小时；公开件写 `data/`，私有件写 `private/` |
 | `collector/tests/` | 机器守卫：登记治理、公开面隐私、实时访问分类 |
 | `web/` | 静态页壳（自带本地 Chart.js，不取第三方 CDN） |
-| `widget/锁屏小组件.js` | Scriptable 的锁屏矩形、锁屏圆形和主屏中号小组件 |
 | `admin/` | `/admin` 价格编辑器与私有视图，前有 Cloudflare Access，后端再自校验 JWT |
 | `deploy/` | docker-compose、nginx、自愈引擎与备份脚本、各 cron 片段 |
 | `data/prices.json` | 成本价格库，唯一人工维护项（其余全为采集产物） |
 
-## 锁屏与历史
+## 现在与历史
 
-- Safari 打开 `/lock.html`，用分享菜单「添加到主屏幕」。使用 Scriptable 时，将 `widget/锁屏小组件.js` 粘贴为新脚本，并在 iPhone 锁屏或主屏的小组件设置里选中它。刷新时间由 iOS 调度。
-- 主采集器用同一次快照写出小于等于 2 KB 的 `data/lock.json`。公开字段只含采集时刻、四项主机读数、旧版严重告警的数量以及七个悉尼日的内存和磁盘数值。没有额外的进程、密钥或 R2 操作。
+- 首页显示内存和磁盘当前用量。历史图可切换 24 小时、7 天、30 天，并标出磁盘 85% 自愈清理线。待处理事项位于体检结果下方。
+- 历史表第一行显示快照中的内存、磁盘、1 分钟均载、在跑容器和探测在线率。每日行汇总 15 分钟均载读数。
 - `history.json` 保留旧版的分钟、小时、日序列。新增 `daily_sydney` 保留最近 31 个悉尼日的观测统计。部署前的日期只展示能够从旧样本回算的读数，缺项显示「无数据」。每日探测在线率使用旧版的在线数和探测分母累计计算。
 - 异地备份主通道使用 GitHub Release。按零付费台账，整包的 R2 写入已停用。独立的 status 数据镜像按现行配置运行，源码和镜像成功时刻未随本站快照发布。
 
@@ -47,6 +46,8 @@ CI 用的是一把**受限**密钥：在主机 `authorized_keys` 里绑了
 ubuntu 在这台机器上是 NOPASSWD ALL，那等于把 root 交出去。
 
 部署后 CI 会做两级验收：主机内直连容器验内容，公网比对仓内与线上的 sha256。
+容器自检通过 `km-build` 的 `ZL00-` 前缀、架构区块和数据入口验证首页。更换产物编号无需更新自检。
+本地部署测试用模拟响应验证更换编号仍通过，缺少编号、架构区块或数据入口时失败。
 ★ **不能看状态码**：nginx 的 `try_files … /index.html` 让任何路径都返回 200，
 实测 `/this-does-not-exist-xyz` 的 digest 与 index.html 完全相同。
 
@@ -118,7 +119,7 @@ python3 status/collector/tests/test_software_registry.py
 
 ## 约定
 
-- 新版与锁屏显示悉尼时间。旧版和原有数据字段沿用原格式以保持兼容。
+- 新版显示悉尼时间。旧版和原有数据字段沿用原格式以保持兼容。
 - 采集器只读：唯一写动作是产出快照文件，不碰任何被监控对象。
 - **全套跑在云端**：采集、自愈、归档全部由主机 cron 驱动，不依赖任何本机进程、
   不占用本机内存/存储/缓存，也不依赖 agent 与 token（见 CodexProject 的零 Agent 契约）。

@@ -40,6 +40,7 @@ class OverviewTable {
     this.buttons = [...root.querySelectorAll('.th-sort')];
     this.widths = columns.map(column => column.width || 145);
     this.rowClass = options.rowClass || (() => '');
+    this.isPinned = options.isPinned || (() => false);
     this.empty = options.empty || '无数据';
     this.resize();
     this.search.addEventListener('input', () => this.render());
@@ -117,6 +118,8 @@ class OverviewTable {
     if (this.sort !== null) {
       const column = columns[this.sort];
       view.sort((a, b) => {
+        const pinnedFirst = Number(this.isPinned(b)) - Number(this.isPinned(a));
+        if (pinnedFirst) return pinnedFirst;
         const first = value(column, a), second = value(column, b);
         if (first == null) return second == null ? 0 : 1;
         if (second == null) return -1;
