@@ -129,21 +129,38 @@
 
   function showCurrent() {
     const snap = state.snapshot, host = snap?.host || {};
-    const mem = D.percent(host.mem_pct), disk = D.percent(host.disk_pct);
+    const disks = Array.isArray(host.disks) ? host.disks : [];
+    const multi = disks.length > 1;
+    const mem = D.percent(host.mem_pct);
+    // 磁盘大数字按两盘合计（Owner 11-23）；系统盘单独超 85% 只在分盘行里提示，不顶替总数。
+    const disk = D.percent(multi ? host.disk_all_pct : host.disk_pct);
     const memTone = mem >= 90 ? 'warn' : '';
     const diskTone = disk >= diskClean ? 'bad' : disk >= 75 ? 'warn' : '';
     meter('mem', mem, '%', memTone ? '需关注 · 已达 90%' : '使用率 · 90% 提醒', memTone);
-    meter('disk', disk, '%', (diskTone === 'bad' ? '已达自愈阈值 · ' : diskTone === 'warn' ? '偏高 · ' : '') + gb(host.disk_used_b), diskTone);
-    // 每块盘一行：系统盘、附加盘分开看（Owner 11-20）。只有一块盘时不加。
+    const diskNote = multi
+      ? `${disks.length} 块盘合计 · 已用 ${gb(host.disk_all_used_b)} / ${gb(host.disk_all_total_b)}`
+      : `已用 ${gb(host.disk_used_b)}`;
+    meter('disk', disk, '%', (diskTone === 'bad' ? '已达自愈阈值 · ' : diskTone === 'warn' ? '偏高 · ' : '') + diskNote, diskTone, multi ? 1 : 0);
     const diskBox = document.querySelector('[data-metric="disk"]');
     if (diskBox) {
       let list = diskBox.querySelector('.disk-list');
-      const disks = Array.isArray(host.disks) ? host.disks : [];
-      if (disks.length > 1) {
+      if (multi) {
         if (!list) { list = document.createElement('ul'); list.className = 'disk-list'; diskBox.appendChild(list); }
-        list.innerHTML = disks.map(d => `<li><span>${esc(d.role)} ${esc(d.mount)}</span><b>${esc(fmt(d.pct, '%', 1))}</b><small>${esc(gb(d.used_b))} / ${esc(gb(d.total_b))}</small></li>`).join('')
-          + `<li class="disk-sum"><span>两盘合计</span><b>${esc(fmt(host.disk_all_pct, '%', 1))}</b><small>${esc(gb(host.disk_all_used_b))} / ${esc(gb(host.disk_all_total_b))}</small></li>`;
+        list.innerHTML = disks.map(d => {
+          const pct = D.percent(d.pct);
+          const tone = pct >= diskClean ? 'bad' : pct >= 75 ? 'warn' : '';
+          const hint = d.role === '系统盘' && pct >= diskClean ? '<em>该搬目录到附加盘</em>' : '';
+          return `<li data-tone="${tone}"><span>${esc(d.role)} <code>${esc(d.mount)}</code>${hint}</span><b>${esc(fmt(d.pct, '%', 1))}</b>`
+            + `<i class="mini-bar" aria-hidden="true"><span style="width:${Math.min(100, pct ?? 0)}%"></span></i>`
+            + `<small>${esc(gb(d.used_b))} / ${esc(gb(d.total_b))}</small></li>`;
+        }).join('');
       } else if (list) list.remove();
+    }
+    const live = $('#live-state');
+    if (live) {
+      const stale = !snap || snapshotStale(snap);
+      live.dataset.tone = stale ? 'warn' : 'good';
+      live.textContent = !snap ? '取数失败' : stale ? '采集超时' : '实时 · 每分钟采集';
     }
     text('#snapshot-time', snap
       ? `VPS-3 · ${D.day(snap.updated_epoch)} ${D.clock(snap.updated_epoch)} 悉尼${state.snapshotAlert || (snapshotStale(snap) ? ' · 采集已超过 3 分钟' : '')}`
@@ -160,6 +177,35 @@
     {key: 'diskX', name: '附加盘', stroke: '#0f766e', ink: '#0b5c56'},
     {key: 'diskAll', name: '两盘合计', stroke: '#7c3aed', ink: '#6024c9'},
   ];
+  // 点图例名称显示或隐藏那条线（Owner 11-23），记在本机，下次打开还是这样。
+  const hiddenSeries = new Set();
+  try { JSON.parse(localStorage.getItem('status-hidden-series') || '[]').forEach(key => hiddenSeries.add(key)); } catch {}
+  const saveHidden = () => { try { localStorage.setItem('status-hidden-series', JSON.stringify([...hiddenSeries])); } catch {} };
+  function renderLegend(points) {
+    const box = $('#history-legend');
+    if (!box) return;
+    box.innerHTML = resourceSeries.map(({key, name, stroke}) => {
+      const values = points.filter(p => p[key] != null);
+      const last = values.at(-1)?.[key];
+      const on = !hiddenSeries.has(key);
+      return `<button type="button" class="legend-chip" data-series="${key}" aria-pressed="${on}" style="--swatch:${stroke}">`
+        + `<span class="swatch" aria-hidden="true"></span><span>${esc(name)}</span>`
+        + `<b>${values.length ? esc(percentLabel(last)) : '暂无读数'}</b></button>`;
+    }).join('');
+  }
+  $('#history-legend')?.addEventListener('click', event => {
+    const chip = event.target.closest('[data-series]');
+    if (!chip || !historyChart) return;
+    const key = chip.dataset.series;
+    const index = historyChart.data.datasets.findIndex(set => set.key === key);
+    if (index < 0) return;
+    const on = !historyChart.isDatasetVisible(index);
+    historyChart.setDatasetVisibility(index, on);
+    if (on) hiddenSeries.delete(key); else hiddenSeries.add(key);
+    saveHidden();
+    chip.setAttribute('aria-pressed', String(on));
+    historyChart.update();
+  });
   const periodNames = {1: '24 小时', 7: '7 天', 30: '30 天'};
   const percentLabel = value => fmt(value, '%', Number.isInteger(value) ? 0 : 1);
   const graphTip = $('#tip');
@@ -199,12 +245,8 @@
     },
     afterDatasetsDraw(chart) {
       const {ctx, chartArea, scales} = chart;
-      const labels = chart.data.datasets.flatMap((dataset, i) => {
-        const last = dataset.data.findLastIndex(point => point.y !== null);
-        if (last < 0) return [];
-        const {x, y} = chart.getDatasetMeta(i).data[last];
-        return [{x, y, text: `${dataset.label} ${percentLabel(dataset.data[last].y)}`, ink: dataset.ink}];
-      });
+      // 各线的最新读数已经在图例上，线尾只标自愈清理线，免得文字挤在一起（Owner 11-23）。
+      const labels = [];
       labels.push({x: chartArea.right, y: scales.y.getPixelForValue(diskClean),
         text: `自愈清理线 ${diskClean}%`, ink: '#536174', threshold: true});
       labels.sort((a, b) => a.y - b.y);
@@ -238,11 +280,14 @@
   };
 
   function trendSummary(points, period) {
-    const disk = points.filter(point => point.disk !== null);
+    // 有两盘合计读数就按合计说（Owner 11-23：磁盘看合计），否则按系统盘，再否则按内存。
+    const all = points.filter(point => point.diskAll != null);
+    const sys = points.filter(point => point.disk !== null);
+    const disk = all.length > 1 ? all : sys;
     const readings = disk.length ? disk : points.filter(point => point.mem !== null);
     if (!readings.length) return '所选时段没有内存或磁盘样本。';
-    const key = disk.length ? 'disk' : 'mem';
-    const name = disk.length ? '磁盘' : '内存';
+    const key = disk === all && all.length > 1 ? 'diskAll' : disk.length ? 'disk' : 'mem';
+    const name = {diskAll: '两盘合计', disk: '系统盘', mem: '内存'}[key];
     const first = readings[0][key], last = readings.at(-1)[key];
     const trend = readings.length === 1 ? `${name}仅采到一笔，使用率为 ${percentLabel(last)}`
       : first === last ? `${name}在所选 ${periodNames[period]}的首末读数都是 ${percentLabel(last)}`
@@ -273,9 +318,11 @@
     $('#history-chart').hidden = !drawable;
     clearTip();
     historyChart?.destroy();
-    if (!drawable) return;
-    // 附加盘、合计只在有读数时画（11-20 加盘前的时段只有系统盘）
-    const datasets = resourceSeries.filter(({key}) => key === 'mem' || key === 'disk' || points.some(p => p[key] != null)).map(({key, name, stroke, ink}) => ({
+    historyChart = null;
+    if (!drawable) { renderLegend(points); return; }
+    // 四条线都画：附加盘、两盘合计 11-20 加盘前没有读数，那段留空（Owner 11-23）。
+    const datasets = resourceSeries.map(({key, name, stroke, ink}) => ({
+      key, hidden: hiddenSeries.has(key),
       label: name, ink, data: points.map(point => ({x: point.t, y: point[key] ?? null})),
       borderColor: stroke, backgroundColor: stroke, borderWidth: 2.5,
       cubicInterpolationMode: 'monotone', fill: false, spanGaps: false, pointRadius: 0,
@@ -287,7 +334,7 @@
       type: 'line', data: {datasets}, plugins: [historyAnnotations], options: {
         parsing: false, normalized: true, animation: false, maintainAspectRatio: false, devicePixelRatio: canvasRate,
         interaction: {intersect: false, mode: 'resourcePoint'},
-        layout: {padding: {top: 4, right: narrowChart ? 125 : 142}},
+        layout: {padding: {top: 4, right: narrowChart ? 104 : 122}},
         scales: {
           x: {
             type: 'linear', min: points[0].t, max: points.at(-1).t, offset: false,
@@ -311,8 +358,11 @@
           const picked = context.tooltip.dataPoints?.[0];
           if (!picked) { clearTip(); return; }
           const point = points[picked.dataIndex];
-          liquidTip(context, [period === 30 ? point.date + ' · 悉尼' : stamp(point.t),
-            `${picked.dataset.label} ${percentLabel(picked.parsed.y)}`, point.source]);
+          const chart = context.chart;
+          const rows = chart.data.datasets
+            .filter((set, i) => chart.isDatasetVisible(i) && point[set.key] != null)
+            .map(set => `${set.label} ${percentLabel(point[set.key])}`);
+          liquidTip(context, [period === 30 ? point.date + ' · 悉尼' : stamp(point.t), ...rows, point.source].filter(Boolean));
         }}},
         onClick: (_event, elements) => {
           if (!elements.length) return;
@@ -322,6 +372,7 @@
         },
       },
     });
+    renderLegend(points);
   }
 
   function setHistoryLink(date = requestedDate) {
@@ -396,7 +447,7 @@
       return;
     }
     const active = arch.counts || {};
-    text('#arch-summary', `${arch.nodes.length} 个节点 · ${arch.edges.length} 条连线 · ${active['隧道'] ?? noData} 条在用隧道 · ${stamp(arch.generated_epoch)}（悉尼）`);
+    text('#arch-summary', `${arch.nodes.length} 个节点 · ${arch.edges.length} 条连线 · ${active['隧道'] ?? noData} 条在用隧道 · ${stamp(arch.generated_epoch)}`);
     const inventoryLink = $('#graph-inventory');
     graph?.dispose();
     graph = mountArchitecture(arch, node => {

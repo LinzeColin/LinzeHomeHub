@@ -3147,6 +3147,21 @@ def project_graph(projects, gh):
     }
 
 
+def sync_extra_columns(tier, extra_v, grew):
+    """合计、附加盘两列跟 t 对齐。
+    ★ t 新增一格时必须先追加本次读数再对齐：旧写法只改最后一格，
+      t 满 1440/744 后列不再前移，11-20 起历史里这两列始终只有 1 个读数，图上画不出线（Owner 11-23）。"""
+    for k, v in extra_v.items():
+        arr = tier.setdefault(k, [])
+        if grew or not arr:
+            arr.append(v)
+        else:
+            arr[-1] = v
+        while len(arr) < len(tier["t"]):
+            arr.insert(0, None)
+        del arr[:len(arr) - len(tier["t"])]
+
+
 def main():
     os.makedirs(DATA_DIR, exist_ok=True)
     prev = load_json(os.path.join(DATA_DIR, "snapshot.json"), {})
@@ -3172,23 +3187,15 @@ def main():
     load_v = overview.number(host.get("load15"))
     extra_v = {"disk_all": host.get("disk_all_pct"), "disk_x": host.get("disk_x_pct")}
 
-    def _sync_extra(tier):
-        """合计、附加盘两列跟 t 对齐：旧档左侧补 None，最后一格写本次读数。"""
-        for k, v in extra_v.items():
-            arr = tier.setdefault(k, [])
-            while len(arr) < len(tier["t"]):
-                arr.insert(0, None)
-            del arr[:len(arr) - len(tier["t"])]
-            if arr:
-                arr[-1] = v
     m = hist["min"]
     m["t"].append(ep); m["mem"].append(mem_v); m["disk"].append(disk_v); m["load"].append(load_v)
     for k in ("t", "mem", "disk", "load"):
         m[k] = m[k][-1440:]                      # 24h @ 1min
-    _sync_extra(m)
+    sync_extra_columns(m, extra_v, True)
     h = hist["hour"]
     cur_hour = ep - (ep % 3600)
-    if not h["t"] or h["t"][-1] != cur_hour:
+    hour_grew = not h["t"] or h["t"][-1] != cur_hour
+    if hour_grew:
         h["t"].append(cur_hour); h["mem"].append(mem_v); h["disk"].append(disk_v); h["load"].append(load_v)
     else:
         h["mem"][-1] = mem_v; h["disk"][-1] = disk_v
@@ -3196,14 +3203,15 @@ def main():
         h["load"][-1] = max(candidates, default=None)   # 小时桶取峰值,不掩盖高负载
     for k in ("t", "mem", "disk", "load"):
         h[k] = h[k][-744:]                       # 31 天 @ 1hour
-    _sync_extra(h)
+    sync_extra_columns(h, extra_v, hour_grew)
     d = hist["day"]
     cur_day = ep - (ep % 86400)
-    if not d["t"] or d["t"][-1] != cur_day:
+    day_grew = not d["t"] or d["t"][-1] != cur_day
+    if day_grew:
         d["t"].append(cur_day); d["mem"].append(mem_v); d["disk"].append(disk_v)
     else:
         d["mem"][-1] = mem_v; d["disk"][-1] = disk_v
-    _sync_extra(d)
+    sync_extra_columns(d, extra_v, day_grew)
     # 天级别**不设上限**:一天一个点,永久保留(无期限)
     projects, online = projects_live()
     # 把实测的内存/存储挂到每个项目上 —— 光有全机 mem_pct 没法回答"该搬谁"

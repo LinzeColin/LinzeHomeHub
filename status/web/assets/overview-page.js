@@ -59,7 +59,7 @@ const OverviewPage = (() => {
     main.replaceChildren(template ? template.content.cloneNode(true) : records, main.querySelector('footer'));
     document.body.dataset.detailView = view;
     document.title = main.querySelector('h1').textContent;
-    $('#check-link').removeAttribute('aria-current');
+    $('#check-link')?.removeAttribute('aria-current');
     const links = $$('main [data-directory]').map(section => {
       const item = document.createElement('li');
       const link = document.createElement('a');
@@ -147,12 +147,15 @@ const OverviewPage = (() => {
         heading.before(line);
         line.append(heading);
       }
-      const link = document.createElement('a');
-      link.href = '#top';
-      link.className = 'to-top';
-      link.textContent = '回到顶部';
-      line.append(link);
     });
+    // 只留一个悬浮「回到顶部」，滚过大半屏才出现（Owner 11-23：每块都挂一个，像半成品）。
+    const floatTop = $('#float-top');
+    if (floatTop) {
+      const showTop = () => { floatTop.hidden = scrollY < Math.max(innerHeight, 480) * 0.8; };
+      addEventListener('scroll', showTop, {passive: true});
+      addEventListener('resize', showTop);
+      showTop();
+    }
     const setDrawer = (open, restore = false) => {
       drawerOpen = open;
       document.body.classList.toggle('nav-open', open);
@@ -176,7 +179,7 @@ const OverviewPage = (() => {
     openButton.addEventListener('click', () => setDrawer(!drawerOpen));
     overlay.addEventListener('click', () => setDrawer(false, true));
     handheld.addEventListener('change', () => setDrawer(false));
-    $('#go-back').addEventListener('click', () => {
+    $('#go-back')?.addEventListener('click', () => {
       if (drawerOpen) setDrawer(false);
       if (history.length > 1) history.back();
       else if (location.pathname !== '/') location.assign('/');

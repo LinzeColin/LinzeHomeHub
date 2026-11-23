@@ -80,6 +80,7 @@ esac
             (self.index.replace("/data/arch.json", "/data/missing.json"), "首页缺少 arch 数据入口"),
             (self.index.replace("/data/history.json", "/data/missing.json"), "首页缺少 history 数据入口"),
             (self.index.replace('href="/check.html#health"', 'href="/unavailable.html"'), "首页缺少体检入口"),
+            (self.index.replace('data-km-topbar>', 'data-km-topbar><button id="go-back">', 1), "首页不该有返回"),
         )
         for index, error in cases:
             with self.subTest(error=error):

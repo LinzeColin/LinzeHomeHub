@@ -184,10 +184,29 @@ const OverviewInventory = (() => {
       board.append(card);
       return [key, table(card.querySelector('.table-slot'), name, columns, label, pluck(filter))];
     }));
+    // 八张表一排横向排开、每张够宽（Owner 11-23：四张窄表挤在一起像半成品）。
+    // 网站基座 1.2 不许拆页签、首页限 3 屏，所以不收起、不竖排，改横排加左右按钮。
+    const step = direction => {
+      const card = board.querySelector('.inventory-card');
+      board.scrollBy({left: direction * ((card?.offsetWidth || 600) + 16), behavior: 'smooth'});
+    };
+    const updateArrows = () => {
+      const max = board.scrollWidth - board.clientWidth - 2;
+      const prev = $('#tables-prev'), next = $('#tables-next');
+      if (prev) prev.disabled = board.scrollLeft <= 2;
+      if (next) next.disabled = board.scrollLeft >= max;
+    };
+    $('#tables-prev')?.addEventListener('click', () => step(-1));
+    $('#tables-next')?.addEventListener('click', () => step(1));
+    board.addEventListener('scroll', updateArrows, {passive: true});
+    addEventListener('resize', updateArrows);
     $('#service-map').addEventListener('click', event => {
       const control = event.target.closest('[data-service-group]');
-      if (control) tables.get('services').pick(control.dataset.serviceGroup, false);
+      if (!control) return;
+      board.scrollTo({left: 0, behavior: 'smooth'});
+      tables.get('services').pick(control.dataset.serviceGroup, false);
     });
+    requestAnimationFrame(updateArrows);
     return (arch, snapshot) => {
       const rows = inventory(arch, snapshot);
       for (const [key, table] of tables) table.setRows(rows[key]);
