@@ -8,10 +8,6 @@ const OverviewData = (() => {
   const clockFormat = new Intl.DateTimeFormat('en-GB', {
     timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
   });
-  const dates = new Intl.DateTimeFormat('zh-CN', {
-    timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short',
-  });
 
   function num(value) {
     if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return null;
@@ -35,7 +31,8 @@ const OverviewData = (() => {
 
   const day = epoch => dayFormat.format(new Date(epoch * 1000));
   const clock = epoch => clockFormat.format(new Date(epoch * 1000));
-  const stamp = epoch => num(epoch) > 0 ? dates.format(new Date(epoch * 1000)) : noData;
+  // 全站统一写成「2026-11-23 17:15 悉尼」，不出现 GMT+11 这种机器格式（Owner 11-23 嫌像半成品）。
+  const stamp = epoch => num(epoch) > 0 ? `${day(epoch)} ${clock(epoch)} 悉尼` : noData;
 
   function sourceEpoch(value, offset = '+08:00') {
     if (num(value) > 0) return num(value);
@@ -150,7 +147,7 @@ const OverviewData = (() => {
       diskAll: percent(host.disk_all_pct), diskAllBytes: num(host.disk_all_used_b),
       diskX: percent(host.disk_x_pct), diskXBytes: num(host.disk_x_used_b),
       containers: running(snapshot), probes: online !== null && total > 0 && online <= total ? 100 * online / total : null,
-      source: `运行快照（${stamp(snapshot.updated_epoch)} · 悉尼 · 负载为 1 分钟均载）`,
+      source: `运行快照（${stamp(snapshot.updated_epoch)} · 负载为 1 分钟均载）`,
     };
   }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="查看 VPS-3 的待处理事项、运行单元和新旧版承接情况。">
-  <meta name="km-build" content="ZL00-261120-38">
+  <meta name="km-build" content="ZL00-261123-01">
   <meta name="site-version" content="0.3.0">
   <title>服务器体检清单</title>
   <link rel="icon" type="image/x-icon" href="/标志/favicon.ico" sizes="16x16 32x32 48x48">
@@ -13,40 +13,32 @@
   <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
   <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
   <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
-  <link rel="stylesheet" href="/assets/overview.css?v=925d5be1">
+  <link rel="stylesheet" href="/assets/overview.css?v=49a47f9e">
   <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
-  <script src="/assets/overview-data.js?v=17bfc48e" defer></script>
+  <script src="/assets/overview-data.js?v=90c65d3f" defer></script>
   <script src="/assets/overview-tables.js?v=b130e5d1" defer></script>
   <script src="/assets/overview-arch.js?v=a4d59c27" defer></script>
-  <script src="/assets/overview-inventory.js?v=ff413e1a" defer></script>
+  <script src="/assets/overview-inventory.js?v=198a85b3" defer></script>
   <script src="/assets/overview-records.js?v=8480a0ef" defer></script>
-  <script src="/assets/overview-page.js?v=13dc1253" defer></script>
-  <script src="/assets/overview.js?v=66c279db" defer></script>
+  <script src="/assets/overview-page.js?v=2bb6cc6f" defer></script>
+  <script src="/assets/overview.js?v=87c9e4b9" defer></script>
   <script src="/assets/overview-check.js?v=8b2ed214" defer></script>
-  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261120-38","content_kind":"dynamic"}</script>
+  <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261123-01","content_kind":"dynamic"}</script>
 </head>
 <body data-page-kind="detail">
 <a class="skip" href="#main">直达正文</a>
 <header class="top" id="top" data-km-topbar>
   <div class="top-inner">
-    <button type="button" class="secondary back-link" id="go-back">← 返回</button>
-    <a href="/" class="secondary home-link">首页</a>
     <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
-    <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
+    <a href="/" class="brand"><img src="/标志/status-64.png" alt="" width="28" height="28"><span class="brand-name">服务器运行总览</span></a>
+    <button type="button" class="secondary back-link" id="go-back">← 返回</button>
     <nav class="top-links" aria-label="补充入口">
       <ul>
-        <li><a href="/check.html#health" id="check-link" aria-current="page">体检</a></li>
-        <li><a href="/legacy.html" target="_blank" rel="noopener" aria-label="旧版（新标签页）">旧版</a></li>
+        <li><a href="/" class="secondary home-link">首页</a></li>
+        <li><a href="/check.html#health" id="check-link" aria-current="page">体检清单</a></li>
       </ul>
     </nav>
   </div>
-  <nav class="quick-links" aria-label="直达内容">
-    <a href="/check.html?view=history#history">历史</a>
-    <a href="/check.html?view=arch#arch">架构</a>
-    <a href="/check.html?view=org#org">组织</a>
-    <a href="/check.html?view=flows#routes">链路</a>
-    <a href="/#inventory">全量表格</a>
-  </nav>
 </header>
 <div class="layout">
   <aside class="rail" aria-label="页面目录" id="page-nav">
@@ -95,8 +87,9 @@
       <div id="compare-table" class="table-slot"></div>
     </section>
     <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
-    <footer class="build">ZL00-261120-38</footer>
+    <footer class="build">ZL00-261123-01</footer>
   </main>
+<a href="#top" class="float-top" id="float-top" hidden aria-label="回到顶部">↑</a>
 </div>
 
 <template data-detail="history">

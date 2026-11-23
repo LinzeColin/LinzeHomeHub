@@ -184,9 +184,32 @@ const OverviewInventory = (() => {
       board.append(card);
       return [key, table(card.querySelector('.table-slot'), name, columns, label, pluck(filter))];
     }));
+    // 一次只看一张整宽的表，上面那排表名就是切换标签（Owner 11-23：四张窄表挤在一起像半成品）。
+    const tabs = [...document.querySelectorAll('#table-tabs a[href^="#inventory-"]')];
+    board.dataset.tabbed = 'true';
+    function select(key) {
+      if (!tables.has(key)) return;
+      for (const card of board.children) card.hidden = card.dataset.inventoryCategory !== key;
+      for (const tab of tabs) {
+        if (tab.hash === '#inventory-' + key) tab.setAttribute('aria-current', 'true');
+        else tab.removeAttribute('aria-current');
+      }
+      try { sessionStorage.setItem('status-inventory-tab', key); } catch {}
+    }
+    tabs.forEach(tab => tab.addEventListener('click', () => select(tab.hash.slice('#inventory-'.length))));
+    const fromHash = location.hash.startsWith('#inventory-') ? location.hash.slice('#inventory-'.length) : '';
+    let remembered = '';
+    try { remembered = sessionStorage.getItem('status-inventory-tab') || ''; } catch {}
+    select(tables.has(fromHash) ? fromHash : tables.has(remembered) ? remembered : 'services');
+    addEventListener('hashchange', () => {
+      const key = location.hash.startsWith('#inventory-') ? location.hash.slice('#inventory-'.length) : '';
+      if (tables.has(key)) select(key);
+    });
     $('#service-map').addEventListener('click', event => {
       const control = event.target.closest('[data-service-group]');
-      if (control) tables.get('services').pick(control.dataset.serviceGroup, false);
+      if (!control) return;
+      select('services');
+      tables.get('services').pick(control.dataset.serviceGroup, false);
     });
     return (arch, snapshot) => {
       const rows = inventory(arch, snapshot);
