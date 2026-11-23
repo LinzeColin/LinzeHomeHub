@@ -13,13 +13,13 @@
   <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
   <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
   <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
-  <link rel="stylesheet" href="/assets/overview.css?v=49a47f9e">
+  <link rel="stylesheet" href="/assets/overview.css?v=db57d2cd">
   <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
   <script src="/assets/overview-data.js?v=90c65d3f" defer></script>
   <script src="/assets/overview-tables.js?v=b130e5d1" defer></script>
-  <script src="/assets/overview-inventory.js?v=198a85b3" defer></script>
+  <script src="/assets/overview-inventory.js?v=4cbc063b" defer></script>
   <script src="/assets/overview-page.js?v=2bb6cc6f" defer></script>
-  <script src="/assets/overview.js?v=87c9e4b9" defer></script>
+  <script src="/assets/overview.js?v=63d887cc" defer></script>
   <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261123-01","content_kind":"dynamic"}</script>
 </head>
 <body data-page-kind="home">
@@ -64,7 +64,7 @@
       <p class="source-line" id="snapshot-time" role="status">正在读取运行快照…</p>
       <div class="meter-panel" id="meters">
         <article class="meter" data-metric="mem"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>内存</h2></div><p class="reading">—</p><p class="reading-note">等待采集数据</p><div class="bar" aria-hidden="true"><span></span></div></article>
-        <article class="meter" data-metric="disk"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>磁盘</h2></div><p class="reading">—</p><p class="reading-note">等待采集数据</p><div class="bar" aria-hidden="true"><span></span></div></article>
+        <article class="meter" data-metric="disk"><div class="meter-title"><span class="meter-icon" aria-hidden="true"></span><h2>磁盘</h2></div><p class="reading">—</p><p class="reading-note">等待采集数据</p><div class="bar" aria-hidden="true"><span></span></div><ul class="disk-list"><li><span>系统盘</span><b>—</b><i class="mini-bar" aria-hidden="true"><span></span></i><small>读取中</small></li><li><span>附加盘</span><b>—</b><i class="mini-bar" aria-hidden="true"><span></span></i><small>读取中</small></li></ul></article>
       </div>
     </section>
 
@@ -88,7 +88,7 @@
               <p id="history-summary" aria-live="polite">正在读取内存和磁盘历史…</p>
               <p id="history-context" class="summary">悉尼时间</p>
             </div>
-            <div class="legend" id="history-legend" role="group" aria-label="点名称显示或隐藏这条线"></div>
+            <div class="legend" id="history-legend" role="group" aria-label="点名称显示或隐藏这条线"><button type="button" class="legend-chip" data-series="mem" aria-pressed="true" style="--swatch:#2563eb"><span class="swatch" aria-hidden="true"></span><span>内存</span><b>—</b></button><button type="button" class="legend-chip" data-series="disk" aria-pressed="true" style="--swatch:#d97706"><span class="swatch" aria-hidden="true"></span><span>系统盘</span><b>—</b></button><button type="button" class="legend-chip" data-series="diskX" aria-pressed="true" style="--swatch:#0f766e"><span class="swatch" aria-hidden="true"></span><span>附加盘</span><b>—</b></button><button type="button" class="legend-chip" data-series="diskAll" aria-pressed="true" style="--swatch:#7c3aed"><span class="swatch" aria-hidden="true"></span><span>两盘合计</span><b>—</b></button></div>
           </figcaption>
           <div class="chart-space"><canvas id="history-chart" role="img" aria-label="内存、磁盘使用率趋势" aria-describedby="history-summary history-context"></canvas></div>
         </figure>
@@ -103,14 +103,18 @@
     </section>
 
     <section id="inventory" aria-labelledby="h-inventory" data-km-section>
-      <div class="section-head"><h2 id="h-inventory">全量信息表格</h2></div>
-      <nav class="table-jumps" aria-label="全量表格目录" id="table-tabs">
+      <div class="section-head"><h2 id="h-inventory">全量信息表格</h2>
+        <div class="board-arrows" role="group" aria-label="左右翻表">
+          <button type="button" class="square" id="tables-prev" aria-label="上一张表">←</button>
+          <button type="button" class="square" id="tables-next" aria-label="下一张表">→</button>
+        </div></div>
+      <nav class="table-jumps" aria-label="全量表格目录">
         <a href="#inventory-services">服务</a><a href="#inventory-containers">容器</a>
         <a href="#inventory-domains">域名</a><a href="#inventory-tunnels">隧道</a>
         <a href="#inventory-databases">库</a><a href="#inventory-timers">定时任务</a>
         <a href="#inventory-cost">成本</a><a href="#inventory-attention">待处理</a>
       </nav>
-      <p class="summary" id="table-guide">点上面的表名切换。点列名排序。</p>
+      <p class="summary" id="table-guide">八张表横向排开：点表名直达，或用右上角箭头左右翻。点列名排序。</p>
       <div class="inventory-board" id="home-tables"></div>
       <nav class="record-links" aria-label="相关明细">
         <a href="/check.html?view=projects#projects">项目自愈</a>
@@ -126,7 +130,7 @@
     <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
     <footer class="build">ZL00-261123-01</footer>
   </main>
-<a href="#top" class="float-top" id="float-top" hidden aria-label="回到顶部">↑</a>
+<a href="#top" class="float-top" id="float-top" hidden aria-label="回到顶部"></a>
 </div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 </body>

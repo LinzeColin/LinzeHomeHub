@@ -13,15 +13,15 @@
   <link rel="alternate" type="application/json" href="/data/arch.json" title="架构数据">
   <link rel="alternate" type="application/json" href="/data/snapshot.json" title="运行快照">
   <link rel="alternate" type="application/json" href="/data/history.json" title="历史数据">
-  <link rel="stylesheet" href="/assets/overview.css?v=49a47f9e">
+  <link rel="stylesheet" href="/assets/overview.css?v=db57d2cd">
   <script src="/vendor/chart.umd.min.js?v=81ffafe1" defer></script>
   <script src="/assets/overview-data.js?v=90c65d3f" defer></script>
   <script src="/assets/overview-tables.js?v=b130e5d1" defer></script>
   <script src="/assets/overview-arch.js?v=a4d59c27" defer></script>
-  <script src="/assets/overview-inventory.js?v=198a85b3" defer></script>
+  <script src="/assets/overview-inventory.js?v=4cbc063b" defer></script>
   <script src="/assets/overview-records.js?v=8480a0ef" defer></script>
   <script src="/assets/overview-page.js?v=2bb6cc6f" defer></script>
-  <script src="/assets/overview.js?v=87c9e4b9" defer></script>
+  <script src="/assets/overview.js?v=63d887cc" defer></script>
   <script src="/assets/overview-check.js?v=8b2ed214" defer></script>
   <script id="site-standard" type="application/json">{"site_kind":"site","publication_kind":"自有","version":"0.3.0","artifact_id":"ZL00-261123-01","content_kind":"dynamic"}</script>
 </head>
@@ -30,7 +30,7 @@
 <header class="top" id="top" data-km-topbar>
   <div class="top-inner">
     <button type="button" id="menu-open" class="square menu-open" aria-label="打开目录" aria-controls="directory-links" aria-expanded="false"><span class="hamburger" aria-hidden="true"></span></button>
-    <a href="/" class="brand"><img src="/标志/status-64.png" alt="" width="28" height="28"><span class="brand-name">服务器运行总览</span></a>
+    <a href="/" class="brand" aria-label="服务器运行总览首页"><img src="/标志/status-64.png" alt="" width="28" height="28"></a>
     <button type="button" class="secondary back-link" id="go-back">← 返回</button>
     <nav class="top-links" aria-label="补充入口">
       <ul>
@@ -58,7 +58,7 @@
         <button type="button" class="secondary" id="refresh">刷新数据</button>
       </div>
       <p class="summary" id="health-summary">正在读取架构采样…</p>
-      <div class="health-grid" id="healthbox" role="region" aria-label="体检结果" tabindex="0"><p role="status">正在读取体检结果…</p></div>
+      <div class="health-grid" id="healthbox" role="region" aria-label="体检结果" tabindex="0"><article class="health-card"><h3>重复的公共部件</h3><p role="status">正在读取…</p><ul><li>—</li></ul></article><article class="health-card"><h3>坏掉的服务</h3><p role="status">正在读取…</p><ul><li>—</li></ul></article><article class="health-card"><h3>停用待清理</h3><p role="status">正在读取…</p><ul><li>—</li></ul></article><article class="health-card"><h3>无连线的在跑容器</h3><p role="status">正在读取…</p><ul><li>—</li></ul></article></div>
       <h3 class="subheading" id="h-attention">待处理（由各线处理）</h3>
       <p class="summary" id="attention-summary">按严重度排列。红色事项需要处理。</p>
       <p class="summary" id="table-guide">宽表可左右滑动。点列名排序，拖动箭头或按方向键调整列宽。</p>
@@ -89,7 +89,7 @@
     <noscript><p>开启 JavaScript 后可读取数据，或直接查看运行快照和历史文件。</p></noscript>
     <footer class="build">ZL00-261123-01</footer>
   </main>
-<a href="#top" class="float-top" id="float-top" hidden aria-label="回到顶部">↑</a>
+<a href="#top" class="float-top" id="float-top" hidden aria-label="回到顶部"></a>
 </div>
 
 <template data-detail="history">

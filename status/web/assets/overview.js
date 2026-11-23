@@ -184,8 +184,6 @@
   function renderLegend(points) {
     const box = $('#history-legend');
     if (!box) return;
-    box.hidden = !historyChart;
-    if (!historyChart) return;
     box.innerHTML = resourceSeries.map(({key, name, stroke}) => {
       const values = points.filter(p => p[key] != null);
       const last = values.at(-1)?.[key];
