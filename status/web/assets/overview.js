@@ -290,7 +290,7 @@
     const name = {diskAll: '两盘合计', disk: '系统盘', mem: '内存'}[key];
     const first = readings[0][key], last = readings.at(-1)[key];
     const trend = readings.length === 1 ? `${name}仅采到一笔，使用率为 ${percentLabel(last)}`
-      : first === last ? `${name}在所选 ${periodNames[period]}的首末读数都是 ${percentLabel(last)}`
+      : percentLabel(first) === percentLabel(last) ? `${name}在所选 ${periodNames[period]}的首末读数都是 ${percentLabel(last)}`
         : `${name}在所选 ${periodNames[period]}内从 ${percentLabel(first)} ${last > first ? '升' : '降'}到 ${percentLabel(last)}`;
     return trend + (disk.length && last >= diskClean ? '，最新读数已达自愈清理线。' : '。');
   }
